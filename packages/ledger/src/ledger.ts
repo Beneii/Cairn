@@ -1,0 +1,85 @@
+import { readFile, writeFile, mkdir } from "fs/promises";
+import { existsSync } from "fs";
+import { join } from "path";
+import type { LedgerEntry, LedgerEntryType, LogType } from "@cairn/shared";
+import { newId, now, hashString, bus } from "@cairn/shared";
+
+const DATA_DIR = join(process.cwd(), "data", "ledger");
+const LEDGER_FILE = join(DATA_DIR, "ledger.json");
+
+let entries: LedgerEntry[] = [];
+let sequence = 0;
+
+export async function initLedger(): Promise<void> {
+  await mkdir(DATA_DIR, { recursive: true });
+  if (existsSync(LEDGER_FILE)) {
+    const raw = await readFile(LEDGER_FILE, "utf-8");
+    entries = JSON.parse(raw);
+    sequence = entries.length;
+  }
+}
+
+export async function appendEntry(
+  type: LedgerEntryType,
+  node: string,
+  jobId: string,
+  content: string,
+  metadata?: Record<string, unknown>,
+): Promise<LedgerEntry> {
+  const prevHash =
+    entries.length > 0 ? entries[entries.length - 1].hash : "genesis";
+
+  const entry: LedgerEntry = {
+    id: newId(),
+    sequence: sequence++,
+    timestamp: now(),
+    type,
+    node,
+    job_id: jobId,
+    content,
+    metadata,
+    prev_hash: prevHash,
+    hash: "",
+  };
+
+  // Compute hash over the entry (excluding the hash field itself)
+  const { hash: _, ...hashInput } = entry;
+  entry.hash = hashString(JSON.stringify(hashInput));
+
+  entries.push(entry);
+  await persist();
+
+  // Emit as LogEntry for the UI (only for UI-compatible types)
+  const uiTypes: LogType[] = ["thought", "tool", "file", "api", "agent", "error"];
+  if (uiTypes.includes(type as LogType)) {
+    bus.emit("log:entry", {
+      id: entry.id,
+      timestamp: entry.timestamp,
+      type: type as LogType,
+      content: entry.content,
+    });
+  }
+
+  return entry;
+}
+
+export function getEntries(filter?: {
+  jobId?: string;
+  type?: string;
+}): LedgerEntry[] {
+  let result = entries;
+  if (filter?.jobId) result = result.filter((e) => e.job_id === filter.jobId);
+  if (filter?.type) result = result.filter((e) => e.type === filter.type);
+  return result;
+}
+
+export function verifyChain(): boolean {
+  for (let i = 1; i < entries.length; i++) {
+    if (entries[i].prev_hash !== entries[i - 1].hash) return false;
+  }
+  return true;
+}
+
+async function persist(): Promise<void> {
+  await writeFile(LEDGER_FILE, JSON.stringify(entries, null, 2));
+}

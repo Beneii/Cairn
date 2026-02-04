@@ -1,0 +1,37 @@
+export type NoteState = "unread" | "read";
+export type KanbanStatus = "backlog" | "active" | "blocked" | "done";
+
+export interface Note {
+  id: string;
+  content: string;
+  status: NoteState;
+  timestamp: string;
+}
+
+export interface ChatMessage {
+  id: string;
+  role: "user" | "cairn";
+  text: string;
+  timestamp: string;
+  tools?: string[]; // Collapsible tool output
+}
+
+export interface KanbanCard {
+  id: string;
+  title: string;
+  status: KanbanStatus;
+}
+
+export interface LogEntry {
+  id: string;
+  timestamp: string;
+  type: "thought" | "tool" | "file" | "api" | "agent" | "error";
+  content: string;
+}
+
+export interface SubAgent {
+  id: string;
+  name: string;
+  action: string;
+  model: string;
+}

@@ -1,0 +1,11 @@
+{
+  "name": "cairn",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm --filter @cairn/gateway dev",
+    "build": "pnpm -r build"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

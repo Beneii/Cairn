@@ -1,0 +1,20 @@
+{
+  "name": "@cairn/scheduler",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc"
+  },
+  "dependencies": {
+    "@cairn/ledger": "workspace:*",
+    "@cairn/memory": "workspace:*",
+    "@cairn/orchestrator": "workspace:*",
+    "@cairn/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^25.2.0",
+    "typescript": "^5.6.0"
+  }
+}

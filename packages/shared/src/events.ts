@@ -1,0 +1,45 @@
+import { EventEmitter } from "events";
+import type {
+  Job,
+  LogEntry,
+  ChatMessage,
+  Note,
+  NucleusState,
+  SubAgent,
+} from "./types.js";
+
+export interface CairnEvents {
+  "job:created": (job: Job) => void;
+  "job:updated": (job: Job) => void;
+  "job:completed": (job: Job) => void;
+  "job:failed": (job: Job, error: Error) => void;
+  "nucleus:state": (state: NucleusState, subAgents?: SubAgent[]) => void;
+  "log:entry": (entry: LogEntry) => void;
+  "chat:message": (message: ChatMessage) => void;
+  "note:updated": (notes: Note[]) => void;
+}
+
+class TypedEventBus {
+  private emitter = new EventEmitter();
+
+  constructor() {
+    this.emitter.setMaxListeners(50);
+  }
+
+  emit<K extends keyof CairnEvents>(
+    event: K,
+    ...args: Parameters<CairnEvents[K]>
+  ): void {
+    this.emitter.emit(event, ...args);
+  }
+
+  on<K extends keyof CairnEvents>(event: K, handler: CairnEvents[K]): void {
+    this.emitter.on(event, handler as (...args: unknown[]) => void);
+  }
+
+  off<K extends keyof CairnEvents>(event: K, handler: CairnEvents[K]): void {
+    this.emitter.off(event, handler as (...args: unknown[]) => void);
+  }
+}
+
+export const bus = new TypedEventBus();

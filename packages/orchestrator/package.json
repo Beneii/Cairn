@@ -1,0 +1,22 @@
+{
+  "name": "@cairn/orchestrator",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc"
+  },
+  "dependencies": {
+    "@cairn/executor": "workspace:*",
+    "@cairn/ledger": "workspace:*",
+    "@cairn/memory": "workspace:*",
+    "@cairn/policy": "workspace:*",
+    "@cairn/shared": "workspace:*",
+    "openai": "^4"
+  },
+  "devDependencies": {
+    "@types/node": "^25.2.0",
+    "typescript": "^5.6.0"
+  }
+}
