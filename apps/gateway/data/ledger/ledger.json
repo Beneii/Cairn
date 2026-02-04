@@ -548,5 +548,27 @@
     "content": "Heartbeat complete: {\"total_jobs\":0,\"running\":0,\"queued\":0,\"done\":0,\"failed\":0}",
     "prev_hash": "a19f13f30c419b314e0ff0ce36d2e88dd3df1d0bce3e012c4f951db12643142e",
     "hash": "e1be26d9ea43a441f82ae0c8aab4f92c88c1cfe80acd1d5bce697934afb2e52e"
+  },
+  {
+    "id": "4e16398b-8bda-4fd6-a8c1-26df8ad3dc88",
+    "sequence": 50,
+    "timestamp": "2026-02-04T10:39:45.810Z",
+    "type": "agent",
+    "node": "scheduler",
+    "job_id": "heartbeat",
+    "content": "Heartbeat started",
+    "prev_hash": "e1be26d9ea43a441f82ae0c8aab4f92c88c1cfe80acd1d5bce697934afb2e52e",
+    "hash": "a95864ca267e7d81c15d496a63a5a57811ba2be294e161767d1705abac6ea733"
+  },
+  {
+    "id": "9693b600-4ad5-49ec-bc8d-a8dc5544ad6a",
+    "sequence": 51,
+    "timestamp": "2026-02-04T10:39:45.814Z",
+    "type": "agent",
+    "node": "scheduler",
+    "job_id": "heartbeat",
+    "content": "Heartbeat complete: {\"total_jobs\":0,\"running\":0,\"queued\":0,\"done\":0,\"failed\":0}",
+    "prev_hash": "a95864ca267e7d81c15d496a63a5a57811ba2be294e161767d1705abac6ea733",
+    "hash": "a681532bbc78b6c9601b8a50487fa3f9bc7f2b1dba99b42624a3a5d343e2cdce"
   }
 ]
