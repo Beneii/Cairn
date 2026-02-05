@@ -91,6 +91,7 @@ export interface ChatMessage {
   text: string;
   timestamp: string;
   tools?: string[];
+  source?: "telegram" | "dashboard";
 }
 
 export type NoteStatus = "unread" | "read";
@@ -108,6 +109,9 @@ export interface KanbanCard {
   id: string;
   title: string;
   status: KanbanStatus;
+  jobId?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export type LogType = "thought" | "tool" | "file" | "api" | "agent" | "error";
@@ -117,4 +121,9 @@ export interface LogEntry {
   timestamp: string;
   type: LogType;
   content: string;
+}
+export interface SystemConfig {
+  openai_api_key?: string;
+  heartbeat_interval_ms: number;
+  monthly_spend_limit_usd: number;
 }

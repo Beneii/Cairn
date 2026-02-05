@@ -1,6 +1,14 @@
 import express from "express";
 import { createServer } from "http";
 import { WebSocketServer } from "ws";
+import fs from "fs";
+import path from "path";
+import dotenv from "dotenv";
+
+// Load environment variables from root .env
+dotenv.config({ path: path.join(process.cwd(), "../../.env") });
+// Also try local if not found or as fallback
+dotenv.config();
 import type { ClientMessage } from "@cairn/shared";
 import { bus, newId, shortTime } from "@cairn/shared";
 import { initLedger } from "@cairn/ledger";
@@ -14,7 +22,17 @@ import {
   markNoteRead,
   resurfaceNote,
 } from "./notes.js";
+import {
+  initKanban,
+  getCards,
+  createCard,
+  updateCardByJobId,
+} from "./kanban.js";
+import { setOpenAIKey, setHeartbeat, setSpendLimit, setTelegramToken, setTelegramAdminChatId, getSystemConfig } from "./config.js";
 import { setupBroadcast } from "./broadcast.js";
+import { initTelegram, isTelegramEnabled } from "./telegram.js";
+import { NODES, GRAPH_EDGES } from "@cairn/policy";
+import { recordMessageSource } from "./session-tracker.js";
 
 const PORT = process.env.PORT ?? 3100;
 
@@ -24,6 +42,7 @@ async function main() {
   await initWarmMemory();
   await initJobStore();
   await initNotes();
+  await initKanban();
 
   // LLM is opt-in. System boots without it.
   initLLM();
@@ -62,6 +81,21 @@ async function main() {
       },
     }),
   );
+  bus.on("kanban:updated", (cards) =>
+    broadcast({ type: "kanban:update", cards }),
+  );
+
+  // Auto-create kanban cards from jobs
+  bus.on("job:created", (job) => {
+    const title = job.input.length > 50 ? job.input.substring(0, 47) + "..." : job.input;
+    createCard(title, "active", job.id);
+  });
+  bus.on("job:completed", (job) => {
+    updateCardByJobId(job.id, "done");
+  });
+  bus.on("job:failed", (job) => {
+    updateCardByJobId(job.id, "blocked");
+  });
 
   // 5. Handle WebSocket connections
   wss.on("connection", (socket) => {
@@ -70,6 +104,9 @@ async function main() {
     // Send initial state
     socket.send(JSON.stringify({ type: "nucleus:state", state: "idle" }));
     socket.send(JSON.stringify({ type: "note:update", notes: getNotes() }));
+    socket.send(JSON.stringify({ type: "kanban:update", cards: getCards() }));
+    socket.send(JSON.stringify({ type: "config:update", config: getSystemConfig() }));
+    socket.send(JSON.stringify({ type: "policy:update", nodes: NODES, edges: GRAPH_EDGES }));
 
     socket.on("message", async (raw) => {
       try {
@@ -77,6 +114,9 @@ async function main() {
 
         switch (msg.type) {
           case "chat:send": {
+            // Record that user is messaging from dashboard
+            recordMessageSource("dashboard");
+
             // Echo user message to all clients
             broadcast({
               type: "chat:message",
@@ -116,6 +156,63 @@ async function main() {
           case "note:resurface":
             await resurfaceNote(msg.id);
             break;
+          case "config:set_openai_key": {
+            await setOpenAIKey(msg.key);
+            broadcast({ type: "config:update", config: getSystemConfig() });
+            broadcast({
+              type: "chat:message",
+              message: {
+                id: newId(),
+                role: "cairn",
+                text: "API Key updated and LLM re-initialized.",
+                timestamp: shortTime(),
+              },
+            });
+            break;
+          }
+          case "config:set_heartbeat": {
+            await setHeartbeat(msg.interval_ms);
+            broadcast({ type: "config:update", config: getSystemConfig() });
+            break;
+          }
+          case "config:set_spend_limit": {
+            await setSpendLimit(msg.limit_usd);
+            broadcast({ type: "config:update", config: getSystemConfig() });
+            break;
+          }
+          case "config:set_telegram_token": {
+            await setTelegramToken(msg.token);
+            broadcast({ type: "config:update", config: getSystemConfig() });
+            broadcast({
+              type: "chat:message",
+              message: {
+                id: newId(),
+                role: "cairn",
+                text: "Telegram token updated. Restart the gateway to apply changes.",
+                timestamp: shortTime(),
+              },
+            });
+            break;
+          }
+          case "config:set_telegram_admin_chat_id": {
+            await setTelegramAdminChatId(msg.chat_id);
+            broadcast({ type: "config:update", config: getSystemConfig() });
+            broadcast({
+              type: "chat:message",
+              message: {
+                id: newId(),
+                role: "cairn",
+                text: `Telegram admin chat ID set to ${msg.chat_id}. Restart the gateway to apply.`,
+                timestamp: shortTime(),
+              },
+            });
+            break;
+          }
+          case "config:request_sync": {
+            socket.send(JSON.stringify({ type: "config:update", config: getSystemConfig() }));
+            socket.send(JSON.stringify({ type: "policy:update", nodes: NODES, edges: GRAPH_EDGES }));
+            break;
+          }
           case "ping":
             socket.send(JSON.stringify({ type: "pong" }));
             break;
@@ -134,11 +231,17 @@ async function main() {
   // 6. Start scheduler
   startScheduler();
 
-  // 7. Listen
+  // 7. Start Telegram bot (if configured)
+  initTelegram();
+
+  // 8. Listen
   server.listen(PORT, () => {
     console.log(`[gateway] listening on http://localhost:${PORT}`);
     console.log(`[gateway] health  → http://localhost:${PORT}/health`);
     console.log(`[gateway] ws      → ws://localhost:${PORT}/ws`);
+    if (isTelegramEnabled()) {
+      console.log(`[gateway] telegram → enabled`);
+    }
   });
 }
 

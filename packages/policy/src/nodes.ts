@@ -24,9 +24,9 @@ export const NODES: Record<string, NodeConfig> = {
   executor: {
     name: "executor",
     allowed_callers: ["planner", "orchestrator"],
-    allowed_tools: ["memory_read", "memory_write", "ledger_write"],
+    allowed_tools: ["memory_read", "memory_write", "ledger_write", "web_search", "fetch_url"],
     memory_access: ["hot", "warm"],
-    memory_write: ["hot"],
+    memory_write: ["hot", "warm"],
     max_runtime_seconds: 300,
     max_tokens_per_call: 5000,
     assigned_model: "gpt-4o",

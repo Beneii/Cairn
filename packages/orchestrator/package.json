@@ -13,7 +13,8 @@
     "@cairn/memory": "workspace:*",
     "@cairn/policy": "workspace:*",
     "@cairn/shared": "workspace:*",
-    "openai": "^4"
+    "openai": "^4",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@types/node": "^25.2.0",

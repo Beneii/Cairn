@@ -3,17 +3,17 @@ import { hotPurgeExpired } from "@cairn/memory";
 import { appendEntry, verifyChain } from "@cairn/ledger";
 import { bus, newId, now } from "@cairn/shared";
 
-const HEARTBEAT_INTERVAL_MS = 60 * 1000; // 1 minute (dev)
+let currentIntervalMs = Number(process.env.HEARTBEAT_INTERVAL_MS ?? 60000);
 const STALL_THRESHOLD_MS = 5 * 60 * 1000; // 5 minutes
 
 let intervalId: ReturnType<typeof setInterval> | null = null;
 
 export function startScheduler(): void {
   if (intervalId) return;
-  console.log("[scheduler] heartbeat started (interval: 60s)");
+  console.log(`[scheduler] heartbeat started (interval: ${currentIntervalMs / 1000}s)`);
   intervalId = setInterval(() => {
     heartbeat();
-  }, HEARTBEAT_INTERVAL_MS);
+  }, currentIntervalMs);
   // Run once immediately
   heartbeat();
 }
@@ -23,6 +23,15 @@ export function stopScheduler(): void {
     clearInterval(intervalId);
     intervalId = null;
     console.log("[scheduler] heartbeat stopped");
+  }
+}
+
+export function setHeartbeatInterval(intervalMs: number): void {
+  currentIntervalMs = intervalMs;
+  if (intervalId) {
+    clearInterval(intervalId);
+    intervalId = null;
+    startScheduler();
   }
 }
 

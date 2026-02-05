@@ -3,9 +3,13 @@
   "private": true,
   "scripts": {
     "dev": "pnpm --filter @cairn/gateway dev",
+    "dashboard": "pnpm --filter @cairn/dashboard dev",
     "build": "pnpm -r build"
   },
   "engines": {
     "node": ">=18"
+  },
+  "dependencies": {
+    "devtools-protocol": "^0.0.1578551"
   }
 }

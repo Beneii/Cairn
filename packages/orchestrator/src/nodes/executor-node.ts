@@ -6,13 +6,26 @@ import { memoryRead, memoryWrite } from "@cairn/memory";
 import { executeTool } from "@cairn/executor";
 import { callLLM } from "../llm.js";
 import { updateJob } from "../jobs.js";
+import { z } from "zod";
 
 const SYSTEM_PROMPT = `You are the Cairn executor. You execute tasks based on a plan.
 
 Available tools:
-- memory_read(tier, key): Read from memory
-- memory_write(tier, key, value): Write to memory
+- memory_read(tier, key): Read from memory (tier: "hot" or "warm")
+- memory_write(tier, key, value): Write to memory to remember things
 - ledger_write(type, content): Log an entry
+- web_search(query): Search the web for information
+- fetch_url(url): Fetch the content of a public URL
+
+Memory Strategy:
+- ALWAYS use memory_write to store important information you learn
+- Store to "warm" tier for long-term (user preferences, facts about the user)
+- Store to "hot" tier for session-only context
+- Examples of what to remember:
+  * User location/preferences (e.g., "user_location": "Ultimo, Sydney")
+  * Work/personal details (e.g., "user_work_location": "UTS")
+  * Preferences (e.g., "apartment_preferences": "near transit, quiet area")
+  * Important facts learned during conversation
 
 If you need to use a tool, respond with JSON:
 {
@@ -27,7 +40,42 @@ If the task is complete or you can answer directly, respond with:
   "action": "complete",
   "result": "the final output text for the user",
   "summary": "brief summary for logs"
-}`;
+}
+
+Remember: If you learned something important about the user, use memory_write before completing!`;
+
+// Whitelist of allowed tool names (security hardening)
+const ALLOWED_EXECUTOR_TOOLS = [
+  "memory_read",
+  "memory_write",
+  "ledger_write",
+  "web_search",
+  "fetch_url",
+] as const;
+
+// Zod schemas for LLM response validation (security hardening)
+const ExecutorToolActionSchema = z.object({
+  action: z.literal("tool"),
+  tool: z.enum(ALLOWED_EXECUTOR_TOOLS),
+  args: z.record(z.string(), z.unknown()).optional(),
+  reasoning: z.string().max(500).optional(),
+});
+
+const ExecutorCompleteActionSchema = z.object({
+  action: z.literal("complete"),
+  result: z.string().max(5000), // Limit output size
+  summary: z.string().max(500).optional(),
+});
+
+const ExecutorActionSchema = z.union([
+  ExecutorToolActionSchema,
+  ExecutorCompleteActionSchema,
+]);
+
+const ExecutorSynthesisSchema = z.object({
+  result: z.string().max(5000), // Limit output size
+  summary: z.string().max(500).optional(),
+});
 
 export async function runExecutorNode(job: Job): Promise<Job> {
   const config = getNodeConfig("executor");
@@ -65,6 +113,7 @@ export async function runExecutorNode(job: Job): Promise<Job> {
     job.id,
   );
 
+  // Parse and validate LLM response with Zod
   let parsed: {
     action: string;
     tool?: string;
@@ -73,12 +122,39 @@ export async function runExecutorNode(job: Job): Promise<Job> {
     summary?: string;
     reasoning?: string;
   };
+
   try {
-    parsed = JSON.parse(response.content);
-  } catch {
+    const jsonParsed = JSON.parse(response.content);
+    const validationResult = ExecutorActionSchema.safeParse(jsonParsed);
+
+    if (!validationResult.success) {
+      console.error("[executor] Validation failed:", validationResult.error);
+      await appendEntry(
+        "agent",
+        "executor",
+        job.id,
+        `LLM response validation failed: ${validationResult.error.message}`,
+      );
+      // Fall back to treating content as direct result
+      parsed = {
+        action: "complete",
+        result: response.content.substring(0, 5000), // Truncate for safety
+        summary: "Direct response",
+      };
+    } else {
+      parsed = validationResult.data;
+    }
+  } catch (err) {
+    console.error("[executor] JSON parse error:", err);
+    await appendEntry(
+      "agent",
+      "executor",
+      job.id,
+      `JSON parse failed: ${err instanceof Error ? err.message : String(err)}`,
+    );
     parsed = {
       action: "complete",
-      result: response.content,
+      result: response.content.substring(0, 5000), // Truncate for safety
       summary: "Direct response",
     };
   }
@@ -107,7 +183,10 @@ export async function runExecutorNode(job: Job): Promise<Job> {
       {
         model: config.assigned_model,
         systemPrompt:
-          'You just ran a tool. Synthesize the result into a user-friendly response. Respond in JSON: { "result": "...", "summary": "..." }',
+          'You just ran a tool. Synthesize the result into a clear, user-friendly response.\n\n' +
+          'For web_search results, format as a readable list with titles and URLs (not raw JSON).\n' +
+          'For other tools, present the information clearly and concisely.\n\n' +
+          'Respond in JSON: { "result": "formatted response text", "summary": "brief summary" }',
         userMessage: `Original task: ${job.input}\nTool used: ${parsed.tool}\nTool output: ${toolResult.output}`,
         maxTokens: 2000,
         responseFormat: "json_object",
@@ -118,17 +197,42 @@ export async function runExecutorNode(job: Job): Promise<Job> {
 
     costs.push(followUp.cost);
 
+    // Parse and validate follow-up synthesis with Zod
     try {
       const followParsed = JSON.parse(followUp.content);
+      const validationResult = ExecutorSynthesisSchema.safeParse(followParsed);
+
+      if (!validationResult.success) {
+        console.error("[executor] Synthesis validation failed:", validationResult.error);
+        await appendEntry(
+          "agent",
+          "executor",
+          job.id,
+          `Synthesis validation failed: ${validationResult.error.message}`,
+        );
+        parsed = {
+          action: "complete",
+          result: followUp.content.substring(0, 5000), // Truncate for safety
+          summary: "Execution complete",
+        };
+      } else {
+        parsed = {
+          action: "complete",
+          result: validationResult.data.result,
+          summary: validationResult.data.summary,
+        };
+      }
+    } catch (err) {
+      console.error("[executor] Synthesis parse error:", err);
+      await appendEntry(
+        "agent",
+        "executor",
+        job.id,
+        `Synthesis parse failed: ${err instanceof Error ? err.message : String(err)}`,
+      );
       parsed = {
         action: "complete",
-        result: followParsed.result,
-        summary: followParsed.summary,
-      };
-    } catch {
-      parsed = {
-        action: "complete",
-        result: followUp.content,
+        result: followUp.content.substring(0, 5000), // Truncate for safety
         summary: "Execution complete",
       };
     }

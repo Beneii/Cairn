@@ -5,17 +5,18 @@ import { calculateCost, now } from "@cairn/shared";
 let client: OpenAI | null = null;
 let initialized = false;
 
-export function initLLM(): void {
-  if (initialized) return;
+export function initLLM(force = false): void {
+  if (initialized && !force) return;
   initialized = true;
 
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
+    client = null;
     console.warn("[orchestrator] LLM disabled (no OPENAI_API_KEY)");
     return;
   }
   client = new OpenAI({ apiKey });
-  console.log("[orchestrator] LLM initialized");
+  console.log("[orchestrator] LLM initialized (force=" + force + ")");
 }
 
 export function isLLMAvailable(): boolean {

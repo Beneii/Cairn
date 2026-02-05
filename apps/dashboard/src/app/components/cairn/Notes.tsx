@@ -14,11 +14,11 @@ export function Notes({ notes, onResurface, onCreateNote, className }: NotesProp
   return (
     <div className={clsx("flex flex-col h-full p-4 border-r border-[#1A1D21]/10", className)}>
       <h3 className="text-xs uppercase tracking-widest font-bold mb-4 opacity-40">Inbox / Notes</h3>
-      
-      <div className="flex-1 overflow-y-auto space-y-4">
+
+      <div className="flex-1 min-h-0 overflow-y-auto space-y-4">
         {notes.map((note) => (
-          <div 
-            key={note.id} 
+          <div
+            key={note.id}
             className={clsx(
               "group relative p-3 border border-[#1A1D21]/10 transition-all duration-500",
               note.status === "read" ? "opacity-30 hover:opacity-100" : "opacity-100 bg-white/50"
@@ -31,9 +31,9 @@ export function Notes({ notes, onResurface, onCreateNote, className }: NotesProp
               <span>{note.timestamp}</span>
               <span>{note.status}</span>
             </div>
-            
+
             {note.status === "read" && (
-              <button 
+              <button
                 onClick={() => onResurface(note.id)}
                 className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-[#1A1D21]/10 rounded"
                 title="Resurface"

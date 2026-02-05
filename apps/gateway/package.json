@@ -13,9 +13,12 @@
     "@cairn/ledger": "workspace:*",
     "@cairn/memory": "workspace:*",
     "@cairn/orchestrator": "workspace:*",
+    "@cairn/policy": "workspace:*",
     "@cairn/scheduler": "workspace:*",
     "@cairn/shared": "workspace:*",
+    "dotenv": "^17.2.3",
     "express": "^4.21.0",
+    "grammy": "^1.39.3",
     "ws": "^8.18.0"
   },
   "devDependencies": {

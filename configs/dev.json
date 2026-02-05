@@ -1,0 +1,53 @@
+{
+  "$schema": "./config.schema.json",
+  "environment": "development",
+
+  "gateway": {
+    "port": 3100,
+    "host": "localhost",
+    "cors_origins": ["http://localhost:5173", "http://localhost:3000"]
+  },
+
+  "inference": {
+    "gatekeeper_model": "gpt-4o-mini",
+    "brain_model": "gpt-4o",
+    "timeout_ms": 30000,
+    "retry_attempts": 2
+  },
+
+  "memory": {
+    "hot_ttl_ms": 300000,
+    "warm_storage_path": "./data/memory/warm.json"
+  },
+
+  "ledger": {
+    "storage_path": "./data/ledger/ledger.json",
+    "verify_on_startup": true
+  },
+
+  "scheduler": {
+    "heartbeat_interval_ms": 60000,
+    "stall_threshold_ms": 300000,
+    "enabled": true
+  },
+
+  "limits": {
+    "monthly_spend_limit_usd": 50.00,
+    "max_concurrent_jobs": 1,
+    "gatekeeper_max_tokens": 1000,
+    "planner_max_tokens": 10000,
+    "executor_max_tokens": 5000
+  },
+
+  "logging": {
+    "level": "debug",
+    "include_timestamps": true,
+    "pretty_print": true
+  },
+
+  "features": {
+    "telegram_enabled": false,
+    "cold_memory_enabled": false,
+    "web_locked_enabled": false
+  }
+}

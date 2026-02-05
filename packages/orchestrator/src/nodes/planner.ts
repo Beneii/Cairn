@@ -5,10 +5,23 @@ import type { Job, Artifact } from "@cairn/shared";
 import { warmGet } from "@cairn/memory";
 import { callLLM } from "../llm.js";
 import { updateJob } from "../jobs.js";
+import { z } from "zod";
 
 const SYSTEM_PROMPT = `You are the Cairn planner. You receive a user task and create an execution plan.
 
-You have access to the user's preferences and context from warm memory.
+You have access to the user's preferences and context from warm memory. Use this context to personalize responses.
+
+The executor node has access to the following tools:
+- memory_read(tier, key): Read from memory (tier: "hot" for session, "warm" for persistent)
+- memory_write(tier, key, value): Write to memory to remember important information
+- ledger_write(type, content): Log an entry
+- web_search(query): Search the web for information
+- fetch_url(url): Fetch the content of a public URL
+
+Memory Guidelines:
+- Use memory_write to remember: user preferences, learned facts, important context
+- Examples: location preferences, work details, recurring requests, personal info
+- Check memory first before asking the user for info you might already know
 
 Respond in JSON format:
 {
@@ -22,8 +35,27 @@ Respond in JSON format:
 Guidelines:
 - For simple questions you can answer directly (needs_executor: false)
 - For tasks requiring tool use, create a clear plan (needs_executor: true)
-- Be thorough but concise in your plans
-- If you can answer the question directly without tools, set needs_executor to false and put the answer in response`;
+- Include memory_read in tools_needed if you should check stored context first
+- Include memory_write in tools_needed if you should remember something important
+- Be thorough but concise in your plans`;
+
+// Whitelist of allowed tool names (security hardening)
+const ALLOWED_TOOLS = [
+  "memory_read",
+  "memory_write",
+  "ledger_write",
+  "web_search",
+  "fetch_url",
+] as const;
+
+// Zod schema for LLM response validation (security hardening)
+const PlannerResponseSchema = z.object({
+  plan: z.string().max(2000), // Limit output size
+  steps: z.array(z.string().max(500)).max(20), // Max 20 steps, each 500 chars
+  response: z.string().max(2000), // Limit output size
+  needs_executor: z.boolean(),
+  tools_needed: z.array(z.enum(ALLOWED_TOOLS)), // Only allow whitelisted tools
+});
 
 interface PlannerResult {
   plan: string;
@@ -64,14 +96,44 @@ User request: ${job.input}`;
     job.id,
   );
 
+  // Parse and validate LLM response with Zod
   let parsed: PlannerResult;
+
   try {
-    parsed = JSON.parse(response.content);
-  } catch {
+    const jsonParsed = JSON.parse(response.content);
+    const validationResult = PlannerResponseSchema.safeParse(jsonParsed);
+
+    if (!validationResult.success) {
+      console.error("[planner] Validation failed:", validationResult.error);
+      await appendEntry(
+        "agent",
+        "planner",
+        job.id,
+        `LLM response validation failed: ${validationResult.error.message}`,
+      );
+      // Fall back to safe defaults - treat raw content as direct response
+      parsed = {
+        plan: "Direct response",
+        steps: [],
+        response: response.content.substring(0, 2000), // Truncate for safety
+        needs_executor: false,
+        tools_needed: [],
+      };
+    } else {
+      parsed = validationResult.data;
+    }
+  } catch (err) {
+    console.error("[planner] JSON parse error:", err);
+    await appendEntry(
+      "agent",
+      "planner",
+      job.id,
+      `JSON parse failed: ${err instanceof Error ? err.message : String(err)}`,
+    );
     parsed = {
       plan: "Direct response",
       steps: [],
-      response: response.content,
+      response: response.content.substring(0, 2000), // Truncate for safety
       needs_executor: false,
       tools_needed: [],
     };

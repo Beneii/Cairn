@@ -1,8 +1,9 @@
 import { readFile, writeFile, mkdir } from "fs/promises";
 import { existsSync } from "fs";
 import { join } from "path";
+import { getDataPath } from "@cairn/shared";
 
-const DATA_DIR = join(process.cwd(), "data", "memory");
+const DATA_DIR = getDataPath("memory");
 const WARM_FILE = join(DATA_DIR, "warm.json");
 
 let warmData: Record<string, unknown> = {};

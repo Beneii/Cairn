@@ -4,6 +4,7 @@ import type {
   LogEntry,
   ChatMessage,
   Note,
+  KanbanCard,
   NucleusState,
   SubAgent,
 } from "./types.js";
@@ -17,6 +18,7 @@ export interface CairnEvents {
   "log:entry": (entry: LogEntry) => void;
   "chat:message": (message: ChatMessage) => void;
   "note:updated": (notes: Note[]) => void;
+  "kanban:updated": (cards: KanbanCard[]) => void;
 }
 
 class TypedEventBus {

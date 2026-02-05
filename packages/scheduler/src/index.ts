@@ -1,1 +1,1 @@
-export { startScheduler, stopScheduler } from "./scheduler.js";
+export { startScheduler, stopScheduler, setHeartbeatInterval } from "./scheduler.js";

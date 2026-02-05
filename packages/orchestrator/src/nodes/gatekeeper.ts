@@ -4,6 +4,7 @@ import { bus, newId, shortTime } from "@cairn/shared";
 import type { Job } from "@cairn/shared";
 import { callLLM } from "../llm.js";
 import { createJob, updateJob } from "../jobs.js";
+import { z } from "zod";
 
 const SYSTEM_PROMPT = `You are the Cairn gatekeeper. You receive user messages and must:
 1. Classify the intent (greeting, question, task, note)
@@ -19,9 +20,20 @@ Respond in JSON format:
 }
 
 Guidelines:
-- Greetings and simple questions: handle directly (needs_planner: false)
-- Tasks that require tools or multi-step planning: route to planner (needs_planner: true)
-- Always be brief and conversational`;
+- Simple greetings without follow-up: handle directly (needs_planner: false)
+- Memory operations (remembering, recalling info): ALWAYS route to planner (needs_planner: true)
+- Questions about stored information: route to planner (needs_planner: true)
+- Tasks requiring tools or multi-step planning: route to planner (needs_planner: true)
+- Web searches, data fetching, complex analysis: route to planner (needs_planner: true)
+- Always be brief and conversational in acknowledgements`;
+
+// Zod schema for LLM response validation (security hardening)
+const GatekeeperResponseSchema = z.object({
+  intent: z.enum(["greeting", "question", "task", "note"]),
+  complexity: z.enum(["small", "medium", "large"]),
+  acknowledgement: z.string().max(500), // Limit output size
+  needs_planner: z.boolean(),
+});
 
 export async function runGatekeeper(userInput: string): Promise<Job> {
   const config = getNodeConfig("gatekeeper");
@@ -48,15 +60,44 @@ export async function runGatekeeper(userInput: string): Promise<Job> {
     "pending",
   );
 
+  // Parse and validate LLM response with Zod
   let parsed: {
     intent: string;
     complexity: string;
     acknowledgement: string;
     needs_planner: boolean;
   };
+
   try {
-    parsed = JSON.parse(response.content);
-  } catch {
+    const jsonParsed = JSON.parse(response.content);
+    const validationResult = GatekeeperResponseSchema.safeParse(jsonParsed);
+
+    if (!validationResult.success) {
+      console.error("[gatekeeper] Validation failed:", validationResult.error);
+      await appendEntry(
+        "agent",
+        "gatekeeper",
+        "error",
+        `LLM response validation failed: ${validationResult.error.message}`,
+      );
+      // Fall back to safe defaults
+      parsed = {
+        intent: "task",
+        complexity: "small",
+        acknowledgement: "Let me look into that.",
+        needs_planner: true,
+      };
+    } else {
+      parsed = validationResult.data;
+    }
+  } catch (err) {
+    console.error("[gatekeeper] JSON parse error:", err);
+    await appendEntry(
+      "agent",
+      "gatekeeper",
+      "error",
+      `JSON parse failed: ${err instanceof Error ? err.message : String(err)}`,
+    );
     parsed = {
       intent: "task",
       complexity: "small",

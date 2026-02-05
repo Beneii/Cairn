@@ -14,6 +14,7 @@ export interface ChatMessage {
   text: string;
   timestamp: string;
   tools?: string[]; // Collapsible tool output
+  source?: "telegram" | "dashboard";
 }
 
 export interface KanbanCard {
@@ -22,10 +23,12 @@ export interface KanbanCard {
   status: KanbanStatus;
 }
 
+export type LogType = "thought" | "tool" | "file" | "api" | "agent" | "error";
+
 export interface LogEntry {
   id: string;
   timestamp: string;
-  type: "thought" | "tool" | "file" | "api" | "agent" | "error";
+  type: LogType;
   content: string;
 }
 

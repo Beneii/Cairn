@@ -1,4 +1,4 @@
-import { motion, useMotionValue, useSpring, useAnimationFrame, useTransform } from "motion/react";
+import { motion, useMotionValue, useSpring, useAnimationFrame, useTransform, AnimatePresence } from "motion/react";
 import { clsx } from "clsx";
 import { useEffect, useRef } from "react";
 import { SubAgent } from "./types";
@@ -124,16 +124,16 @@ export function Nucleus({ state, className, subAgents = [] }: NucleusProps) {
 
   return (
     <div className={clsx("relative flex items-center justify-center w-[400px] h-[400px]", className)}>
-      {/* SVG Filters */}
+      {/* SVG Filters - Reduced blur for flatter edges */}
       <svg className="absolute w-0 h-0">
         <defs>
           <filter id="goo-rings-v2">
-            <feGaussianBlur in="SourceGraphic" stdDeviation="10" result="blur" />
-            <feColorMatrix 
-              in="blur" 
-              mode="matrix" 
-              values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 20 -9" 
-              result="goo" 
+            <feGaussianBlur in="SourceGraphic" stdDeviation="3" result="blur" />
+            <feColorMatrix
+              in="blur"
+              mode="matrix"
+              values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 25 -10"
+              result="goo"
             />
             <feComposite in="SourceGraphic" in2="goo" operator="atop"/>
           </filter>
@@ -145,21 +145,42 @@ export function Nucleus({ state, className, subAgents = [] }: NucleusProps) {
          className="relative w-full h-full flex items-center justify-center will-change-transform"
          style={{ filter: "url(#goo-rings-v2)" }}
       >
-         {/* Sub-agents (Blobs) */}
-         {subAgents.map((agent, i) => (
-            <motion.div
-               key={agent.id}
-               className="absolute w-12 h-12 bg-[#1A1D21] rounded-full"
-               initial={{ x: 0, y: 0, scale: 0 }}
-               animate={{ 
-                  x: 160 + (i * 40), 
-                  y: -70 + (i * 20),
-                  scale: 1 
-               }}
-               exit={{ x: 0, y: 0, scale: 0 }}
-               transition={{ duration: 1.2, type: "spring", bounce: 0.2 }}
-            />
-         ))}
+         {/* Sub-agents (Blobs) - Positioned in orbit, merge back on exit */}
+         <AnimatePresence>
+            {subAgents.map((agent, i) => {
+               // Position sub-agents in a circle around the nucleus
+               const angle = (i / Math.max(subAgents.length, 1)) * Math.PI * 2;
+               const radius = 140;
+               const targetX = Math.cos(angle) * radius;
+               const targetY = Math.sin(angle) * radius;
+
+               return (
+                  <motion.div
+                     key={agent.id}
+                     className="absolute w-14 h-14 bg-[#1A1D21] rounded-full"
+                     initial={{ x: 0, y: 0, scale: 0, opacity: 0 }}
+                     animate={{
+                        x: targetX,
+                        y: targetY,
+                        scale: 1,
+                        opacity: 1
+                     }}
+                     exit={{
+                        x: 0,
+                        y: 0,
+                        scale: 0,
+                        opacity: 0.5
+                     }}
+                     transition={{
+                        duration: 0.8,
+                        type: "spring",
+                        stiffness: 100,
+                        damping: 15
+                     }}
+                  />
+               );
+            })}
+         </AnimatePresence>
 
          {/* Ring 1 (Large Outer) */}
          <motion.div

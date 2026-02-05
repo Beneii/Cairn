@@ -2,9 +2,9 @@ import { readFile, writeFile, mkdir } from "fs/promises";
 import { existsSync } from "fs";
 import { join } from "path";
 import type { Job } from "@cairn/shared";
-import { newId, now, bus } from "@cairn/shared";
+import { newId, now, bus, getDataPath } from "@cairn/shared";
 
-const DATA_DIR = join(process.cwd(), "data", "jobs");
+const DATA_DIR = getDataPath("jobs");
 const JOBS_FILE = join(DATA_DIR, "jobs.json");
 
 const jobs = new Map<string, Job>();

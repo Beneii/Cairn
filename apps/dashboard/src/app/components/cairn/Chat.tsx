@@ -33,7 +33,7 @@ export function Chat({ messages, onSend, className }: ChatProps) {
             <div className="flex items-baseline gap-2 text-xs opacity-50 select-none">
               <span>{msg.timestamp}</span>
               <span className="uppercase tracking-wider font-bold">
-                {msg.role}
+                {msg.role}{msg.source === "telegram" ? " (telegram)" : ""}
               </span>
             </div>
             <div className="whitespace-pre-wrap leading-relaxed">

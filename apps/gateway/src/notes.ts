@@ -2,9 +2,9 @@ import { readFile, writeFile, mkdir } from "fs/promises";
 import { existsSync } from "fs";
 import { join } from "path";
 import type { Note } from "@cairn/shared";
-import { newId, shortTime, bus } from "@cairn/shared";
+import { newId, shortTime, bus, getDataPath } from "@cairn/shared";
 
-const DATA_DIR = join(process.cwd(), "data", "notes");
+const DATA_DIR = getDataPath("notes");
 const NOTES_FILE = join(DATA_DIR, "notes.json");
 
 let notes: Note[] = [];
