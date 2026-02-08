@@ -21,10 +21,15 @@ export default defineConfig({
   assetsInclude: ['**/*.svg', '**/*.csv'],
 
   server: {
+    host: true,            // Bind 0.0.0.0 — accessible from phone, Tailscale, etc.
+    allowedHosts: 'all',   // Allow any hostname (Tailscale IPs, VPN, etc.)
     proxy: {
       '/ws': {
-        target: 'ws://localhost:3100',
+        target: `ws://localhost:${process.env.GATEWAY_PORT || 3100}`,
         ws: true,
+      },
+      '/health': {
+        target: `http://localhost:${process.env.GATEWAY_PORT || 3100}`,
       },
     },
   },

@@ -6,3 +6,9 @@ export {
   type ToolResult,
   type ToolContext,
 } from "./tools.js";
+export {
+  initCalendarProvider,
+  getCalendarProvider,
+  setCalendarProvider,
+  type CalendarProvider,
+} from "./tools/index.js";

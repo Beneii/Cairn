@@ -324,8 +324,7 @@ cairn/
     gateway/
     dashboard/
   packages/
-    orchestrator/
-    nodes/
+    orchestrator/       # includes nodes/ subdirectory
     executor/
     memory/
     ledger/
@@ -333,8 +332,9 @@ cairn/
     policy/
     shared/
   data/
-    workspace/
-    logs/
+    jobs/
+    memory/
+    ledger/
   configs/
     dev.json
     prod.json

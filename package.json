@@ -1,10 +1,13 @@
 {
   "name": "cairn",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "pnpm --filter @cairn/gateway dev",
     "dashboard": "pnpm --filter @cairn/dashboard dev",
-    "build": "pnpm -r build"
+    "build": "pnpm -r build",
+    "start:prod": "NODE_ENV=production node apps/gateway/dist/index.js",
+    "cairn:check": "node scripts/check-env.js"
   },
   "engines": {
     "node": ">=18"

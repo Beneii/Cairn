@@ -1,17 +1,16 @@
 import { useState, useEffect } from "react";
-import { Nucleus, NucleusState } from "./components/cairn/Nucleus";
+import { Nucleus } from "./components/cairn/Nucleus";
 import { Chat } from "./components/cairn/Chat";
 import { Notes } from "./components/cairn/Notes";
 import { Kanban } from "./components/cairn/Kanban";
 import { Logs } from "./components/cairn/Logs";
-import { AgentsPage } from "./components/cairn/pages/AgentsPage";
+import { NavBar, type View } from "./components/cairn/NavBar";
+import { SettingsPage } from "./components/cairn/pages/SettingsPage";
 import { IntegrationsPage } from "./components/cairn/pages/IntegrationsPage";
-import { PreferencesPage } from "./components/cairn/pages/PreferencesPage";
 import { ArchivePage } from "./components/cairn/pages/ArchivePage";
-import { Box, Network, Sliders, Archive } from "lucide-react";
+import { SystemPage } from "./components/cairn/pages/SystemPage";
 import { useCairn } from "./hooks/useCairn";
-
-type View = 'home' | 'agents' | 'integrations' | 'preferences' | 'archive';
+import { getApiBase } from "../config/runtime";
 
 export default function App() {
   const [darkMode, setDarkMode] = useState(() => {
@@ -52,23 +51,8 @@ export default function App() {
             </div>
 
             {/* Top Right: System Menu */}
-            <div className="absolute top-6 right-6 z-50 flex gap-4">
-              <button onClick={() => setCurrentView('agents')} title="Agents Graph" className="opacity-40 hover:opacity-100 transition-opacity">
-                <Network size={20} strokeWidth={1.5} />
-              </button>
-              <button onClick={() => setCurrentView('archive')} title="Archive" className="opacity-40 hover:opacity-100 transition-opacity">
-                <Archive size={20} strokeWidth={1.5} />
-              </button>
-              <button onClick={() => setCurrentView('integrations')} title="Integrations" className="opacity-40 hover:opacity-100 transition-opacity">
-                <Box size={20} strokeWidth={1.5} />
-              </button>
-              <button onClick={() => setCurrentView('preferences')} title="Preferences" className="opacity-40 hover:opacity-100 transition-opacity">
-                <Sliders size={20} strokeWidth={1.5} />
-              </button>
-              <div className="w-px h-5 mx-1" style={{ backgroundColor: border }} />
-              <button onClick={() => setDarkMode(!darkMode)} title="Toggle Theme" className="opacity-40 hover:opacity-100 transition-opacity">
-                <div className="w-5 h-5 rounded-full border border-current bg-transparent" />
-              </button>
+            <div className="absolute top-6 right-6 z-50">
+              <NavBar currentView={currentView} setCurrentView={setCurrentView} darkMode={darkMode} setDarkMode={setDarkMode} />
             </div>
 
             {/* Center: Nucleus */}
@@ -101,24 +85,47 @@ export default function App() {
         </>
       )}
 
-      {currentView === 'agents' && <AgentsPage onBack={() => setCurrentView('home')} nodes={cairn.policy.nodes} edges={cairn.policy.edges} />}
-      {currentView === 'integrations' && <IntegrationsPage onBack={() => setCurrentView('home')} hasOpenAI={cairn.config.has_openai_key} setOpenAIKey={cairn.setOpenAIKey} hasTelegram={cairn.config.has_telegram_token} setTelegramToken={cairn.setTelegramToken} telegramAdminChatId={cairn.config.telegram_admin_chat_id} setTelegramAdminChatId={cairn.setTelegramAdminChatId} />}
-      {currentView === 'preferences' && (
-        <PreferencesPage
-          onBack={() => setCurrentView('home')}
+      {currentView === 'settings' && (
+        <SettingsPage
+          nav={<NavBar currentView={currentView} setCurrentView={setCurrentView} darkMode={darkMode} setDarkMode={setDarkMode} />}
           darkMode={darkMode}
           setDarkMode={setDarkMode}
           config={cairn.config}
           setHeartbeat={cairn.setHeartbeat}
           setSpendLimit={cairn.setSpendLimit}
+          setDecisionLimit={cairn.setDecisionLimit}
+          setInteractionLimit={cairn.setInteractionLimit}
         />
       )}
-
+      {currentView === 'integrations' && (
+        <IntegrationsPage
+          nav={<NavBar currentView={currentView} setCurrentView={setCurrentView} darkMode={darkMode} setDarkMode={setDarkMode} />}
+          hasOpenAI={cairn.config.has_openai_key}
+          setOpenAIKey={cairn.setOpenAIKey}
+          hasTelegram={cairn.config.has_telegram_token}
+          setTelegramToken={cairn.setTelegramToken}
+          telegramAdminChatId={cairn.config.telegram_admin_chat_id}
+          setTelegramAdminChatId={cairn.setTelegramAdminChatId}
+          hasGoogle={cairn.config.has_google_calendar}
+          gatewayUrl={getApiBase()}
+          darkMode={darkMode}
+        />
+      )}
       {currentView === 'archive' && (
         <ArchivePage
-          onBack={() => setCurrentView('home')}
+          nav={<NavBar currentView={currentView} setCurrentView={setCurrentView} darkMode={darkMode} setDarkMode={setDarkMode} />}
           cards={cairn.kanbanCards}
           onRestore={cairn.restoreCard}
+          darkMode={darkMode}
+        />
+      )}
+      {currentView === 'system' && (
+        <SystemPage
+          nav={<NavBar currentView={currentView} setCurrentView={setCurrentView} darkMode={darkMode} setDarkMode={setDarkMode} />}
+          connected={cairn.connected}
+          diagnostics={cairn.diagnostics}
+          nodes={cairn.policy.nodes}
+          darkMode={darkMode}
         />
       )}
 

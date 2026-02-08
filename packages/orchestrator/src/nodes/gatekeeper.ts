@@ -116,13 +116,16 @@ export async function runGatekeeper(userInput: string): Promise<Job> {
     status: parsed.needs_planner ? "running" : "done",
   });
 
-  // Send acknowledgement to UI
-  bus.emit("chat:message", {
-    id: newId(),
-    role: "cairn",
-    text: parsed.acknowledgement,
-    timestamp: shortTime(),
-  });
+  // Send acknowledgement to UI ONLY if we're handling it directly
+  // If routing to planner, let planner/executor send the final response
+  if (!parsed.needs_planner) {
+    bus.emit("chat:message", {
+      id: newId(),
+      role: "cairn",
+      text: parsed.acknowledgement,
+      timestamp: shortTime(),
+    });
+  }
 
   await appendEntry(
     "agent",

@@ -18,21 +18,32 @@ These principles ensure complete transparency and control over AI agent behavior
 
 - ✅ **Production-ready React UI** with physics-based animations and all core components
 - ✅ **Complete architecture specification** in [truth.md](truth.md) (authoritative source)
-- 🚧 **Backend services** (Gateway, Orchestrator, Executor, Memory, Ledger, Scheduler) — planned but not yet implemented
+- ✅ **Backend services** (Gateway, Orchestrator, Executor, Memory, Ledger, Scheduler) — implemented and functional
 
 ## Quick Start
 
-### Running the UI
+### Running the Full Stack
 
 ```bash
-cd UI
-npm install
-npm run dev
+# Install dependencies (from project root)
+pnpm install
+
+# Start gateway + scheduler
+pnpm dev
+
+# In another terminal, start dashboard
+pnpm dashboard
 ```
 
-The UI starts with mock data and demonstrates all visualization components. Visit `http://localhost:5173` to see it in action.
+Visit `http://localhost:5173` to see the dashboard connected to the live backend.
 
-**Note:** The UI is fully functional but currently uses hardcoded mock data. Backend services are not yet implemented.
+### Running Dashboard Only
+
+```bash
+cd apps/dashboard
+pnpm install
+pnpm dev
+```
 
 ## Documentation
 
@@ -66,44 +77,63 @@ The React frontend visualizes the entire system state:
 - **Notes** — Agent-read inbox (replaces prompt-stuffing)
 - **Kanban** — Task visualization (backlog, active, blocked, done)
 - **Logs** — Real-time system activity with type-based filtering
-- **Pages** — Agents, Integrations, Preferences configuration
+- **Pages** — Agents, Integrations, Preferences, Archive, Diagnostics
 
 ## Tech Stack
 
 ### Frontend
-- **React 18.3.1** + TypeScript
-- **Vite 6.3.5** — Build tool
-- **Tailwind CSS 4.1.12** — Styling
-- **Framer Motion 12.23.24** — Animations
-- **shadcn/ui** + Radix UI — Component library
+- **React 18** + TypeScript
+- **Vite 7** — Build tool
+- **Tailwind CSS 4** — Styling
+- **Framer Motion** — Animations
+- **Lucide** — Icons
 
-### Backend (Future)
-- Node.js/TypeScript
-- LangGraph-style orchestration
-- Vector embeddings (RAG)
+### Backend
+- **Node.js** + TypeScript
+- **pnpm** monorepo with workspaces
+- **LangGraph-style** orchestration
+- **OpenAI API** for LLM inference
+- **Telegram** integration for messaging
 
 ## Project Structure
 
 ```
 cairn/
-├── README.md              # You are here
-├── truth.md               # Authoritative architecture specification
-├── docs/                  # Complete documentation
-│   ├── 00-INDEX.md       # Documentation hub
+├── README.md                  # You are here
+├── truth.md                   # Authoritative architecture specification
+├── SOUL.md                    # System values and tone
+├── IDENTITY.md                # Ownership and access
+├── POLICY.md                  # Hard safety rules
+├── CAPABILITIES.md            # Tools and tiers
+├── PHASE_GATES.md             # Development phase boundaries
+├── CAIRN_INVARIANTS.md        # Non-negotiable design constraints
+├── DEPLOYMENT.md              # VPS deployment guide
+├── docs/                      # Documentation
+│   ├── 00-INDEX.md
 │   ├── 01-getting-started/
 │   ├── 02-architecture/
 │   ├── 03-ui-components/
-│   ├── 04-api-reference/
-│   ├── 05-guides/
 │   ├── 06-contributing/
 │   └── 07-reference/
-├── UI/                    # React frontend (production-ready)
-│   ├── src/
-│   │   └── app/
-│   │       ├── components/cairn/  # Core components
-│   │       └── App.tsx
-│   └── package.json
-└── .claude/              # Development configuration
+├── apps/
+│   ├── dashboard/             # React frontend
+│   │   ├── src/app/
+│   │   │   ├── components/cairn/  # Core components
+│   │   │   └── App.tsx
+│   │   └── package.json
+│   └── gateway/               # WebSocket + HTTP server
+│       └── src/
+├── packages/
+│   ├── orchestrator/          # Graph execution engine
+│   ├── executor/              # Tool execution sandbox
+│   ├── memory/                # Hot/Warm memory system
+│   ├── ledger/                # Audit trail
+│   ├── scheduler/             # Heartbeat and jobs
+│   ├── policy/                # Permission enforcement
+│   └── shared/                # Common types and utilities
+├── data/                      # Runtime data (jobs, memory, ledger)
+├── configs/                   # Environment configs
+└── scripts/                   # Utility scripts
 ```
 
 ## Key Features
@@ -142,15 +172,16 @@ Everything is visible:
 ### Local Development
 
 ```bash
-cd UI
-npm run dev        # Start dev server with hot reload
-npm run build      # Production build
-npm run lint       # Check code quality
+# From project root
+pnpm install            # Install all dependencies
+pnpm dev                # Start gateway + scheduler
+pnpm dashboard          # Start dashboard (separate terminal)
+pnpm build              # Build all packages
 ```
 
 ### Project Guidelines
 
-See [UI/guidelines/Guidelines.md](UI/guidelines/Guidelines.md) for development standards.
+See [apps/dashboard/guidelines/Guidelines.md](apps/dashboard/guidelines/Guidelines.md) for development standards.
 
 ## Architecture
 
@@ -160,7 +191,6 @@ Key topics:
 - [Six Services Architecture](docs/02-architecture/overview.md)
 - [Execution Graph & Nodes](docs/02-architecture/execution-graph.md)
 - [Memory Tiers](docs/02-architecture/memory-tiers.md)
-- [Security Model](docs/05-guides/security-model.md)
 
 ## Contributing
 
@@ -168,25 +198,24 @@ See [Contributing Guidelines](docs/06-contributing/code-style.md) for developmen
 
 ### Creating New Components
 
-1. Place in `UI/src/app/components/cairn/`
+1. Place in `apps/dashboard/src/app/components/cairn/`
 2. Export from component file
 3. Document in [docs/03-ui-components/](docs/03-ui-components/)
-4. Add TypeScript interfaces to [types.ts](UI/src/app/components/cairn/types.ts)
+4. Add TypeScript interfaces to [types.ts](apps/dashboard/src/app/components/cairn/types.ts)
 
 ## Implementation Status
 
-### Phase 1: MVP (Current)
-- ✅ UI prototype with all core components
-- ✅ Architecture specification
-- 🚧 Documentation
-- ⏳ Backend services (Gateway, Orchestrator, etc.)
+### Phase A: Security Hardening ✅
+- Zod schema validation on all LLM outputs
+- Tool guardrails (SSRF protection, memory namespace)
+- Ledger hash chain verification
+- Error redaction
 
-### Phase 2 (Planned)
-- Kanban integration with backend
-- Web-locked research node
+### Phase B: Core Expansion (Planned)
+- web_locked research node
 - Cold memory (RAG system)
 
-### Phase 3 (Planned)
+### Phase C: Integrations (Planned)
 - Google read-only integration
 - Cost dashboards
 - Security auditor node
@@ -212,7 +241,7 @@ See [Contributing Guidelines](docs/06-contributing/code-style.md) for developmen
 
 - UI components built with [shadcn/ui](https://ui.shadcn.com/) (MIT)
 - Icons by [Lucide](https://lucide.dev/) (MIT)
-- See [ATTRIBUTIONS.md](UI/ATTRIBUTIONS.md) for full credits
+- See [ATTRIBUTIONS.md](apps/dashboard/ATTRIBUTIONS.md) for full credits
 
 ---
 

@@ -8,7 +8,9 @@
     "build": "tsc"
   },
   "dependencies": {
+    "@cairn/integrations": "workspace:*",
     "@cairn/ledger": "workspace:*",
+    "@cairn/memory": "workspace:*",
     "@cairn/policy": "workspace:*",
     "@cairn/shared": "workspace:*",
     "zod": "^4.3.6"

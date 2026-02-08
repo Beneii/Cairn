@@ -24,12 +24,22 @@ export const NODES: Record<string, NodeConfig> = {
   executor: {
     name: "executor",
     allowed_callers: ["planner", "orchestrator"],
-    allowed_tools: ["memory_read", "memory_write", "ledger_write", "web_search", "fetch_url"],
+    allowed_tools: ["memory_read", "memory_write", "ledger_write", "web_search", "fetch_url", "vector_search"],
     memory_access: ["hot", "warm"],
     memory_write: ["hot", "warm"],
     max_runtime_seconds: 300,
     max_tokens_per_call: 5000,
     assigned_model: "gpt-4o",
+  },
+  web_locked: {
+    name: "web_locked",
+    allowed_callers: ["planner", "executor", "orchestrator"],
+    allowed_tools: [], // NO TOOLS - read-only analysis only
+    memory_access: [], // NO MEMORY ACCESS
+    memory_write: [], // NO MEMORY WRITE - this is critical
+    max_runtime_seconds: 60,
+    max_tokens_per_call: 4000,
+    assigned_model: "gpt-4o-mini",
   },
   logger: {
     name: "logger",
@@ -47,7 +57,9 @@ export const NODES: Record<string, NodeConfig> = {
 export const GRAPH_EDGES: Record<string, string[]> = {
   system: ["gatekeeper"],
   gatekeeper: ["planner", "logger"],
-  planner: ["executor", "logger"],
-  executor: ["logger"],
+  planner: ["executor", "web_locked", "logger"],
+  executor: ["web_locked", "logger"],
+  web_locked: ["logger"], // Can only log, cannot call anything else
   logger: [],
 };
+

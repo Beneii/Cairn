@@ -53,31 +53,7 @@ Complete guide to the React component library.
 - [Types](03-ui-components/types.md) — TypeScript interfaces
 - [Styling](03-ui-components/styling.md) — Tailwind conventions and animations
 
-### 4. API Reference
-
-Backend service APIs (future implementation).
-
-- [Overview](04-api-reference/overview.md) — API architecture
-- [Gateway API](04-api-reference/gateway-api.md) — User-facing endpoints
-- [Orchestrator API](04-api-reference/orchestrator-api.md) — Job management
-- [Memory API](04-api-reference/memory-api.md) — Memory operations
-- [Ledger API](04-api-reference/ledger-api.md) — Audit queries
-- [WebSocket Protocol](04-api-reference/websocket-protocol.md) — Real-time updates
-
-**Note:** These are documentation of planned APIs. Backend services are not yet implemented.
-
-### 5. Guides
-
-Practical how-to guides for common tasks.
-
-- [Adding UI Components](05-guides/adding-components.md) — Component development
-- [Creating Orchestrator Nodes](05-guides/creating-nodes.md) — (Future) Node implementation
-- [Implementing Tools](05-guides/implementing-tools.md) — (Future) Tool development
-- [Memory Patterns](05-guides/memory-patterns.md) — Best practices for memory tiers
-- [Security Model](05-guides/security-model.md) — Permissions and audit
-- [Testing](05-guides/testing.md) — Testing strategy and examples
-
-### 6. Contributing
+### 4. Contributing
 
 Guidelines for contributors.
 
@@ -86,7 +62,7 @@ Guidelines for contributors.
 - [Review Process](06-contributing/review-process.md) — PR guidelines
 - [Roadmap](06-contributing/roadmap.md) — Future features and phases
 
-### 7. Reference
+### 5. Reference
 
 Quick reference materials.
 
@@ -111,8 +87,7 @@ Quick reference materials.
 
 1. Start with [UI Components Overview](03-ui-components/overview.md)
 2. Study component examples (Nucleus, Chat, Notes, etc.)
-3. Follow [Adding UI Components](05-guides/adding-components.md)
-4. Check [Code Style](06-contributing/code-style.md)
+3. Check [Code Style](06-contributing/code-style.md)
 5. Reference [Types](03-ui-components/types.md) for interfaces
 
 ### I Want to Understand the Architecture

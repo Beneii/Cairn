@@ -75,19 +75,19 @@
 - [x] Phase A changes logged in ledger
 
 #### 4. No Phase B Work Has Leaked
-- [ ] No RAG/vector database code exists
-- [ ] No web_locked node implementation exists
-- [ ] No Phase B abstractions in shared packages
+- [x] No RAG/vector database code exists
+- [x] No web_locked node implementation exists
+- [x] No Phase B abstractions in shared packages
 
 #### 5. Stability Window
-- [ ] System runs for 24 hours without crashes
-- [ ] No critical bugs reported in Phase A hardening
-- [ ] Manual testing confirms security controls work
+- [x] System runs for 24 hours without crashes
+- [x] No critical bugs reported in Phase A hardening
+- [x] Manual testing confirms security controls work
 
 #### 6. Invariants Upheld
-- [ ] All changes pass CAIRN_INVARIANTS.md enforcement checklist
-- [ ] No new services added (still exactly 6)
-- [ ] Event bus remains sole inter-service communication
+- [x] All changes pass CAIRN_INVARIANTS.md enforcement checklist
+- [x] No new services added (still exactly 6)
+- [x] Event bus remains sole inter-service communication
 
 ### How to Check
 ```bash
@@ -106,7 +106,7 @@ rg -i "vector|embedding|rag|web_locked" packages/ apps/ --type ts
 6. Test memory protection: try memory_write with key "config_" (should block)
 ```
 
-### Status: ⏳ **IN PROGRESS** (waiting on stability window + leak check)
+### Status: ✅ **PASSED** (2026-02-08)
 
 ---
 

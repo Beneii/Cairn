@@ -74,7 +74,7 @@ export interface LedgerEntry {
 
 // ---- UI-facing types (must match UI/src/app/components/cairn/types.ts) ----
 
-export type NucleusState = "idle" | "thinking" | "tooling" | "waiting" | "error";
+export type NucleusState = "idle" | "thinking" | "tooling" | "waiting" | "error" | "researching";
 
 export interface SubAgent {
   id: string;
@@ -112,6 +112,7 @@ export interface KanbanCard {
   jobId?: string;
   project?: string;    // Category: "general", "work", or custom project name
   archived?: boolean;  // True if moved to archive page
+  archivedAt?: string; // ISO timestamp when archived
   createdAt: string;
   updatedAt: string;
 }
@@ -128,4 +129,6 @@ export interface SystemConfig {
   openai_api_key?: string;
   heartbeat_interval_ms: number;
   monthly_spend_limit_usd: number;
+  max_decisions_per_day: number;
+  max_interactions_per_day: number;
 }

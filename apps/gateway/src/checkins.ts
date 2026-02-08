@@ -6,6 +6,7 @@
  * - User preferences from warm memory
  * - Recent tasks and active projects
  * - Blocked tasks that need attention
+ * - GOALS: Due dates and inactivity detection
  */
 
 import { warmGet, warmSet } from "@cairn/memory";
@@ -13,9 +14,23 @@ import { bus, newId, shortTime } from "@cairn/shared";
 import { appendEntry } from "@cairn/ledger";
 import { isLLMAvailable, callLLM } from "@cairn/orchestrator";
 import { getCards } from "./kanban.js";
+import {
+  generateDailyBriefing,
+  formatBriefingAsText,
+  shouldSendBriefing,
+  runProactiveEngine,
+  getProactiveConfig,
+  shouldNudgeNow,
+  recordNudgeSent,
+  setCalendarProviderForProactive,
+  type NudgeDecision,
+} from "@cairn/goals";
+import { getCalendarProvider } from "@cairn/executor";
 
 const CHECK_IN_INTERVAL_MS = 2 * 60 * 60 * 1000; // Every 2 hours
+const PROACTIVE_CHECK_INTERVAL_MS = 30 * 60 * 1000; // Every 30 minutes for proactive nudges
 const MIN_TIME_BETWEEN_CHECKINS_MS = 4 * 60 * 60 * 1000; // At least 4 hours between check-ins
+const BRIEFING_CHECK_INTERVAL_MS = 15 * 60 * 1000; // Check every 15 minutes
 
 interface CheckInState {
   last_check_in: number; // Unix timestamp
@@ -154,4 +169,114 @@ Respond with just the message text, no JSON.`,
   console.log(
     `[checkins] Check-in processor started (interval: ${CHECK_IN_INTERVAL_MS / 1000 / 60}min)`
   );
+
+  // Morning briefing delivery
+  startBriefingProcessor();
 }
+
+function startBriefingProcessor(): void {
+  setInterval(async () => {
+    try {
+      const hour = new Date().getHours();
+
+      // Only attempt briefing between 7-9 AM
+      if (hour < 7 || hour >= 9) return;
+
+      // Check if already sent today
+      const briefingState = warmGet<{ lastDate: string }>("briefing_state");
+      const today = new Date().toISOString().split("T")[0];
+      if (briefingState?.lastDate === today) return;
+
+      const briefing = await generateDailyBriefing();
+
+      const decision = shouldSendBriefing(briefing, {
+        interruptionsToday: 0,
+        maxInterruptions: 10,
+        minConfidenceToInterrupt: 0.3,
+      });
+
+      if (!decision.send) {
+        console.log(`[briefing] Skipping: ${decision.reason}`);
+        await warmSet("briefing_state", { lastDate: today });
+        return;
+      }
+
+      const text = formatBriefingAsText(briefing);
+
+      // Emit via bus — reaches both dashboard and Telegram
+      bus.emit("chat:message", {
+        id: newId(),
+        role: "cairn",
+        text,
+        timestamp: shortTime(),
+      });
+
+      await warmSet("briefing_state", { lastDate: today });
+
+      await appendEntry("agent", "briefing", "daily", `Daily briefing sent (confidence: ${briefing.confidence.toFixed(2)})`);
+      console.log("[briefing] Morning briefing sent");
+    } catch (err) {
+      console.error("[briefing] Error generating briefing:", err);
+    }
+  }, BRIEFING_CHECK_INTERVAL_MS);
+
+  console.log("[briefing] Briefing processor started (checks every 15min, delivers 7-9 AM)");
+}
+
+/**
+ * Proactive Intelligence Processor
+ * 
+ * Runs the proactive engine to generate goal-driven nudges:
+ * - Goal reminders ("X is due tomorrow")
+ * - Anomaly alerts ("No activity on Y in 3 days")
+ * - Calendar-aware suggestions ("Clear block - good for deep work?")
+ */
+export function startProactiveProcessor(): void {
+  // Wire up calendar provider for the proactive engine
+  try {
+    const provider = getCalendarProvider();
+    setCalendarProviderForProactive(provider);
+  } catch {
+    console.log("[proactive] No calendar provider available");
+  }
+
+  setInterval(async () => {
+    try {
+      const config = getProactiveConfig();
+
+      if (!shouldNudgeNow(config)) {
+        return; // Quiet hours or daily limit reached
+      }
+
+      const nudge = await runProactiveEngine();
+
+      if (!nudge || !nudge.shouldNudge) {
+        return;
+      }
+
+      // Send the nudge
+      bus.emit("chat:message", {
+        id: newId(),
+        role: "cairn",
+        text: nudge.message,
+        timestamp: shortTime(),
+      });
+
+      recordNudgeSent();
+
+      await appendEntry(
+        "agent",
+        "proactive",
+        nudge.relatedGoalId ?? "general",
+        `Nudge sent (${nudge.nudgeType}): ${nudge.message.substring(0, 100)}`
+      );
+
+      console.log(`[proactive] ${nudge.nudgeType} nudge sent (priority: ${nudge.priority})`);
+    } catch (err) {
+      console.error("[proactive] Error in proactive processor:", err);
+    }
+  }, PROACTIVE_CHECK_INTERVAL_MS);
+
+  console.log(`[proactive] Proactive processor started (interval: ${PROACTIVE_CHECK_INTERVAL_MS / 1000 / 60}min)`);
+}
+

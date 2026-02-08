@@ -263,6 +263,64 @@ toolRegistry.set("fetch_url", async (args) => {
   }
 });
 
+// ---- gmail_read ----
+// Read emails from Gmail (requires Google OAuth setup)
+toolRegistry.set("gmail_read", async (args) => {
+  try {
+    // Dynamic import to avoid breaking if integrations not installed
+    const { isGoogleAuthenticated, getRecentEmails, getUnreadCount } = await import("@cairn/integrations");
+
+    if (!isGoogleAuthenticated()) {
+      return {
+        success: false,
+        output: "Gmail not connected. Set up Google OAuth in Integrations page.",
+      };
+    }
+
+    const maxResults = (args.max_results as number) || 5;
+    const emails = await getRecentEmails(maxResults);
+    const unreadCount = await getUnreadCount();
+
+    return {
+      success: true,
+      output: JSON.stringify({ unread_count: unreadCount, emails }),
+    };
+  } catch (err) {
+    return {
+      success: false,
+      output: `Gmail error: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
+});
+
+// ---- calendar_read ----
+// Read calendar events (requires Google OAuth setup)
+toolRegistry.set("calendar_read", async (args) => {
+  try {
+    const { isGoogleAuthenticated, getTodayEvents, getUpcomingEvents } = await import("@cairn/integrations");
+
+    if (!isGoogleAuthenticated()) {
+      return {
+        success: false,
+        output: "Calendar not connected. Set up Google OAuth in Integrations page.",
+      };
+    }
+
+    const days = (args.days as number) || 1;
+    const events = days === 1 ? await getTodayEvents() : await getUpcomingEvents(days);
+
+    return {
+      success: true,
+      output: JSON.stringify({ event_count: events.length, events }),
+    };
+  } catch (err) {
+    return {
+      success: false,
+      output: `Calendar error: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
+});
+
 export function getTool(name: string): ToolFn | undefined {
   return toolRegistry.get(name);
 }
@@ -270,3 +328,4 @@ export function getTool(name: string): ToolFn | undefined {
 export function listTools(): string[] {
   return Array.from(toolRegistry.keys());
 }
+

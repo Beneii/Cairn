@@ -12,7 +12,7 @@ dotenv.config();
 import type { ClientMessage } from "@cairn/shared";
 import { bus, newId, shortTime } from "@cairn/shared";
 import { initLedger } from "@cairn/ledger";
-import { initWarmMemory } from "@cairn/memory";
+import { initWarmMemory, initColdMemory, initEmbeddingService, runCurationCycle, getColdMemoryStats } from "@cairn/memory";
 import { initJobStore, initLLM, isLLMAvailable, processMessage } from "@cairn/orchestrator";
 import { startScheduler } from "@cairn/scheduler";
 import {
@@ -31,14 +31,18 @@ import {
   restoreCard,
   updateCardProject,
 } from "./kanban.js";
-import { setOpenAIKey, setHeartbeat, setSpendLimit, setTelegramToken, setTelegramAdminChatId, getSystemConfig } from "./config.js";
+import { setOpenAIKey, setHeartbeat, setSpendLimit, setDecisionLimit, setInteractionLimit, setTelegramToken, setTelegramAdminChatId, getSystemConfig } from "./config.js";
 import { setupBroadcast } from "./broadcast.js";
 import { initTelegram, isTelegramEnabled } from "./telegram.js";
 import { NODES, GRAPH_EDGES } from "@cairn/policy";
 import { recordMessageSource } from "./session-tracker.js";
 import { startLibrarianProcessor } from "./librarian.js";
-import { startCheckInProcessor } from "./checkins.js";
+import { startCheckInProcessor, startProactiveProcessor } from "./checkins.js";
+import { initGoogleOAuth, getAuthUrl, exchangeCodeForTokens } from "@cairn/integrations";
+import { initCalendarProvider, getCalendarProvider } from "@cairn/executor";
+import { setBriefingCalendarSource } from "@cairn/goals";
 
+const HOST = process.env.HOST || "0.0.0.0";
 const PORT = process.env.PORT ?? 3100;
 const NOTES_CHECK_INTERVAL_MS = 60000; // Check notes every 60 seconds
 
@@ -74,16 +78,59 @@ function startNotesProcessor(): void {
   console.log(`[notes] Notes processor started (interval: ${NOTES_CHECK_INTERVAL_MS / 1000}s)`);
 }
 
+const CURATOR_INTERVAL_MS = 30 * 60 * 1000; // Run curator every 30 minutes
+
+// Curator processor - promotes content from warm to cold memory
+function startCuratorProcessor(): void {
+  // Run once on startup after a short delay
+  setTimeout(async () => {
+    try {
+      const stats = getColdMemoryStats();
+      console.log(`[curator] Cold memory stats: ${stats.documentCount} docs, ${stats.chunkCount} chunks`);
+
+      const result = await runCurationCycle();
+      if (result.promoted > 0) {
+        console.log(`[curator] Startup curation: ${result.promoted} items queued for promotion`);
+      }
+    } catch (err) {
+      console.error("[curator] Startup curation error:", err);
+    }
+  }, 5000); // 5 second delay for startup
+
+  // Then run periodically
+  setInterval(async () => {
+    try {
+      const result = await runCurationCycle();
+      if (result.promoted > 0 || result.skipped > 0) {
+        console.log(`[curator] Curation cycle: ${result.promoted} promoted, ${result.skipped} skipped`);
+      }
+    } catch (err) {
+      console.error("[curator] Curation cycle error:", err);
+    }
+  }, CURATOR_INTERVAL_MS);
+
+  console.log(`[curator] Curator processor started (interval: ${CURATOR_INTERVAL_MS / 1000 / 60}min)`);
+}
+
 async function main() {
   // 1. Initialize all services
   await initLedger();
   await initWarmMemory();
+  initColdMemory();
+  initEmbeddingService();
   await initJobStore();
   await initNotes();
   await initKanban();
 
   // LLM is opt-in. System boots without it.
   initLLM();
+
+  // Initialize Google OAuth + calendar provider
+  initGoogleOAuth();
+  initCalendarProvider();
+
+  // Wire calendar provider into briefing system
+  setBriefingCalendarSource(getCalendarProvider());
 
   // 2. Express + WebSocket
   const app = express();
@@ -94,6 +141,51 @@ async function main() {
   // 3. Health endpoint
   app.get("/health", (_req, res) => {
     res.json({ status: "ok" });
+  });
+
+  // Google OAuth routes
+  app.get("/oauth/google", (_req, res) => {
+    const url = getAuthUrl();
+    if (!url) {
+      res.status(500).json({ error: "Google OAuth not configured. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET." });
+      return;
+    }
+    res.redirect(url);
+  });
+
+  app.get("/oauth/callback", async (req, res) => {
+    const code = req.query.code as string;
+    if (!code) {
+      res.status(400).json({ error: "Missing authorization code" });
+      return;
+    }
+
+    const refreshToken = await exchangeCodeForTokens(code);
+    if (!refreshToken) {
+      res.status(500).json({ error: "Token exchange failed" });
+      return;
+    }
+
+    // Save refresh token to .env
+    const envPath = path.join(process.cwd(), "../../.env");
+    let envContent = "";
+    try { envContent = fs.readFileSync(envPath, "utf-8"); } catch { }
+
+    if (envContent.includes("GOOGLE_REFRESH_TOKEN=")) {
+      envContent = envContent.replace(/GOOGLE_REFRESH_TOKEN=.*/, `GOOGLE_REFRESH_TOKEN=${refreshToken}`);
+    } else {
+      envContent += `\nGOOGLE_REFRESH_TOKEN=${refreshToken}\n`;
+    }
+    fs.writeFileSync(envPath, envContent);
+    process.env.GOOGLE_REFRESH_TOKEN = refreshToken;
+
+    // Re-init calendar provider with real Google data
+    initCalendarProvider();
+    console.log("[oauth] Google authenticated, calendar provider switched to Google");
+
+    // Redirect to dashboard
+    const dashboardUrl = process.env.DASHBOARD_URL || "http://localhost:5173";
+    res.redirect(`${dashboardUrl}?google=connected`);
   });
 
   // 4. Bridge event bus → WebSocket broadcast
@@ -227,6 +319,16 @@ async function main() {
             broadcast({ type: "config:update", config: getSystemConfig() });
             break;
           }
+          case "config:set_decision_limit": {
+            await setDecisionLimit(msg.limit);
+            broadcast({ type: "config:update", config: getSystemConfig() });
+            break;
+          }
+          case "config:set_interaction_limit": {
+            await setInteractionLimit(msg.limit);
+            broadcast({ type: "config:update", config: getSystemConfig() });
+            break;
+          }
           case "config:set_telegram_token": {
             await setTelegramToken(msg.token);
             broadcast({ type: "config:update", config: getSystemConfig() });
@@ -290,11 +392,19 @@ async function main() {
   // 10. Start proactive check-ins
   startCheckInProcessor();
 
-  // 11. Listen
-  server.listen(PORT, () => {
-    console.log(`[gateway] listening on http://localhost:${PORT}`);
-    console.log(`[gateway] health  → http://localhost:${PORT}/health`);
-    console.log(`[gateway] ws      → ws://localhost:${PORT}/ws`);
+  // 11. Start curator processor (warm → cold memory promotion)
+  startCuratorProcessor();
+
+  // 12. Start proactive intelligence (goal-driven nudges)
+  startProactiveProcessor();
+
+  // 13. Listen
+  server.listen(Number(PORT), HOST, () => {
+    console.log(`[gateway] mode     → ${process.env.NODE_ENV || "development"}`);
+    console.log(`[gateway] listening → ${HOST}:${PORT}`);
+    console.log(`[gateway] local    → http://localhost:${PORT}`);
+    console.log(`[gateway] health   → http://localhost:${PORT}/health`);
+    console.log(`[gateway] ws       → ws://localhost:${PORT}/ws`);
     if (isTelegramEnabled()) {
       console.log(`[gateway] telegram → enabled`);
     }

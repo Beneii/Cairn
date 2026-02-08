@@ -97,6 +97,7 @@ export async function archiveCard(id: string): Promise<KanbanCard | undefined> {
   const card = cards.find((c) => c.id === id);
   if (card) {
     card.archived = true;
+    card.archivedAt = now();
     card.updatedAt = now();
     await persist();
     bus.emit("kanban:updated", getCards());

@@ -23,6 +23,7 @@ export interface KanbanCard {
   status: KanbanStatus;
   project?: string;    // Category: "general", "work", or custom project name
   archived?: boolean;  // True if moved to archive page
+  archivedAt?: string; // ISO timestamp when archived
 }
 
 export type LogType = "thought" | "tool" | "file" | "api" | "agent" | "error";

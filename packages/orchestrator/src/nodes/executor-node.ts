@@ -16,6 +16,7 @@ Available tools:
 - ledger_write(type, content): Log an entry
 - web_search(query): Search the web for information
 - fetch_url(url): Fetch the content of a public URL
+- vector_search(query): Search long-term memory for semantically similar content
 
 Memory Strategy:
 - ALWAYS use memory_write to store important information you learn
@@ -27,29 +28,31 @@ Memory Strategy:
   * Preferences (e.g., "apartment_preferences": "near transit, quiet area")
   * Important facts learned during conversation
 
-If you need to use a tool, respond with JSON:
+RESPONSE FORMAT - You MUST respond with one of these exact JSON structures:
+
+1. To use a tool:
 {
   "action": "tool",
-  "tool": "tool_name",
-  "args": { ... },
-  "reasoning": "why"
+  "tool": "memory_write",
+  "args": { "tier": "warm", "key": "example_key", "value": "example_value" },
+  "reasoning": "why I'm using this tool"
 }
 
-If the task is complete or you can answer directly, respond with:
+2. When task is complete:
 {
   "action": "complete",
   "result": "the final output text for the user",
   "summary": "brief summary for logs"
 }
 
-If the task CANNOT be completed (blocked, couldn't find what was requested, no results, etc), respond with:
+3. When task is blocked:
 {
   "action": "blocked",
   "reason": "why the task is blocked",
-  "result": "explanation for the user about what happened and why you couldn't complete it"
+  "result": "explanation for the user about what happened"
 }
 
-IMPORTANT: Use "blocked" when you tried but couldn't fulfill the request (e.g., no search results, item not found, service unavailable). Don't mark blocked tasks as complete.
+CRITICAL: The "action" field must be exactly "tool", "complete", or "blocked". Do NOT use tool names as action values.
 
 Remember: If you learned something important about the user, use memory_write before completing!`;
 
@@ -60,6 +63,7 @@ const ALLOWED_EXECUTOR_TOOLS = [
   "ledger_write",
   "web_search",
   "fetch_url",
+  "vector_search",
 ] as const;
 
 // Zod schemas for LLM response validation (security hardening)

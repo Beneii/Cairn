@@ -8,9 +8,12 @@
     "build": "tsc"
   },
   "dependencies": {
-    "@cairn/shared": "workspace:*"
+    "@cairn/shared": "workspace:*",
+    "better-sqlite3": "^11.0.0",
+    "openai": "^4.57.0"
   },
   "devDependencies": {
+    "@types/better-sqlite3": "^7.6.11",
     "@types/node": "^25.2.0",
     "typescript": "^5.6.0"
   }

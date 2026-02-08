@@ -1,4 +1,5 @@
 import { getJobs, updateJob } from "@cairn/orchestrator";
+import { runHeartbeat } from "@cairn/goals";
 import { hotPurgeExpired } from "@cairn/memory";
 import { appendEntry, verifyChain } from "@cairn/ledger";
 import { bus, newId, now } from "@cairn/shared";
@@ -11,6 +12,10 @@ let intervalId: ReturnType<typeof setInterval> | null = null;
 export function startScheduler(): void {
   if (intervalId) return;
   console.log(`[scheduler] heartbeat started (interval: ${currentIntervalMs / 1000}s)`);
+
+  // Initialize goals DB
+  import("@cairn/goals").then(({ initGoals }) => initGoals());
+
   intervalId = setInterval(() => {
     heartbeat();
   }, currentIntervalMs);
@@ -72,7 +77,23 @@ async function heartbeat(): Promise<void> {
       }
     }
 
-    // 3. Verify ledger integrity
+    // 3. Run Goal Heartbeat (Autonomy Loop)
+    try {
+      const goalResult = await runHeartbeat();
+      if (goalResult.actionsTriggered.length > 0) {
+        await appendEntry(
+          "agent",
+          "goals",
+          "heartbeat",
+          `triggered: ${goalResult.actionsTriggered.join(", ")}`
+        );
+      }
+    } catch (err) {
+      console.error("[scheduler] Goal heartbeat failed:", err);
+      // Don't crash the main scheduler
+    }
+
+    // 4. Verify ledger integrity
     const chainValid = verifyChain();
     if (!chainValid) {
       await appendEntry(
@@ -83,7 +104,7 @@ async function heartbeat(): Promise<void> {
       );
     }
 
-    // 4. Log heartbeat summary
+    // 5. Log heartbeat summary
     const allJobs = getJobs();
     const summary = {
       total_jobs: allJobs.length,

@@ -10,6 +10,9 @@
     "start": "node dist/index.js"
   },
   "dependencies": {
+    "@cairn/executor": "workspace:*",
+    "@cairn/goals": "workspace:*",
+    "@cairn/integrations": "workspace:*",
     "@cairn/ledger": "workspace:*",
     "@cairn/memory": "workspace:*",
     "@cairn/orchestrator": "workspace:*",

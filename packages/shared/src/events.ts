@@ -19,6 +19,7 @@ export interface CairnEvents {
   "chat:message": (message: ChatMessage) => void;
   "note:updated": (notes: Note[]) => void;
   "kanban:updated": (cards: KanbanCard[]) => void;
+  "cold:promoted": (info: { documentId: string; title: string; chunkCount: number; tokenCount: number }) => void;
 }
 
 class TypedEventBus {
