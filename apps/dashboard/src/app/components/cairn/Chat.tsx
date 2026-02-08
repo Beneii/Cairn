@@ -7,9 +7,11 @@ interface ChatProps {
   messages: ChatMessage[];
   onSend?: (text: string) => void;
   className?: string;
+  darkMode?: boolean;
 }
 
-export function Chat({ messages, onSend, className }: ChatProps) {
+export function Chat({ messages, onSend, className, darkMode = false }: ChatProps) {
+  const border = darkMode ? 'rgba(255,255,255,0.1)' : 'rgba(26,29,33,0.1)';
   const [input, setInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -46,7 +48,7 @@ export function Chat({ messages, onSend, className }: ChatProps) {
         ))}
         <div ref={messagesEndRef} />
       </div>
-      <div className="mt-4 pt-4 border-t border-[#1A1D21]/10">
+      <div className="mt-4 pt-4" style={{ borderTop: `1px solid ${border}` }}>
         <input
           type="text"
           value={input}

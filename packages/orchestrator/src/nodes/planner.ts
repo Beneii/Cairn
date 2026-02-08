@@ -65,6 +65,40 @@ interface PlannerResult {
   tools_needed: string[];
 }
 
+function getTimeContext(): { period: string; greeting: string; timestamp: string } {
+  const now = new Date();
+  const hour = now.getHours();
+  const dayOfWeek = now.toLocaleDateString("en-US", { weekday: "long" });
+  const dateStr = now.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  const timeStr = now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+
+  let period: string;
+  let greeting: string;
+
+  if (hour < 6) {
+    period = "late night";
+    greeting = "You're up late!";
+  } else if (hour < 12) {
+    period = "morning";
+    greeting = "Good morning!";
+  } else if (hour < 17) {
+    period = "afternoon";
+    greeting = "Good afternoon!";
+  } else if (hour < 21) {
+    period = "evening";
+    greeting = "Good evening!";
+  } else {
+    period = "night";
+    greeting = "Good evening!";
+  }
+
+  return {
+    period,
+    greeting,
+    timestamp: `${dayOfWeek}, ${dateStr} at ${timeStr}`,
+  };
+}
+
 export async function runPlanner(
   job: Job,
 ): Promise<Job & { _plannerResult?: PlannerResult }> {
@@ -78,7 +112,11 @@ export async function runPlanner(
   const preferences = warmGet("user_preferences") ?? {};
   const recentTasks = warmGet("recent_tasks") ?? [];
 
-  const contextBlock = `User preferences: ${JSON.stringify(preferences)}
+  // Add time awareness
+  const timeContext = getTimeContext();
+
+  const contextBlock = `Current time: ${timeContext.timestamp} (${timeContext.period})
+User preferences: ${JSON.stringify(preferences)}
 Recent tasks: ${JSON.stringify(recentTasks)}
 User request: ${job.input}`;
 

@@ -164,6 +164,18 @@ export function useCairn() {
     wsRef.current?.send(JSON.stringify({ type: "config:set_telegram_admin_chat_id", chat_id }));
   }, []);
 
+  const archiveCard = useCallback((id: string) => {
+    wsRef.current?.send(JSON.stringify({ type: "kanban:archive", id }));
+  }, []);
+
+  const restoreCard = useCallback((id: string) => {
+    wsRef.current?.send(JSON.stringify({ type: "kanban:restore", id }));
+  }, []);
+
+  const setCardProject = useCallback((id: string, project: string) => {
+    wsRef.current?.send(JSON.stringify({ type: "kanban:set_project", id, project }));
+  }, []);
+
   return {
     ...state,
     sendChat,
@@ -175,5 +187,8 @@ export function useCairn() {
     setSpendLimit,
     setTelegramToken,
     setTelegramAdminChatId,
+    archiveCard,
+    restoreCard,
+    setCardProject,
   };
 }

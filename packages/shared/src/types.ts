@@ -110,6 +110,8 @@ export interface KanbanCard {
   title: string;
   status: KanbanStatus;
   jobId?: string;
+  project?: string;    // Category: "general", "work", or custom project name
+  archived?: boolean;  // True if moved to archive page
   createdAt: string;
   updatedAt: string;
 }

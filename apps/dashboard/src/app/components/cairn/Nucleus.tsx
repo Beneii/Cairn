@@ -9,6 +9,7 @@ interface NucleusProps {
   state: NucleusState;
   className?: string;
   subAgents?: SubAgent[];
+  darkMode?: boolean;
 }
 
 // Configuration for physics parameters per state
@@ -69,8 +70,8 @@ function useSmoothState(target: number, config = { stiffness: 100, damping: 20 }
   return value;
 }
 
-export function Nucleus({ state, className, subAgents = [] }: NucleusProps) {
-  const ringColor = "#1A1D21";
+export function Nucleus({ state, className, subAgents = [], darkMode = false }: NucleusProps) {
+  const ringColor = darkMode ? "#E5E5E5" : "#1A1D21";
   
   // 1. Setup Smooth Parameters
   // We use springs to interpolate between state configurations
@@ -124,15 +125,15 @@ export function Nucleus({ state, className, subAgents = [] }: NucleusProps) {
 
   return (
     <div className={clsx("relative flex items-center justify-center w-[400px] h-[400px]", className)}>
-      {/* SVG Filters - Reduced blur for flatter edges */}
+      {/* SVG Filters - Higher blur for more blobby/organic effect */}
       <svg className="absolute w-0 h-0">
         <defs>
           <filter id="goo-rings-v2">
-            <feGaussianBlur in="SourceGraphic" stdDeviation="3" result="blur" />
+            <feGaussianBlur in="SourceGraphic" stdDeviation="10" result="blur" />
             <feColorMatrix
               in="blur"
               mode="matrix"
-              values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 25 -10"
+              values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 50 -18"
               result="goo"
             />
             <feComposite in="SourceGraphic" in2="goo" operator="atop"/>
@@ -157,7 +158,8 @@ export function Nucleus({ state, className, subAgents = [] }: NucleusProps) {
                return (
                   <motion.div
                      key={agent.id}
-                     className="absolute w-14 h-14 bg-[#1A1D21] rounded-full"
+                     className="absolute w-14 h-14 rounded-full"
+                     style={{ backgroundColor: ringColor }}
                      initial={{ x: 0, y: 0, scale: 0, opacity: 0 }}
                      animate={{
                         x: targetX,
@@ -204,10 +206,11 @@ export function Nucleus({ state, className, subAgents = [] }: NucleusProps) {
             }}
          />
 
-         {/* Ring 3 (Core Solid) */}
+         {/* Ring 3 (Core Ring - hollow center) */}
          <motion.div
-            className="absolute w-20 h-20 bg-[#1A1D21] rounded-full"
-            style={{ 
+            className="absolute w-20 h-20 bg-transparent border-[14px] rounded-full"
+            style={{
+               borderColor: ringColor,
                x: r3x,
                y: r3y,
                scale: smoothScale
@@ -217,8 +220,9 @@ export function Nucleus({ state, className, subAgents = [] }: NucleusProps) {
          {/* Optional: Floating "Particles" for texture in Thinking/Tooling modes */}
          {/* These add small details that merge into the main blobs */}
          <motion.div
-             className="absolute w-8 h-8 bg-[#1A1D21] rounded-full opacity-80"
+             className="absolute w-8 h-8 rounded-full opacity-80"
              style={{
+                backgroundColor: ringColor,
                 x: useTransform(r1x, v => v * -0.5), // Moves opposite
                 y: useTransform(r1y, v => v * -0.5),
                 scale: useTransform(smoothScale, s => s * 0.5)

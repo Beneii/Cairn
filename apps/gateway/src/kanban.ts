@@ -79,6 +79,50 @@ export async function deleteCard(id: string): Promise<void> {
   }
 }
 
+export async function updateCardProject(
+  id: string,
+  project: string,
+): Promise<KanbanCard | undefined> {
+  const card = cards.find((c) => c.id === id);
+  if (card) {
+    card.project = project;
+    card.updatedAt = now();
+    await persist();
+    bus.emit("kanban:updated", getCards());
+  }
+  return card;
+}
+
+export async function archiveCard(id: string): Promise<KanbanCard | undefined> {
+  const card = cards.find((c) => c.id === id);
+  if (card) {
+    card.archived = true;
+    card.updatedAt = now();
+    await persist();
+    bus.emit("kanban:updated", getCards());
+  }
+  return card;
+}
+
+export async function restoreCard(id: string): Promise<KanbanCard | undefined> {
+  const card = cards.find((c) => c.id === id);
+  if (card) {
+    card.archived = false;
+    card.updatedAt = now();
+    await persist();
+    bus.emit("kanban:updated", getCards());
+  }
+  return card;
+}
+
+export function getActiveCards(): KanbanCard[] {
+  return cards.filter((c) => !c.archived);
+}
+
+export function getArchivedCards(): KanbanCard[] {
+  return cards.filter((c) => c.archived === true);
+}
+
 async function persist(): Promise<void> {
   await writeFile(KANBAN_FILE, JSON.stringify(cards, null, 2));
 }

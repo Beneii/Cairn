@@ -27,14 +27,52 @@ import {
   getCards,
   createCard,
   updateCardByJobId,
+  archiveCard,
+  restoreCard,
+  updateCardProject,
 } from "./kanban.js";
 import { setOpenAIKey, setHeartbeat, setSpendLimit, setTelegramToken, setTelegramAdminChatId, getSystemConfig } from "./config.js";
 import { setupBroadcast } from "./broadcast.js";
 import { initTelegram, isTelegramEnabled } from "./telegram.js";
 import { NODES, GRAPH_EDGES } from "@cairn/policy";
 import { recordMessageSource } from "./session-tracker.js";
+import { startLibrarianProcessor } from "./librarian.js";
+import { startCheckInProcessor } from "./checkins.js";
 
 const PORT = process.env.PORT ?? 3100;
+const NOTES_CHECK_INTERVAL_MS = 60000; // Check notes every 60 seconds
+
+// Notes processor - scans inbox and processes unread notes
+function startNotesProcessor(): void {
+  setInterval(async () => {
+    try {
+      const unreadNotes = getNotes().filter((n) => n.status === "unread");
+
+      if (unreadNotes.length === 0) {
+        return; // Most heartbeats do nothing - this is correct (truth.md §5)
+      }
+
+      // Process oldest unread note (one incremental step per heartbeat)
+      const oldestNote = unreadNotes[unreadNotes.length - 1];
+
+      console.log(`[notes] Processing unread note: ${oldestNote.id}`);
+
+      // Mark as read before processing to avoid re-processing on failure
+      await markNoteRead(oldestNote.id);
+
+      // Pass to gatekeeper via orchestrator
+      if (isLLMAvailable()) {
+        await processMessage(oldestNote.content);
+      } else {
+        console.log(`[notes] Skipping note processing - LLM not configured`);
+      }
+    } catch (err) {
+      console.error("[notes] Error processing note:", err);
+    }
+  }, NOTES_CHECK_INTERVAL_MS);
+
+  console.log(`[notes] Notes processor started (interval: ${NOTES_CHECK_INTERVAL_MS / 1000}s)`);
+}
 
 async function main() {
   // 1. Initialize all services
@@ -156,6 +194,15 @@ async function main() {
           case "note:resurface":
             await resurfaceNote(msg.id);
             break;
+          case "kanban:archive":
+            await archiveCard(msg.id);
+            break;
+          case "kanban:restore":
+            await restoreCard(msg.id);
+            break;
+          case "kanban:set_project":
+            await updateCardProject(msg.id, msg.project);
+            break;
           case "config:set_openai_key": {
             await setOpenAIKey(msg.key);
             broadcast({ type: "config:update", config: getSystemConfig() });
@@ -234,7 +281,16 @@ async function main() {
   // 7. Start Telegram bot (if configured)
   initTelegram();
 
-  // 8. Listen
+  // 8. Start notes processor (heartbeat inbox scanning)
+  startNotesProcessor();
+
+  // 9. Start librarian (end-of-day task organization)
+  startLibrarianProcessor();
+
+  // 10. Start proactive check-ins
+  startCheckInProcessor();
+
+  // 11. Listen
   server.listen(PORT, () => {
     console.log(`[gateway] listening on http://localhost:${PORT}`);
     console.log(`[gateway] health  → http://localhost:${PORT}/health`);

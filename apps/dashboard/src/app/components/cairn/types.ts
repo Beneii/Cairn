@@ -21,6 +21,8 @@ export interface KanbanCard {
   id: string;
   title: string;
   status: KanbanStatus;
+  project?: string;    // Category: "general", "work", or custom project name
+  archived?: boolean;  // True if moved to archive page
 }
 
 export type LogType = "thought" | "tool" | "file" | "api" | "agent" | "error";

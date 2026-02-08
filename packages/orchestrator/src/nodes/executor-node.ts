@@ -42,6 +42,15 @@ If the task is complete or you can answer directly, respond with:
   "summary": "brief summary for logs"
 }
 
+If the task CANNOT be completed (blocked, couldn't find what was requested, no results, etc), respond with:
+{
+  "action": "blocked",
+  "reason": "why the task is blocked",
+  "result": "explanation for the user about what happened and why you couldn't complete it"
+}
+
+IMPORTANT: Use "blocked" when you tried but couldn't fulfill the request (e.g., no search results, item not found, service unavailable). Don't mark blocked tasks as complete.
+
 Remember: If you learned something important about the user, use memory_write before completing!`;
 
 // Whitelist of allowed tool names (security hardening)
@@ -67,15 +76,33 @@ const ExecutorCompleteActionSchema = z.object({
   summary: z.string().max(500).optional(),
 });
 
+const ExecutorBlockedActionSchema = z.object({
+  action: z.literal("blocked"),
+  reason: z.string().max(500),
+  result: z.string().max(5000), // Explanation for user
+});
+
 const ExecutorActionSchema = z.union([
   ExecutorToolActionSchema,
   ExecutorCompleteActionSchema,
+  ExecutorBlockedActionSchema,
 ]);
 
-const ExecutorSynthesisSchema = z.object({
+const ExecutorSynthesisSuccessSchema = z.object({
   result: z.string().max(5000), // Limit output size
   summary: z.string().max(500).optional(),
 });
+
+const ExecutorSynthesisBlockedSchema = z.object({
+  action: z.literal("blocked"),
+  reason: z.string().max(500),
+  result: z.string().max(5000),
+});
+
+const ExecutorSynthesisSchema = z.union([
+  ExecutorSynthesisSuccessSchema,
+  ExecutorSynthesisBlockedSchema,
+]);
 
 export async function runExecutorNode(job: Job): Promise<Job> {
   const config = getNodeConfig("executor");
@@ -121,6 +148,7 @@ export async function runExecutorNode(job: Job): Promise<Job> {
     result?: string;
     summary?: string;
     reasoning?: string;
+    reason?: string; // For blocked action
   };
 
   try {
@@ -186,7 +214,10 @@ export async function runExecutorNode(job: Job): Promise<Job> {
           'You just ran a tool. Synthesize the result into a clear, user-friendly response.\n\n' +
           'For web_search results, format as a readable list with titles and URLs (not raw JSON).\n' +
           'For other tools, present the information clearly and concisely.\n\n' +
-          'Respond in JSON: { "result": "formatted response text", "summary": "brief summary" }',
+          'If the task was SUCCESSFUL, respond with:\n' +
+          '{ "result": "formatted response text", "summary": "brief summary" }\n\n' +
+          'If the task COULD NOT be completed (no results found, item not available, etc), respond with:\n' +
+          '{ "action": "blocked", "reason": "why it failed", "result": "explanation for user" }',
         userMessage: `Original task: ${job.input}\nTool used: ${parsed.tool}\nTool output: ${toolResult.output}`,
         maxTokens: 2000,
         responseFormat: "json_object",
@@ -216,11 +247,22 @@ export async function runExecutorNode(job: Job): Promise<Job> {
           summary: "Execution complete",
         };
       } else {
-        parsed = {
-          action: "complete",
-          result: validationResult.data.result,
-          summary: validationResult.data.summary,
-        };
+        const data = validationResult.data;
+        if ("action" in data && data.action === "blocked") {
+          // Synthesis indicated the task is blocked
+          parsed = {
+            action: "blocked",
+            result: data.result,
+            reason: data.reason,
+          };
+        } else {
+          // Successful synthesis
+          parsed = {
+            action: "complete",
+            result: data.result,
+            summary: "summary" in data ? data.summary : undefined,
+          };
+        }
       }
     } catch (err) {
       console.error("[executor] Synthesis parse error:", err);
@@ -238,18 +280,25 @@ export async function runExecutorNode(job: Job): Promise<Job> {
     }
   }
 
+  // Determine job status based on action
+  const isBlocked = parsed.action === "blocked";
+  const jobStatus = isBlocked ? "failed" : "done";
+
   // Create result artifact
   const resultArtifact: Artifact = {
     id: newId(),
-    type: "result",
+    type: isBlocked ? "blocked" : "result",
     content: parsed.result || parsed.summary || "Task complete",
-    metadata: { tool_outputs: toolOutputs },
+    metadata: {
+      tool_outputs: toolOutputs,
+      ...(isBlocked && parsed.reason ? { blocked_reason: parsed.reason } : {}),
+    },
     origin_node: "executor",
     created_at: now(),
   };
 
   const updatedJob = updateJob(job.id, {
-    status: "done",
+    status: jobStatus,
     nodes_traversed: [...job.nodes_traversed, "executor"],
     artifacts: [...job.artifacts, resultArtifact],
     costs_so_far: costs,
@@ -270,7 +319,9 @@ export async function runExecutorNode(job: Job): Promise<Job> {
     "agent",
     "executor",
     job.id,
-    `Execution complete: ${(parsed.summary || "").substring(0, 200)}`,
+    isBlocked
+      ? `Execution blocked: ${(parsed.reason || "").substring(0, 200)}`
+      : `Execution complete: ${(parsed.summary || "").substring(0, 200)}`,
   );
 
   return updatedJob;

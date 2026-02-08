@@ -7,10 +7,11 @@ import { Logs } from "./components/cairn/Logs";
 import { AgentsPage } from "./components/cairn/pages/AgentsPage";
 import { IntegrationsPage } from "./components/cairn/pages/IntegrationsPage";
 import { PreferencesPage } from "./components/cairn/pages/PreferencesPage";
-import { Box, Network, Sliders } from "lucide-react";
+import { ArchivePage } from "./components/cairn/pages/ArchivePage";
+import { Box, Network, Sliders, Archive } from "lucide-react";
 import { useCairn } from "./hooks/useCairn";
 
-type View = 'home' | 'agents' | 'integrations' | 'preferences';
+type View = 'home' | 'agents' | 'integrations' | 'preferences' | 'archive';
 
 export default function App() {
   const [darkMode, setDarkMode] = useState(() => {
@@ -24,12 +25,23 @@ export default function App() {
 
   const cairn = useCairn();
 
+  // Theme colors
+  const bg = darkMode ? '#1c1c1c' : '#F3F2EE';
+  const fg = darkMode ? '#E5E5E5' : '#1A1D21';
+  const border = darkMode ? 'rgba(255,255,255,0.1)' : 'rgba(26,29,33,0.1)';
+
   return (
-    <div className={`flex flex-col h-screen w-screen bg-[#F3F2EE] text-[#1A1D21] overflow-hidden font-sans transition-all duration-300 ${darkMode ? 'invert' : ''}`}>
+    <div
+      className="flex flex-col h-screen w-screen overflow-hidden font-sans transition-all duration-300"
+      style={{ backgroundColor: bg, color: fg }}
+    >
 
       {currentView === 'home' && (
         <>
-          <div className="relative flex-none h-[40vh] min-h-[350px] border-b border-[#1A1D21]/10 flex items-center justify-center bg-[#F3F2EE]">
+          <div
+            className="relative flex-none h-[40vh] min-h-[350px] flex items-center justify-center"
+            style={{ borderBottom: `1px solid ${border}`, backgroundColor: bg }}
+          >
 
             {/* Top Left: Brand */}
             <div className="absolute top-6 left-6 z-50">
@@ -44,20 +56,23 @@ export default function App() {
               <button onClick={() => setCurrentView('agents')} title="Agents Graph" className="opacity-40 hover:opacity-100 transition-opacity">
                 <Network size={20} strokeWidth={1.5} />
               </button>
+              <button onClick={() => setCurrentView('archive')} title="Archive" className="opacity-40 hover:opacity-100 transition-opacity">
+                <Archive size={20} strokeWidth={1.5} />
+              </button>
               <button onClick={() => setCurrentView('integrations')} title="Integrations" className="opacity-40 hover:opacity-100 transition-opacity">
                 <Box size={20} strokeWidth={1.5} />
               </button>
               <button onClick={() => setCurrentView('preferences')} title="Preferences" className="opacity-40 hover:opacity-100 transition-opacity">
                 <Sliders size={20} strokeWidth={1.5} />
               </button>
-              <div className="w-px h-5 bg-[#1A1D21]/20 mx-1" />
+              <div className="w-px h-5 mx-1" style={{ backgroundColor: border }} />
               <button onClick={() => setDarkMode(!darkMode)} title="Toggle Theme" className="opacity-40 hover:opacity-100 transition-opacity">
                 <div className="w-5 h-5 rounded-full border border-current bg-transparent" />
               </button>
             </div>
 
             {/* Center: Nucleus */}
-            <Nucleus state={cairn.nucleusState} subAgents={cairn.subAgents} />
+            <Nucleus state={cairn.nucleusState} subAgents={cairn.subAgents} darkMode={darkMode} />
 
             {/* State indicator */}
             <div className="absolute bottom-4 z-50">
@@ -68,8 +83,8 @@ export default function App() {
           </div>
 
           {/* Middle Section: Chat */}
-          <div className="flex-1 min-h-0 border-b border-[#1A1D21]/10">
-            <Chat messages={cairn.messages} onSend={cairn.sendChat} className="h-full" />
+          <div className="flex-1 min-h-0" style={{ borderBottom: `1px solid ${border}` }}>
+            <Chat messages={cairn.messages} onSend={cairn.sendChat} className="h-full" darkMode={darkMode} />
           </div>
 
           {/* Bottom Section: Panels */}
@@ -80,7 +95,7 @@ export default function App() {
               onCreateNote={cairn.createNote}
               className="h-full min-h-0"
             />
-            <Kanban cards={cairn.kanbanCards} className="h-full min-h-0" />
+            <Kanban cards={cairn.kanbanCards} className="h-full min-h-0" onArchive={cairn.archiveCard} />
             <Logs logs={cairn.logs} className="h-full min-h-0" />
           </div>
         </>
@@ -96,6 +111,14 @@ export default function App() {
           config={cairn.config}
           setHeartbeat={cairn.setHeartbeat}
           setSpendLimit={cairn.setSpendLimit}
+        />
+      )}
+
+      {currentView === 'archive' && (
+        <ArchivePage
+          onBack={() => setCurrentView('home')}
+          cards={cairn.kanbanCards}
+          onRestore={cairn.restoreCard}
         />
       )}
 

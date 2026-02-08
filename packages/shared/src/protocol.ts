@@ -16,6 +16,9 @@ export type ClientMessage =
   | { type: "note:create"; content: string }
   | { type: "note:mark_read"; id: string }
   | { type: "note:resurface"; id: string }
+  | { type: "kanban:archive"; id: string }
+  | { type: "kanban:restore"; id: string }
+  | { type: "kanban:set_project"; id: string; project: string }
   | { type: "config:set_openai_key"; key: string }
   | { type: "config:set_telegram_token"; token: string }
   | { type: "config:set_telegram_admin_chat_id"; chat_id: string }

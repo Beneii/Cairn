@@ -6,4 +6,4 @@ export {
   getJob,
   getJobs,
 } from "./jobs.js";
-export { initLLM, isLLMAvailable } from "./llm.js";
+export { initLLM, isLLMAvailable, callLLM } from "./llm.js";
