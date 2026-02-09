@@ -95,6 +95,7 @@ export default function App() {
           setSpendLimit={cairn.setSpendLimit}
           setDecisionLimit={cairn.setDecisionLimit}
           setInteractionLimit={cairn.setInteractionLimit}
+          setProactive={cairn.setProactiveConfig}
         />
       )}
       {currentView === 'integrations' && (

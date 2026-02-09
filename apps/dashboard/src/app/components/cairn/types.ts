@@ -41,3 +41,17 @@ export interface SubAgent {
   action: string;
   model: string;
 }
+
+export interface ProactiveConfig {
+  enabled: boolean;
+  maxDailyNudges: number;
+  quietHoursStart: number; // 0-23
+  quietHoursEnd: number;   // 0-23
+  minHoursBetweenNudges: number;
+  nudgeTypes: {
+    goal_reminder: boolean;
+    calendar_aware: boolean;
+    anomaly_alert: boolean;
+    pattern_suggestion: boolean;
+  };
+}

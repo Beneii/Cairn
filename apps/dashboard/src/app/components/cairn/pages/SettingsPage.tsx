@@ -2,6 +2,7 @@ import { Moon, Sun, Clock, Calendar, DollarSign, Zap, Brain, MessageSquare } fro
 import type { ReactNode } from "react";
 import { PageLayout } from "../PageLayout";
 import { PageContent } from "../PageContent";
+import type { ProactiveConfig } from "../types";
 
 interface ScheduleConfig {
     morningBriefingEnabled: boolean;
@@ -22,6 +23,7 @@ export function SettingsPage({
     setInteractionLimit,
     schedules,
     setSchedules,
+    setProactive,
 }: {
     nav: ReactNode,
     darkMode: boolean,
@@ -31,7 +33,8 @@ export function SettingsPage({
         monthly_spend_limit_usd: number,
         max_decisions_per_day: number,
         max_interactions_per_day: number,
-        has_openai_key: boolean
+        has_openai_key: boolean,
+        proactive?: ProactiveConfig
     },
     setHeartbeat: (v: number) => void,
     setSpendLimit: (v: number) => void,
@@ -39,6 +42,7 @@ export function SettingsPage({
     setInteractionLimit: (v: number) => void,
     schedules?: ScheduleConfig,
     setSchedules?: (s: ScheduleConfig) => void,
+    setProactive?: (config: Partial<ProactiveConfig>) => void,
 }) {
     const border = darkMode ? 'rgba(255,255,255,0.1)' : 'rgba(26,29,33,0.1)';
     const subtleBg = darkMode ? 'rgba(255,255,255,0.05)' : 'rgba(26,29,33,0.05)';
@@ -264,6 +268,98 @@ export function SettingsPage({
                             </div>
                         </div>
                     </section>
+
+                    {/* Proactive Intelligence */}
+                    {config.proactive && setProactive && (
+                        <section>
+                            <h3 className="text-xs uppercase tracking-widest opacity-50 mb-4 pb-2 flex items-center gap-2" style={{ borderBottom: `1px solid ${border}` }}>
+                                <MessageSquare size={14} />
+                                Proactive Intelligence
+                            </h3>
+
+                            <div className="flex items-center justify-between py-3">
+                                <div>
+                                    <div className="text-sm font-medium">Proactive Nudges</div>
+                                    <div className="text-xs opacity-50">Allow Cairn to initiate conversations</div>
+                                </div>
+                                <button
+                                    onClick={() => setProactive({ enabled: !config.proactive?.enabled })}
+                                    className="w-8 h-5 rounded-full transition-all relative"
+                                    style={{ backgroundColor: config.proactive.enabled ? checkBg : subtleBg }}
+                                >
+                                    <div
+                                        className="w-4 h-4 rounded-full absolute top-0.5 transition-all"
+                                        style={{
+                                            backgroundColor: config.proactive.enabled ? checkFg : 'currentColor',
+                                            opacity: config.proactive.enabled ? 1 : 0.3,
+                                            left: config.proactive.enabled ? '14px' : '2px'
+                                        }}
+                                    />
+                                </button>
+                            </div>
+
+                            {config.proactive.enabled && (
+                                <div className="space-y-3 pl-4 border-l-2" style={{ borderColor: border }}>
+                                    <div className="flex items-center justify-between py-2">
+                                        <div className="text-sm">Max Daily Nudges</div>
+                                        <input
+                                            type="number"
+                                            value={config.proactive.maxDailyNudges}
+                                            onChange={(e) => setProactive({ maxDailyNudges: Number(e.target.value) })}
+                                            className="w-16 bg-transparent rounded-md px-2 py-1 text-right text-sm"
+                                            style={{ border: `1px solid ${inputBorder}`, color: 'inherit' }}
+                                        />
+                                    </div>
+
+                                    <div className="flex items-center justify-between py-2">
+                                        <div className="text-sm">Quiet Hours</div>
+                                        <div className="flex items-center gap-2 text-sm">
+                                            <input
+                                                type="number"
+                                                min={0} max={23}
+                                                value={config.proactive.quietHoursStart}
+                                                onChange={(e) => setProactive({ quietHoursStart: Number(e.target.value) })}
+                                                className="w-12 bg-transparent rounded-md px-1 py-1 text-center"
+                                                style={{ border: `1px solid ${inputBorder}`, color: 'inherit' }}
+                                            />
+                                            <span className="opacity-50">to</span>
+                                            <input
+                                                type="number"
+                                                min={0} max={23}
+                                                value={config.proactive.quietHoursEnd}
+                                                onChange={(e) => setProactive({ quietHoursEnd: Number(e.target.value) })}
+                                                className="w-12 bg-transparent rounded-md px-1 py-1 text-center"
+                                                style={{ border: `1px solid ${inputBorder}`, color: 'inherit' }}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="pt-2">
+                                        <div className="text-xs uppercase opacity-50 mb-2">Nudge Types</div>
+                                        <div className="grid grid-cols-2 gap-2">
+                                            {Object.entries(config.proactive.nudgeTypes).map(([key, enabled]) => (
+                                                <label key={key} className="flex items-center gap-2 text-sm cursor-pointer opacity-80 hover:opacity-100">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={enabled}
+                                                        onChange={(e) => setProactive({
+                                                            nudgeTypes: {
+                                                                ...config.proactive!.nudgeTypes,
+                                                                [key]: e.target.checked
+                                                            }
+                                                        })}
+                                                        className="rounded bg-transparent"
+                                                        style={{ borderColor: inputBorder }}
+                                                    />
+                                                    <span className="capitalize">{key.replace(/_/g, ' ')}</span>
+                                                </label>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </section>
+                    )}
                 </div>
             </PageContent>
         </PageLayout>

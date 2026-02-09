@@ -6,7 +6,7 @@
 
 import * as db from "./db/index.js";
 import { now } from "@cairn/shared";
-import type { Goal, ActionLog } from "./types/goal.js";
+import type { Goal } from "./types/goal.js";
 
 export interface HeartbeatResult {
     goalsChecked: number;
@@ -77,10 +77,10 @@ async function checkGoal(
 
     // Check interruption budget
     if (config.respectInterruptionBudget) {
-        if (goal.interruptionsToday >= goal.maxInterruptionsPerDay) {
-            console.log(`[heartbeat] Goal ${goal.id} at interruption limit (${goal.interruptionsToday}/${goal.maxInterruptionsPerDay})`);
+        if (goal.interruptions_today >= goal.max_interruptions_per_day) {
+            console.log(`[heartbeat] Goal ${goal.id} at interruption limit (${goal.interruptions_today}/${goal.max_interruptions_per_day})`);
             // Update lastChecked but don't interrupt
-            db.updateGoal(goal.id, { lastChecked: now() });
+            db.updateGoal(goal.id, { last_reviewed: now() });
             return;
         }
     }
@@ -89,8 +89,8 @@ async function checkGoal(
     const nextAction = determineNextAction(goal);
 
     if (!nextAction) {
-        // No action needed, just update lastChecked
-        db.updateGoal(goal.id, { lastChecked: now() });
+        // No action needed, just update last_reviewed
+        db.updateGoal(goal.id, { last_reviewed: now() });
         return;
     }
 
@@ -99,12 +99,11 @@ async function checkGoal(
         db.logAction(goal.id, nextAction.action, "pending", nextAction.description);
         result.actionsTriggered.push(`${goal.id}:${nextAction.action}`);
 
-        // Schedule next check
-        const nextCheck = calculateNextCheck(goal);
+        // Schedule next review
+        const nextReview = calculateNextCheck(goal);
         db.updateGoal(goal.id, {
-            lastChecked: now(),
-            nextCheck,
-            nextAction: nextAction.action,
+            last_reviewed: now(),
+            next_review: nextReview,
         });
     } else {
         console.log(`[heartbeat] DRY RUN: Would trigger ${nextAction.action} for goal ${goal.id}`);
@@ -137,12 +136,11 @@ function determineNextAction(goal: Goal): NextAction | null {
 }
 
 /**
- * Calculate next check time based on goal schedule
+ * Calculate next review time based on goal's review cadence
  */
 function calculateNextCheck(goal: Goal): string {
-    // TODO: Parse cron schedule and calculate next occurrence
-    // For now, default to 1 hour from now
-    const nextCheck = new Date(Date.now() + 60 * 60 * 1000);
+    const cadenceMs = goal.review_cadence_days * 24 * 60 * 60 * 1000;
+    const nextCheck = new Date(Date.now() + cadenceMs);
     return nextCheck.toISOString();
 }
 

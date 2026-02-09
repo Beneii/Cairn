@@ -2,68 +2,33 @@
 export type {
     Goal,
     GoalStatus,
-    RegretProfile,
-    Constraint,
-    ConstraintOperator,
-    PreferenceRef,
+    GoalPriority,
+    TimeHorizon,
     ActionLog,
 } from "./types/goal.js";
 
-export type {
-    PreferenceProfile,
-    FeedbackResponse,
-    FeedbackEntry,
-} from "./types/preference.js";
-
-export type {
-    ActionRisk,
-    ActionPolicy,
-    ApprovalRequest,
-    ApprovalStatus,
-} from "./types/approval.js";
+export { MAX_ACTIVE_GOALS, createGoal } from "./types/goal.js";
 
 export type { Hypothesis, HypothesisStatus } from "./db/hypothesisDb.js";
 export type { DailyBriefing } from "./briefing.js";
 export type { HeartbeatResult, HeartbeatConfig } from "./heartbeat.js";
 
-// Factories (from types)
-export { createGoal, createConstraint } from "./types/goal.js";
-export { createPreferenceProfile, applyFeedback, scoreItem } from "./types/preference.js";
-export { getActionRisk, requiresApproval, isNeverAllowed, DEFAULT_POLICIES } from "./types/approval.js";
-
-// Database Layer (new - replaces JSON stores)
+// Database Layer
 import { initDatabase, closeDatabase } from "./db/index.js";
 export { initDatabase, closeDatabase };
 export {
     getGoals,
     getGoal,
     getActiveGoals,
-    getGoalsByDomain,
     getGoalsDueForCheck,
     createGoal as saveGoal,
     updateGoal,
     setGoalStatus,
     logAction,
-    rejectItem,
-    isItemRejected,
     incrementInterruptions,
     resetDailyInterruptions,
     deleteGoal,
 } from "./db/goalDb.js";
-
-export {
-    getProfiles,
-    getProfile,
-    getProfileByDomain,
-    createProfile,
-    getOrCreateProfile,
-    recordFeedback,
-    score,
-    addVeto,
-    removeVeto,
-    setWeight,
-    deleteProfile,
-} from "./db/preferenceDb.js";
 
 export {
     getActiveHypotheses,

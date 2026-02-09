@@ -31,7 +31,7 @@ import {
   restoreCard,
   updateCardProject,
 } from "./kanban.js";
-import { setOpenAIKey, setHeartbeat, setSpendLimit, setDecisionLimit, setInteractionLimit, setTelegramToken, setTelegramAdminChatId, getSystemConfig } from "./config.js";
+import { setOpenAIKey, setHeartbeat, setSpendLimit, setDecisionLimit, setInteractionLimit, setTelegramToken, setTelegramAdminChatId, getSystemConfig, setProactiveConfig } from "./config.js";
 import { setupBroadcast } from "./broadcast.js";
 import { initTelegram, isTelegramEnabled } from "./telegram.js";
 import { NODES, GRAPH_EDGES } from "@cairn/policy";
@@ -316,6 +316,11 @@ async function main() {
           }
           case "config:set_spend_limit": {
             await setSpendLimit(msg.limit_usd);
+            broadcast({ type: "config:update", config: getSystemConfig() });
+            break;
+          }
+          case "config:set_proactive_config": {
+            await setProactiveConfig(msg.config);
             broadcast({ type: "config:update", config: getSystemConfig() });
             break;
           }

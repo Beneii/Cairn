@@ -91,12 +91,12 @@ export async function generateDailyBriefing(): Promise<DailyBriefing> {
     const hour = now.getHours();
 
     // Get data
-    const [calendar, activeGoals, blockedGoals, hypotheses] = await Promise.all([
+    const [calendar, activeGoals, hypotheses] = await Promise.all([
         getTodaysCalendar(),
         db.getActiveGoals(),
-        db.getGoals().filter(g => g.status === "blocked"),
         db.getActiveHypotheses(),
     ]);
+    const blockedGoals = db.getGoals().filter(g => g.status === "blocked");
 
     // Calculate calendar metrics
     const busyMinutes = calendar.reduce((sum, e) => {
@@ -109,20 +109,20 @@ export async function generateDailyBriefing(): Promise<DailyBriefing> {
     const needsAttention: GoalSummary[] = blockedGoals.map(g => ({
         id: g.id,
         title: g.title,
-        domain: g.domain,
+        domain: "general",
         status: g.status,
-        reason: g.blockedReason,
+        reason: g.blocked_reason,
     }));
 
-    // Add goals with many rejections
+    // Add goals with low confidence that might need revisiting
     for (const goal of activeGoals) {
-        if (goal.rejectedItemIds.length > 10) {
+        if (goal.confidence < 0.3) {
             needsAttention.push({
                 id: goal.id,
                 title: goal.title,
-                domain: goal.domain,
-                status: "pattern_detected",
-                reason: `${goal.rejectedItemIds.length} items rejected - constraints may be too tight`,
+                domain: "general",
+                status: "low_confidence",
+                reason: "Goal confidence is low — worth revisiting definition",
             });
         }
     }

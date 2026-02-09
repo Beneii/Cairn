@@ -5,6 +5,7 @@ import type {
   KanbanCard,
   LogEntry,
   SubAgent,
+  ProactiveConfig,
 } from "../components/cairn/types";
 import type { NucleusState } from "../components/cairn/Nucleus";
 import { getWsUrl, getApiBase, getMode } from "../../config/runtime";
@@ -26,6 +27,7 @@ interface CairnState {
     has_telegram_token: boolean;
     telegram_admin_chat_id: string;
     has_google_calendar: boolean;
+    proactive?: ProactiveConfig;
   };
   policy: {
     nodes: Record<string, any>;
@@ -88,7 +90,8 @@ export function useCairn() {
 
     function connect() {
       if (!mountedRef.current) return;
-      if (wsRef.current?.readyState === WebSocket.OPEN) return;
+      if (wsRef.current?.readyState === WebSocket.OPEN ||
+          wsRef.current?.readyState === WebSocket.CONNECTING) return;
 
       console.log(`[cairn] connecting to ${wsUrl}`);
       const socket = new WebSocket(wsUrl);
@@ -112,6 +115,7 @@ export function useCairn() {
           diagnostics: { ...s.diagnostics, reconnectCount: s.diagnostics.reconnectCount + 1 },
         }));
         console.log("[cairn] disconnected, reconnecting in 2s...");
+        if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
         reconnectTimer.current = setTimeout(connect, 2000);
       };
 
@@ -128,10 +132,10 @@ export function useCairn() {
           const msg = JSON.parse(event.data);
           switch (msg.type) {
             case "chat:message":
-              setState((s) => ({
-                ...s,
-                messages: [...s.messages, msg.message],
-              }));
+              setState((s) => {
+                if (s.messages.some((m) => m.id === msg.message.id)) return s;
+                return { ...s, messages: [...s.messages, msg.message] };
+              });
               break;
             case "nucleus:state":
               setState((s) => ({
@@ -176,7 +180,12 @@ export function useCairn() {
     return () => {
       mountedRef.current = false;
       if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
-      wsRef.current?.close();
+      if (wsRef.current) {
+        wsRef.current.onmessage = null;
+        wsRef.current.onclose = null;
+        wsRef.current.onerror = null;
+        wsRef.current.close();
+      }
     };
   }, [wsUrl]);
 
@@ -236,6 +245,10 @@ export function useCairn() {
     wsRef.current?.send(JSON.stringify({ type: "kanban:set_project", id, project }));
   }, []);
 
+  const setProactiveConfig = useCallback((config: Partial<ProactiveConfig>) => {
+    wsRef.current?.send(JSON.stringify({ type: "config:set_proactive_config", config }));
+  }, []);
+
   return {
     ...state,
     sendChat,
@@ -252,5 +265,6 @@ export function useCairn() {
     archiveCard,
     restoreCard,
     setCardProject,
+    setProactiveConfig,
   };
 }

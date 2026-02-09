@@ -4,6 +4,7 @@ import { initLLM } from "@cairn/orchestrator";
 import { setHeartbeatInterval } from "@cairn/scheduler";
 import { getProjectRoot } from "@cairn/shared";
 import { isGoogleAuthenticated } from "@cairn/integrations";
+import { getProactiveConfig, setProactiveConfig as setProactive, type ProactiveConfig } from "@cairn/goals";
 
 const ENV_PATH = join(getProjectRoot(), ".env");
 
@@ -59,6 +60,10 @@ export async function setInteractionLimit(limit: number): Promise<void> {
     await updateEnvVar("MAX_INTERACTIONS_PER_DAY", String(limit));
 }
 
+export async function setProactiveConfig(config: Partial<ProactiveConfig>): Promise<void> {
+    setProactive(config);
+}
+
 export function getSystemConfig() {
     return {
         heartbeat_interval_ms: Number(process.env.HEARTBEAT_INTERVAL_MS ?? 60000),
@@ -69,5 +74,6 @@ export function getSystemConfig() {
         has_telegram_token: !!process.env.TELEGRAM_BOT_TOKEN,
         telegram_admin_chat_id: process.env.TELEGRAM_ADMIN_CHAT_ID || "",
         has_google_calendar: isGoogleAuthenticated(),
+        proactive: getProactiveConfig(),
     };
 }

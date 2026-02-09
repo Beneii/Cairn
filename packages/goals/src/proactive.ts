@@ -12,6 +12,8 @@
 
 import { warmGet, warmSet } from "@cairn/memory";
 import { now } from "@cairn/shared";
+import type { ProactiveConfig } from "@cairn/shared";
+export type { ProactiveConfig };
 import { getActiveGoals, getGoalsDueForCheck } from "./db/goalDb.js";
 import type { Goal } from "./types/goal.js";
 
@@ -146,8 +148,8 @@ export async function checkGoalNudges(): Promise<NudgeDecision | null> {
     lastNudge[mostUrgent.id] = now();
     await warmSet("goal_nudge_times", lastNudge);
 
-    const daysUntilCheck = mostUrgent.nextCheck
-        ? Math.ceil((new Date(mostUrgent.nextCheck).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+    const daysUntilCheck = mostUrgent.next_review
+        ? Math.ceil((new Date(mostUrgent.next_review).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
         : null;
 
     let message: string;
@@ -302,22 +304,6 @@ export async function runProactiveEngine(): Promise<NudgeDecision | null> {
     detectPatterns();
 
     return null;
-}
-
-// ---- Configuration ----
-
-export interface ProactiveConfig {
-    enabled: boolean;
-    maxDailyNudges: number;
-    quietHoursStart: number; // 0-23
-    quietHoursEnd: number;   // 0-23
-    minHoursBetweenNudges: number;
-    nudgeTypes: {
-        goal_reminder: boolean;
-        calendar_aware: boolean;
-        anomaly_alert: boolean;
-        pattern_suggestion: boolean;
-    };
 }
 
 const DEFAULT_CONFIG: ProactiveConfig = {

@@ -1,34 +1,33 @@
 /**
  * SQLite-backed Goal Store
- * 
- * Replaces JSON file persistence with SQLite for query support.
  */
 
 import { getDatabase, parseJSON, now } from "./database.js";
 import { newId } from "@cairn/shared";
-import type { Goal, GoalStatus, ActionLog, RegretProfile, Constraint, PreferenceRef } from "../types/goal.js";
+import type { Goal, GoalStatus, ActionLog, TimeHorizon, GoalPriority } from "../types/goal.js";
+import { MAX_ACTIVE_GOALS } from "../types/goal.js";
 
 // ---- Row Mapping ----
 
 interface GoalRow {
     id: string;
     title: string;
-    domain: string;
     status: string;
-    completion_conditions: string;
-    blocked_reason: string | null;
-    constraints: string;
-    preferences: string;
-    friction_level: number;
-    regret_profile: string;
+    time_horizon: string;
+    priority: string;
+    success_definition: string;
+    anti_goals: string;
+    metrics: string;
+    allowed_interruption_level: number;
+    review_cadence_days: number;
+    confidence: number;
+    related_projects: string;
+    last_reviewed: string | null;
+    next_review: string | null;
     max_interruptions_per_day: number;
     interruptions_today: number;
-    check_schedule: string | null;
-    last_checked: string | null;
-    next_check: string | null;
-    next_action: string | null;
+    blocked_reason: string | null;
     actions_log: string;
-    rejected_item_ids: string;
     created_at: string;
     updated_at: string;
 }
@@ -37,24 +36,24 @@ function rowToGoal(row: GoalRow): Goal {
     return {
         id: row.id,
         title: row.title,
-        domain: row.domain,
         status: row.status as GoalStatus,
-        completionConditions: parseJSON<string[]>(row.completion_conditions, []),
-        blockedReason: row.blocked_reason ?? undefined,
-        constraints: parseJSON<Constraint[]>(row.constraints, []),
-        preferences: parseJSON<PreferenceRef[]>(row.preferences, []),
-        frictionLevel: row.friction_level,
-        regretProfile: row.regret_profile as RegretProfile,
-        maxInterruptionsPerDay: row.max_interruptions_per_day,
-        interruptionsToday: row.interruptions_today,
-        checkSchedule: row.check_schedule ?? undefined,
-        lastChecked: row.last_checked ?? undefined,
-        nextCheck: row.next_check ?? undefined,
-        nextAction: row.next_action ?? undefined,
-        actionsLog: parseJSON<ActionLog[]>(row.actions_log, []),
-        rejectedItemIds: parseJSON<string[]>(row.rejected_item_ids, []),
-        createdAt: row.created_at,
-        updatedAt: row.updated_at,
+        time_horizon: row.time_horizon as TimeHorizon,
+        priority: row.priority as GoalPriority,
+        success_definition: row.success_definition,
+        anti_goals: parseJSON<string[]>(row.anti_goals, []),
+        metrics: parseJSON<string[]>(row.metrics, []),
+        allowed_interruption_level: row.allowed_interruption_level,
+        review_cadence_days: row.review_cadence_days,
+        confidence: row.confidence,
+        related_projects: parseJSON<string[]>(row.related_projects, []),
+        last_reviewed: row.last_reviewed ?? undefined,
+        next_review: row.next_review ?? undefined,
+        max_interruptions_per_day: row.max_interruptions_per_day,
+        interruptions_today: row.interruptions_today,
+        blocked_reason: row.blocked_reason ?? undefined,
+        actions_log: parseJSON<ActionLog[]>(row.actions_log, []),
+        created_at: row.created_at,
+        updated_at: row.updated_at,
     };
 }
 
@@ -78,21 +77,15 @@ export function getActiveGoals(): Goal[] {
     return rows.map(rowToGoal);
 }
 
-export function getGoalsByDomain(domain: string): Goal[] {
-    const db = getDatabase();
-    const rows = db.prepare("SELECT * FROM goals WHERE domain = ? ORDER BY updated_at DESC").all(domain) as GoalRow[];
-    return rows.map(rowToGoal);
-}
-
 export function getGoalsDueForCheck(): Goal[] {
     const db = getDatabase();
     const nowStr = now();
     const rows = db.prepare(`
-    SELECT * FROM goals 
-    WHERE status = 'active' 
-    AND next_check IS NOT NULL 
-    AND next_check <= ?
-    ORDER BY next_check ASC
+    SELECT * FROM goals
+    WHERE status = 'active'
+    AND next_review IS NOT NULL
+    AND next_review <= ?
+    ORDER BY next_review ASC
   `).all(nowStr) as GoalRow[];
     return rows.map(rowToGoal);
 }
@@ -100,40 +93,34 @@ export function getGoalsDueForCheck(): Goal[] {
 // ---- Mutations ----
 
 export function createGoal(goal: Goal): Goal {
+    // Enforce max 3 active goals
+    const activeCount = getActiveGoals().length;
+    if (goal.status === "active" && activeCount >= MAX_ACTIVE_GOALS) {
+        throw new Error(`Cannot create active goal: already at limit of ${MAX_ACTIVE_GOALS}. Pause or complete an existing goal first.`);
+    }
+
     const db = getDatabase();
     const stmt = db.prepare(`
     INSERT INTO goals (
-      id, title, domain, status, completion_conditions, blocked_reason,
-      constraints, preferences, friction_level, regret_profile,
-      max_interruptions_per_day, interruptions_today, check_schedule,
-      last_checked, next_check, next_action, actions_log, rejected_item_ids,
-      created_at, updated_at
+      id, title, status, time_horizon, priority, success_definition,
+      anti_goals, metrics, allowed_interruption_level, review_cadence_days,
+      confidence, related_projects, last_reviewed, next_review,
+      max_interruptions_per_day, interruptions_today, blocked_reason,
+      actions_log, created_at, updated_at
     ) VALUES (
       ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
     )
   `);
 
     stmt.run(
-        goal.id,
-        goal.title,
-        goal.domain,
-        goal.status,
-        JSON.stringify(goal.completionConditions),
-        goal.blockedReason ?? null,
-        JSON.stringify(goal.constraints),
-        JSON.stringify(goal.preferences),
-        goal.frictionLevel,
-        goal.regretProfile,
-        goal.maxInterruptionsPerDay,
-        goal.interruptionsToday,
-        goal.checkSchedule ?? null,
-        goal.lastChecked ?? null,
-        goal.nextCheck ?? null,
-        goal.nextAction ?? null,
-        JSON.stringify(goal.actionsLog),
-        JSON.stringify(goal.rejectedItemIds),
-        goal.createdAt,
-        goal.updatedAt
+        goal.id, goal.title, goal.status, goal.time_horizon, goal.priority,
+        goal.success_definition, JSON.stringify(goal.anti_goals),
+        JSON.stringify(goal.metrics), goal.allowed_interruption_level,
+        goal.review_cadence_days, goal.confidence,
+        JSON.stringify(goal.related_projects), goal.last_reviewed ?? null,
+        goal.next_review ?? null, goal.max_interruptions_per_day,
+        goal.interruptions_today, goal.blocked_reason ?? null,
+        JSON.stringify(goal.actions_log), goal.created_at, goal.updated_at
     );
 
     console.log(`[goals-db] Created goal: ${goal.title}`);
@@ -144,40 +131,38 @@ export function updateGoal(id: string, updates: Partial<Goal>): Goal | undefined
     const existing = getGoal(id);
     if (!existing) return undefined;
 
-    const updated = { ...existing, ...updates, updatedAt: now() };
+    // Enforce max 3 active goals on status change
+    if (updates.status === "active" && existing.status !== "active") {
+        const activeCount = getActiveGoals().length;
+        if (activeCount >= MAX_ACTIVE_GOALS) {
+            throw new Error(`Cannot activate goal: already at limit of ${MAX_ACTIVE_GOALS}.`);
+        }
+    }
+
+    const updated = { ...existing, ...updates, updated_at: now() };
     const db = getDatabase();
 
     const stmt = db.prepare(`
     UPDATE goals SET
-      title = ?, domain = ?, status = ?, completion_conditions = ?,
-      blocked_reason = ?, constraints = ?, preferences = ?,
-      friction_level = ?, regret_profile = ?, max_interruptions_per_day = ?,
-      interruptions_today = ?, check_schedule = ?, last_checked = ?,
-      next_check = ?, next_action = ?, actions_log = ?, rejected_item_ids = ?,
-      updated_at = ?
+      title = ?, status = ?, time_horizon = ?, priority = ?,
+      success_definition = ?, anti_goals = ?, metrics = ?,
+      allowed_interruption_level = ?, review_cadence_days = ?,
+      confidence = ?, related_projects = ?, last_reviewed = ?,
+      next_review = ?, max_interruptions_per_day = ?,
+      interruptions_today = ?, blocked_reason = ?,
+      actions_log = ?, updated_at = ?
     WHERE id = ?
   `);
 
     stmt.run(
-        updated.title,
-        updated.domain,
-        updated.status,
-        JSON.stringify(updated.completionConditions),
-        updated.blockedReason ?? null,
-        JSON.stringify(updated.constraints),
-        JSON.stringify(updated.preferences),
-        updated.frictionLevel,
-        updated.regretProfile,
-        updated.maxInterruptionsPerDay,
-        updated.interruptionsToday,
-        updated.checkSchedule ?? null,
-        updated.lastChecked ?? null,
-        updated.nextCheck ?? null,
-        updated.nextAction ?? null,
-        JSON.stringify(updated.actionsLog),
-        JSON.stringify(updated.rejectedItemIds),
-        updated.updatedAt,
-        id
+        updated.title, updated.status, updated.time_horizon, updated.priority,
+        updated.success_definition, JSON.stringify(updated.anti_goals),
+        JSON.stringify(updated.metrics), updated.allowed_interruption_level,
+        updated.review_cadence_days, updated.confidence,
+        JSON.stringify(updated.related_projects), updated.last_reviewed ?? null,
+        updated.next_review ?? null, updated.max_interruptions_per_day,
+        updated.interruptions_today, updated.blocked_reason ?? null,
+        JSON.stringify(updated.actions_log), updated.updated_at, id
     );
 
     return updated;
@@ -186,7 +171,7 @@ export function updateGoal(id: string, updates: Partial<Goal>): Goal | undefined
 export function setGoalStatus(id: string, status: GoalStatus, reason?: string): Goal | undefined {
     const updates: Partial<Goal> = { status };
     if (reason && status === "blocked") {
-        updates.blockedReason = reason;
+        updates.blocked_reason = reason;
     }
     return updateGoal(id, updates);
 }
@@ -196,7 +181,6 @@ export function logAction(
     action: string,
     result: ActionLog["result"],
     details?: string,
-    itemIds?: string[]
 ): Goal | undefined {
     const goal = getGoal(goalId);
     if (!goal) return undefined;
@@ -207,35 +191,18 @@ export function logAction(
         action,
         result,
         details,
-        itemIds,
     };
 
     return updateGoal(goalId, {
-        actionsLog: [...goal.actionsLog, entry],
-        lastChecked: now(),
+        actions_log: [...goal.actions_log, entry],
+        last_reviewed: now(),
     });
-}
-
-export function rejectItem(goalId: string, itemId: string): void {
-    const goal = getGoal(goalId);
-    if (!goal) return;
-
-    if (!goal.rejectedItemIds.includes(itemId)) {
-        updateGoal(goalId, {
-            rejectedItemIds: [...goal.rejectedItemIds, itemId],
-        });
-    }
-}
-
-export function isItemRejected(goalId: string, itemId: string): boolean {
-    const goal = getGoal(goalId);
-    return goal?.rejectedItemIds.includes(itemId) ?? false;
 }
 
 export function incrementInterruptions(goalId: string): Goal | undefined {
     const goal = getGoal(goalId);
     if (!goal) return undefined;
-    return updateGoal(goalId, { interruptionsToday: goal.interruptionsToday + 1 });
+    return updateGoal(goalId, { interruptions_today: goal.interruptions_today + 1 });
 }
 
 export function resetDailyInterruptions(): void {

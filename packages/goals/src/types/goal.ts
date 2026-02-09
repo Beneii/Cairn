@@ -1,8 +1,10 @@
 /**
- * Goal Engine Types
- * 
- * Long-lived goals with constraints, preferences, and completion conditions.
- * Goals persist and run on schedules until resolved.
+ * Goal Types
+ *
+ * Long-term goals as active constraints on Cairn's behavior.
+ * Goals are first-class objects that shape decisions, scheduling, and suggestions.
+ *
+ * Hard limit: max 3 active goals. Everything else is parked or archived.
  */
 
 import { now, newId } from "@cairn/shared";
@@ -10,128 +12,100 @@ import { now, newId } from "@cairn/shared";
 // ---- Goal Status ----
 
 export type GoalStatus =
-    | "active"      // Currently pursuing
+    | "active"      // Currently pursuing (max 3)
     | "paused"      // Temporarily stopped
-    | "blocked"     // Can't proceed (needs input or constraint change)
+    | "blocked"     // Can't proceed (needs input or change)
     | "completed"   // Success criteria met
     | "abandoned";  // User killed it
 
-// ---- Constraints (hard rules) ----
+// ---- Time Horizon ----
 
-export type ConstraintOperator =
-    | "lt" | "lte" | "gt" | "gte" | "eq" | "neq"
-    | "in" | "not_in"
-    | "contains" | "not_contains"
-    | "within_km";
+export type TimeHorizon = "1mo" | "3mo" | "6mo" | "12mo";
 
-export interface Constraint {
-    id: string;
-    field: string;           // "price", "suburb", "transport_distance"
-    operator: ConstraintOperator;
-    value: unknown;          // 650, ["Brunswick", "Fitzroy"], 2
-    description?: string;    // Human-readable: "Under $650/week"
-}
+// ---- Priority ----
 
-// ---- Preference References (soft weights) ----
-
-export interface PreferenceRef {
-    profileId: string;       // Reference to PreferenceProfile
-    weight: number;          // How much this profile influences scoring (0-1)
-}
+export type GoalPriority = "hard" | "soft";
+// hard = active constraint, Cairn nudges work toward it
+// soft = only surfaces opportunities, no pressure
 
 // ---- Action Log ----
 
 export interface ActionLog {
     id: string;
     timestamp: string;
-    action: string;          // "scraped_listings", "sent_enquiry"
-    result: "success" | "failed" | "pending" | "rejected";
+    action: string;          // "reviewed", "made_progress", "stalled", "updated_definition"
+    result: "success" | "failed" | "pending" | "skipped";
     details?: string;
-    itemIds?: string[];      // IDs of items processed
 }
-
-// ---- Regret Profile ----
-
-export type RegretProfile =
-    | "miss_opportunity"  // Prefer action, fear of missing out
-    | "avoid_mistake";    // Prefer caution, fear of wrong choice
 
 // ---- Goal ----
 
+export const MAX_ACTIVE_GOALS = 3;
+
 export interface Goal {
     id: string;
-    title: string;                      // "Find rental I'd actually like"
-    domain: string;                     // "housing", "shopping", "travel"
+    title: string;
     status: GoalStatus;
 
-    // Success / failure
-    completionConditions: string[];     // ["inspection_booked", "lease_signed"]
-    blockedReason?: string;             // Why we can't proceed
-
-    // Rules
-    constraints: Constraint[];          // Hard filters
-    preferences: PreferenceRef[];       // Soft scoring weights
+    // Core definition (user-authored, Cairn-sharpened)
+    time_horizon: TimeHorizon;
+    priority: GoalPriority;
+    success_definition: string;         // What "done" looks like
+    anti_goals: string[];               // Explicit things to avoid
+    metrics: string[];                  // How to measure progress (qualitative or quantitative)
 
     // Behavioral tuning
-    frictionLevel: number;              // 0-1: how annoying this goal is allowed to be
-    regretProfile: RegretProfile;       // What kind of regret to minimize
-    maxInterruptionsPerDay: number;     // Hard cap on notifications
-    interruptionsToday: number;         // Counter (resets daily)
+    allowed_interruption_level: number; // 0-1: how aggressive Cairn is about this goal
+    review_cadence_days: number;        // How often to review (in days)
+    confidence: number;                 // 0-1: how solid this goal actually is
+
+    // Connections
+    related_projects: string[];         // Linked Kanban project names
 
     // Scheduling
-    checkSchedule?: string;             // Cron: "0 8 * * *"
-    lastChecked?: string;
-    nextCheck?: string;
-    nextAction?: string;                // What Cairn will do next
+    last_reviewed?: string;
+    next_review?: string;
 
-    // History (prevents loops, provides context)
-    actionsLog: ActionLog[];
-    rejectedItemIds: string[];          // Don't show these again
+    // Interruption budget
+    max_interruptions_per_day: number;
+    interruptions_today: number;
+
+    // State
+    blocked_reason?: string;
+
+    // History
+    actions_log: ActionLog[];
 
     // Metadata
-    createdAt: string;
-    updatedAt: string;
+    created_at: string;
+    updated_at: string;
 }
 
 // ---- Factory ----
 
 export function createGoal(
     title: string,
-    domain: string,
-    options?: Partial<Omit<Goal, "id" | "createdAt" | "updatedAt">>
+    options?: Partial<Omit<Goal, "id" | "created_at" | "updated_at">>
 ): Goal {
     const timestamp = now();
     return {
         id: newId(),
         title,
-        domain,
         status: "active",
-        completionConditions: [],
-        constraints: [],
-        preferences: [],
-        frictionLevel: 0.3,              // Conservative default
-        regretProfile: "avoid_mistake",  // Cautious default
-        maxInterruptionsPerDay: 5,       // Reasonable limit
-        interruptionsToday: 0,
-        actionsLog: [],
-        rejectedItemIds: [],
-        createdAt: timestamp,
-        updatedAt: timestamp,
+        time_horizon: "3mo",
+        priority: "soft",
+        success_definition: "",
+        anti_goals: [],
+        metrics: [],
+        allowed_interruption_level: 0.3,
+        review_cadence_days: 7,
+        confidence: 0.5,
+        related_projects: [],
+        max_interruptions_per_day: 3,
+        interruptions_today: 0,
+        actions_log: [],
+        created_at: timestamp,
+        updated_at: timestamp,
         ...options,
-    };
-}
-
-export function createConstraint(
-    field: string,
-    operator: ConstraintOperator,
-    value: unknown,
-    description?: string
-): Constraint {
-    return {
-        id: newId(),
-        field,
-        operator,
-        value,
-        description,
     };
 }
