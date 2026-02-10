@@ -91,6 +91,16 @@ export async function appendEntry(
   return entry;
 }
 
+export async function recordEvent(params: {
+  type: LedgerEntryType;
+  node: string;
+  job_id: string;
+  content: string;
+  metadata?: Record<string, unknown>;
+}): Promise<LedgerEntry> {
+  return appendEntry(params.type, params.node, params.job_id, params.content, params.metadata);
+}
+
 export function getEntries(filter?: {
   jobId?: string;
   type?: string;

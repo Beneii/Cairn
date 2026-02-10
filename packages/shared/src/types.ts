@@ -11,6 +11,7 @@ export interface Job {
   nodes_traversed: string[];
   artifacts: Artifact[];
   costs_so_far: CostEntry[];
+  metadata?: Record<string, any>;
   created_at: string;
   updated_at: string;
 }
@@ -94,7 +95,7 @@ export interface ChatMessage {
   source?: "telegram" | "dashboard" | "mobile";
 }
 
-export type NoteStatus = "unread" | "read";
+export type NoteStatus = "unread" | "read" | "archived";
 
 export interface Note {
   id: string;
@@ -254,6 +255,8 @@ export type ClientMessage =
   | { type: "note:create"; content: string }
   | { type: "note:mark_read"; id: string }
   | { type: "note:resurface"; id: string }
+  | { type: "note:archive"; id: string }
+  | { type: "note:delete"; id: string }
   | { type: "kanban:archive"; id: string }
   | { type: "kanban:restore"; id: string }
   | { type: "kanban:set_project"; id: string; project: string }
@@ -274,7 +277,10 @@ export type ClientMessage =
   | { type: "goal:delete"; id: string }
   | { type: "task:create"; title: string; taskType: TaskType; schedule?: { due?: string; on?: string; recurrence?: "daily" | "weekly" | "monthly" } }
   | { type: "task:update"; id: string; changes: Partial<Task> }
-  | { type: "task:delete"; id: string };
+  | { type: "task:delete"; id: string }
+  | { type: "job:get"; id: string }
+  | { type: "archive:get_logs" }
+  | { type: "archive:get_system_docs" };
 
 export type ServerMessage =
   | { type: "pong" }
@@ -289,4 +295,7 @@ export type ServerMessage =
   | { type: "policy:update"; nodes: NodeConfig[]; edges: any[] }
   | { type: "goal:update"; goals: Goal[] }
   | { type: "task:update"; tasks: Task[] }
+  | { type: "archive:logs"; logs: any[] }
+  | { type: "archive:system_docs"; docs: any[] }
+  | { type: "job:details"; job: Job }
   | { type: "mobile:authenticated"; success: boolean };

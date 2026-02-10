@@ -1,6 +1,6 @@
 import { appendEntry } from "@cairn/ledger";
 import type { Artifact, LedgerEntryType } from "@cairn/shared";
-import { newId, now } from "@cairn/shared";
+import { bus, newId, now } from "@cairn/shared";
 
 // Security: URL validation helpers (prevent SSRF)
 function isPrivateIP(hostname: string): boolean {
@@ -104,7 +104,7 @@ toolRegistry.set("memory_read", async (args, ctx) => {
   if (!validation.valid) {
     return {
       success: false,
-      output: `Access denied: ${validation.reason}`,
+      output: `Access denied: ${validation.reason} `,
     };
   }
 
@@ -126,14 +126,14 @@ toolRegistry.set("memory_write", async (args, ctx) => {
   if (!validation.valid) {
     return {
       success: false,
-      output: `Access denied: ${validation.reason}`,
+      output: `Access denied: ${validation.reason} `,
     };
   }
 
   await ctx.memoryWrite(tier, key, value);
   return {
     success: true,
-    output: `Written to ${tier}:${key}`,
+    output: `Written to ${tier}:${key} `,
   };
 });
 
@@ -144,7 +144,7 @@ toolRegistry.set("ledger_write", async (args, ctx) => {
   await appendEntry(type, ctx.nodeName, ctx.jobId, content);
   return {
     success: true,
-    output: `Logged: ${content}`,
+    output: `Logged: ${content} `,
   };
 });
 
@@ -546,6 +546,233 @@ toolRegistry.set("tasks_complete", async (args) => {
   }
 });
 
+// ---- research_ingest ----
+// Securely ingest web content or PDF into cold memory
+toolRegistry.set("research_ingest", async (args) => {
+  try {
+    const url = args.url as string;
+    if (!url) return { success: false, output: "URL required" };
+
+    // Security: Validate URL safety
+    const urlValidation = isSafeURL(url);
+    if (!urlValidation.safe) {
+      return { success: false, output: `URL blocked: ${urlValidation.reason}` };
+    }
+
+    const { ingestSource } = await import("@cairn/research");
+    const result = await ingestSource(url);
+
+    return {
+      success: true,
+      output: `Successfully ingested ${result.type}: "${result.title}" (${result.charCount} characters). Document ID: ${result.documentId}`,
+    };
+  } catch (err) {
+    return {
+      success: false,
+      output: `Ingestion failed: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
+});
+
+// ---- browser_fill ----
+// Fill an input field
+toolRegistry.set("browser_fill", async (args) => {
+  const browser = await getBrowser();
+  try {
+    const selector = args.selector as string;
+    const value = args.value as string;
+    if (!selector || value === undefined) return { success: false, output: "Selector and value required" };
+
+    await browser.init();
+    const result = await browser.fill(selector, value);
+    return { success: result.success, output: result.message };
+  } catch (err) {
+    return { success: false, output: `Fill failed: ${err instanceof Error ? err.message : String(err)}` };
+  }
+});
+
+// ---- browser_press ----
+// Press a key (e.g. Enter)
+toolRegistry.set("browser_press", async (args) => {
+  const browser = await getBrowser();
+  try {
+    const key = args.key as string;
+    if (!key) return { success: false, output: "Key required" };
+
+    await browser.init();
+    const result = await browser.press(key);
+    return { success: result.success, output: result.message };
+  } catch (err) {
+    return { success: false, output: `Press failed: ${err instanceof Error ? err.message : String(err)}` };
+  }
+});
+
+// ---- browser_type ----
+// Type text into an input field (wait+click+type)
+toolRegistry.set("browser_type", async (args) => {
+  const browser = await getBrowser();
+  try {
+    const selector = args.selector as string;
+    const text = args.text as string;
+    const delay = (args.delay as number) || 50;
+    if (!selector || text === undefined) return { success: false, output: "Selector and text required" };
+
+    await browser.init();
+    const result = await browser.type(selector, text, delay);
+    return { success: result.success, output: result.message };
+  } catch (err) {
+    return { success: false, output: `Type failed: ${err instanceof Error ? err.message : String(err)}` };
+  }
+});
+
+// Global browser instance for persistence
+let globalBrowser: any = null;
+async function getBrowser() {
+  const { BrowserOperator } = await import("@cairn/browser");
+  if (!globalBrowser) {
+    console.log(`[tools:${process.pid}] Initializing new globalBrowser instance`);
+    // Use a specific debug profile to avoid conflicts with zombies
+    globalBrowser = new BrowserOperator({ profileId: 'debug-session' });
+  } else {
+    console.log(`[tools:${process.pid}] Reusing existing globalBrowser instance`);
+  }
+  return globalBrowser;
+}
+
+// ---- browser_navigate ----
+// Securely navigate the browser to a given URL
+toolRegistry.set("browser_navigate", async (args) => {
+  const browser = await getBrowser();
+  try {
+    const url = args.url as string;
+    if (!url) return { success: false, output: "URL required" };
+
+    await browser.init();
+    const result = await browser.navigate(url);
+
+    // Capture title for better feedback
+    let title = "";
+    try {
+      const page = await browser.getPage();
+      title = await page.title();
+    } catch (e) {
+      // Ignore title error
+    }
+
+    return {
+      success: result.success,
+      output: result.success ? `Navigated to ${url} (Title: ${title})` : result.message
+    };
+  } catch (err) {
+    return { success: false, output: `Navigation failed: ${err instanceof Error ? err.message : String(err)}` };
+  }
+  // Do NOT close browser automatically
+});
+
+// ---- browser_close ----
+// Close the browser session
+toolRegistry.set("browser_close", async () => {
+  if (globalBrowser) {
+    console.log("[tools] Explicitly closing browser session");
+    await globalBrowser.close();
+    globalBrowser = null;
+    return { success: true, output: "Browser session closed." };
+  }
+  return { success: true, output: "No active browser session." };
+});
+
+// ---- browser_click ----
+// Click an element in the current browser page
+toolRegistry.set("browser_click", async (args) => {
+  const browser = await getBrowser();
+  try {
+    const selector = args.selector as string;
+    const url = args.url as string; // Navigate if provided
+    if (!selector) return { success: false, output: "Selector required" };
+
+    await browser.init();
+    if (url) await browser.navigate(url);
+
+    const result = await browser.click(selector);
+    return { success: result.success, output: result.message };
+  } catch (err) {
+    return { success: false, output: `Click failed: ${err instanceof Error ? err.message : String(err)}` };
+  }
+});
+
+// ---- browser_screenshot ----
+// Capture a screenshot of the current page
+toolRegistry.set("browser_screenshot", async (args) => {
+  const browser = await getBrowser();
+  try {
+    const url = args.url as string;
+    await browser.init();
+    if (url) await browser.navigate(url);
+
+    const result = await browser.screenshot();
+
+    return {
+      success: result.success,
+      output: `Screenshot captured: ${result.screenshotPath}`,
+      artifacts: result.screenshotPath ? [{
+        id: newId(),
+        type: "image",
+        content: result.screenshotPath,
+        metadata: { path: result.screenshotPath },
+        origin_node: "executor",
+        created_at: now()
+      }] : []
+    };
+  } catch (err) {
+    return { success: false, output: `Screenshot failed: ${err instanceof Error ? err.message : String(err)}` };
+  }
+});
+
+// ---- browser_observe ----
+// Get a structured summary of the current page
+toolRegistry.set("browser_observe", async (args) => {
+  const browser = await getBrowser();
+  try {
+    await browser.init();
+    const result = await browser.observe();
+    if (!result.success) return { success: false, output: "Observation failed" };
+
+    const summary = `URL: ${result.url}\nTitle: ${result.title}\nInteractive Elements:\n` +
+      result.elements.map((el: any) => `- [${el.id}] ${el.tag}${el.type ? ` (${el.type})` : ''}: "${el.text}" ${el.aria ? `[aria: ${el.aria}]` : ''} ${el.selector ? `(selector: ${el.selector})` : ''}`).join("\n");
+
+    return { success: true, output: summary };
+  } catch (err) {
+    return { success: false, output: `Observation failed: ${err instanceof Error ? err.message : String(err)}` };
+  }
+});
+
+// ---- note_create ----
+// Create a persistent note/document in the dashboard
+toolRegistry.set("note_create", async (args) => {
+  try {
+    const content = args.content as string;
+    if (!content) return { success: false, output: "Content required" };
+
+    // Emit event for the UI/gateway to pick up and store
+    bus.emit("note:create" as any, { content });
+
+    return {
+      success: true,
+      output: "Note created successfully in the dashboard.",
+      artifacts: [{
+        id: newId(),
+        type: "note",
+        content,
+        metadata: {},
+        origin_node: "executor",
+        created_at: now()
+      }]
+    };
+  } catch (err) {
+    return { success: false, output: `Note creation failed: ${err instanceof Error ? err.message : String(err)}` };
+  }
+});
+
 export function getTool(name: string): ToolFn | undefined {
   return toolRegistry.get(name);
 }
@@ -553,4 +780,3 @@ export function getTool(name: string): ToolFn | undefined {
 export function listTools(): string[] {
   return Array.from(toolRegistry.keys());
 }
-

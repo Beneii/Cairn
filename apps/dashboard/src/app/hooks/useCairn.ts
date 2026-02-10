@@ -38,6 +38,9 @@ interface CairnState {
     nodes: Record<string, any>;
     edges: Record<string, string[]>;
   };
+  archiveLogs: any[];
+  archiveSystemDocs: any[];
+  lastJobDetails: any | null;
   // Diagnostics
   diagnostics: {
     wsUrl: string;
@@ -64,6 +67,9 @@ export function useCairn() {
     logs: [],
     goals: [],
     tasks: [],
+    archiveLogs: [],
+    archiveSystemDocs: [],
+    lastJobDetails: null,
     config: {
       heartbeat_interval_ms: 60000,
       monthly_spend_limit_usd: 50,
@@ -177,6 +183,15 @@ export function useCairn() {
             case "task:update":
               setState((s) => ({ ...s, tasks: msg.tasks }));
               break;
+            case "archive:logs":
+              setState((s) => ({ ...s, archiveLogs: msg.logs }));
+              break;
+            case "archive:system_docs":
+              setState((s) => ({ ...s, archiveSystemDocs: msg.docs }));
+              break;
+            case "job:details":
+              setState((s) => ({ ...s, lastJobDetails: msg.job }));
+              break;
             case "pong":
               setState((s) => ({
                 ...s,
@@ -288,6 +303,18 @@ export function useCairn() {
     wsRef.current?.send(JSON.stringify({ type: "task:delete", id }));
   }, []);
 
+  const refreshArchiveLogs = useCallback(() => {
+    wsRef.current?.send(JSON.stringify({ type: "archive:get_logs" }));
+  }, []);
+
+  const refreshSystemDocs = useCallback(() => {
+    wsRef.current?.send(JSON.stringify({ type: "archive:get_system_docs" }));
+  }, []);
+
+  const getJobDetails = useCallback((id: string) => {
+    wsRef.current?.send(JSON.stringify({ type: "job:get", id }));
+  }, []);
+
   const setMobileConfig = useCallback((enabled: boolean, defaultClient: "telegram" | "mobile") => {
     wsRef.current?.send(JSON.stringify({ type: "config:set_mobile_config", enabled, defaultClient }));
   }, []);
@@ -316,5 +343,8 @@ export function useCairn() {
     createTask,
     updateTask,
     deleteTask,
+    refreshArchiveLogs,
+    refreshSystemDocs,
+    getJobDetails,
   };
 }

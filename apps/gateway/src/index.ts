@@ -20,7 +20,8 @@ import {
   getNotes,
   createNote,
   markNoteRead,
-  resurfaceNote,
+  archiveNote,
+  deleteNote,
 } from "./notes.js";
 import {
   initKanban,
@@ -31,7 +32,7 @@ import {
   restoreCard,
   updateCardProject,
 } from "./kanban.js";
-import { setOpenAIKey, setHeartbeat, setSpendLimit, setDecisionLimit, setInteractionLimit, setTelegramToken, setTelegramAdminChatId, getSystemConfig, setProactiveConfig, setMobileConfig } from "./config.js";
+import { setOpenAIKey, setHeartbeat, setSpendLimit, setDecisionLimit, setInteractionLimit, setTelegramToken, setTelegramAdminChatId, getSystemConfig, setProactiveConfig, setMobileConfig, migrateSecrets } from "./config.js";
 import { setupBroadcast } from "./broadcast.js";
 import { initTelegram, isTelegramEnabled } from "./telegram.js";
 import { NODES, GRAPH_EDGES } from "@cairn/policy";
@@ -63,8 +64,9 @@ function startNotesProcessor(): void {
 
       console.log(`[notes] Processing unread note: ${oldestNote.id}`);
 
-      // Mark as read before processing to avoid re-processing on failure
+      // Mark as read and archive after processing to clean up inbox
       await markNoteRead(oldestNote.id);
+      await archiveNote(oldestNote.id);
 
       // Pass to gatekeeper via orchestrator
       if (isLLMAvailable()) {
@@ -116,6 +118,7 @@ function startCuratorProcessor(): void {
 
 async function main() {
   // 1. Initialize all services
+  migrateSecrets();
   await initLedger();
   await initWarmMemory();
   initColdMemory();
@@ -123,6 +126,7 @@ async function main() {
   await initJobStore();
   await initNotes();
   await initKanban();
+  initTasks();
 
   // LLM is opt-in. System boots without it.
   initLLM();
@@ -203,6 +207,9 @@ async function main() {
   bus.on("note:updated", (notes) =>
     broadcast({ type: "note:update", notes }),
   );
+  bus.on("note:create", async (msg: any) => {
+    await createNote(msg.content);
+  });
   bus.on("job:updated", (job) =>
     broadcast({
       type: "job:update",
@@ -305,8 +312,11 @@ async function main() {
           case "note:mark_read":
             await markNoteRead(msg.id);
             break;
-          case "note:resurface":
-            await resurfaceNote(msg.id);
+          case "note:archive":
+            await archiveNote(msg.id);
+            break;
+          case "note:delete":
+            await deleteNote(msg.id);
             break;
           case "kanban:archive":
             await archiveCard(msg.id);
@@ -433,6 +443,14 @@ async function main() {
             socket.send(JSON.stringify({ type: "policy:update", nodes: NODES, edges: GRAPH_EDGES }));
             break;
           }
+          case "job:get": {
+            const { getJob } = await import("@cairn/orchestrator");
+            const job = await getJob(msg.id);
+            if (job) {
+              socket.send(JSON.stringify({ type: "job:details", job }));
+            }
+            break;
+          }
           case "goal:create": {
             const goal = createGoalFactory(msg.title, { success_definition: msg.success_definition });
 
@@ -500,6 +518,39 @@ async function main() {
           case "task:delete": {
             deleteTask(msg.id);
             broadcast({ type: "task:update", tasks: getTasks() });
+            break;
+          }
+          case "archive:get_logs": {
+            const { getAllDocuments } = await import("@cairn/memory");
+            const docs = getAllDocuments().filter(d => d.source === "document");
+            socket.send(JSON.stringify({ type: "archive:logs", logs: docs }));
+            break;
+          }
+          case "archive:get_system_docs": {
+            const rootDir = path.join(process.cwd(), "../../");
+            const docFiles = [
+              "truth.md",
+              "ROADMAP.md",
+              "SOUL.md",
+              "IDENTITY.md",
+              "POLICY.md",
+              "CAPABILITIES.md",
+              "DEPLOYMENT.md",
+              "CAIRN_INVARIANTS.md",
+              "PHASE_GATES.md"
+            ];
+            const docs = docFiles.map(filename => {
+              const filePath = path.join(rootDir, filename);
+              if (fs.existsSync(filePath)) {
+                return {
+                  id: filename,
+                  title: filename,
+                  content: fs.readFileSync(filePath, "utf-8")
+                };
+              }
+              return null;
+            }).filter(d => d !== null);
+            socket.send(JSON.stringify({ type: "archive:system_docs", docs }));
             break;
           }
           case "ping":

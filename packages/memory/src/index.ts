@@ -12,7 +12,9 @@ export {
   warmDelete,
   warmGetAll,
 } from "./warm.js";
+export { SyncManager } from "./manager.js";
 export { memoryRead, memoryWrite, type MemoryAccess } from "./memory.js";
+export { generateSyncMessage, processSyncMessage, type SyncMessage } from "./sync.js";
 
 // Cold memory (RAG)
 export {

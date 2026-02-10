@@ -3,12 +3,12 @@ import { appendEntry } from "@cairn/ledger";
 import { bus, newId, now, shortTime } from "@cairn/shared";
 import type { Job, Artifact } from "@cairn/shared";
 import { memoryRead, memoryWrite } from "@cairn/memory";
-import { executeTool } from "@cairn/executor";
+import { executeTool, executeTools } from "@cairn/executor";
 import { callLLM } from "../llm.js";
 import { updateJob } from "../jobs.js";
 import { z } from "zod";
 
-const SYSTEM_PROMPT = `You are Cairn's executor — the part of the system that takes action. You have tools and you use them.
+const SYSTEM_PROMPT = `You are Cairn's executor — the part of the system that takes action. You have tools and you use them. You must output valid JSON.
 
 ## Available Tools
 
@@ -32,6 +32,35 @@ const SYSTEM_PROMPT = `You are Cairn's executor — the part of the system that 
 
 ### System
 - ledger_write(type, content): Log to audit trail
+- note_create(content): Create a persistent note/document in the dashboard
+- research_ingest(url): Ingest web content or PDF into cold memory
+
+### Browser (Secure)
+- browser_navigate(url): Navigate to a URL
+- browser_click(selector): Click an element
+- browser_fill(selector, value): Fill an input field (use browser_type for search bars)
+- browser_type(selector, text, delay?): Type text into an input (wait+click+type)
+- browser_press(key): Press a key (e.g. Enter)
+- browser_screenshot(url?): Take a screenshot
+
+### Browser Usage Pattern (How to Search)
+### Browser Usage Pattern (How to Search)
+### Browser Usage Pattern (How to Search)
+To search on a website (e.g. YouTube, Google):
+1. browser_navigate(url) (e.g., https://www.youtube.com)
+2. browser_type(selector, query) (e.g., 'input[name="search_query"]', 'openclaw')
+   - DO NOT USE browser_fill for search bars.
+   - DO NOT USE browser_click on the input first (browser_type handles it).
+3. browser_press(key) (e.g., 'Enter')
+4. Wait for page load (implicitly handled)
+
+IMPORTANT: You MUST chain these tools in a SINGLE response. Do not returning after navigation.
+Example tools array:
+[
+  { "name": "browser_navigate", "args": { "url": "..." } },
+  { "name": "browser_type", "args": { "selector": "...", "text": "..." } },
+  { "name": "browser_press", "args": { "key": "Enter" } }
+]
 
 ## When to Use Goals/Tasks Tools
 - If the user discusses progress on something, check goals_read() to see if it relates to a goal, then goals_update() to add a timeline event
@@ -48,8 +77,15 @@ const SYSTEM_PROMPT = `You are Cairn's executor — the part of the system that 
 
 Respond with ONE of these JSON structures:
 
-1. Use a tool:
-{ "action": "tool", "tool": "tool_name", "args": { ... }, "reasoning": "why" }
+1. Use tool(s):
+{
+  "action": "tool",
+  "tools": [
+    { "name": "tool_name", "args": { ... } },
+    { "name": "tool_name_2", "args": { ... } }
+  ],
+  "reasoning": "Execute these steps in order"
+}
 
 2. Task complete:
 { "action": "complete", "result": "response to user", "summary": "brief log" }
@@ -73,14 +109,27 @@ const ALLOWED_EXECUTOR_TOOLS = [
   "goals_update",
   "tasks_read",
   "tasks_create",
+  "tasks_read",
+  "tasks_create",
   "tasks_complete",
+  "note_create",
+  "research_ingest",
+  "browser_navigate",
+  "browser_click",
+  "browser_fill",
+  "browser_type",
+  "browser_press",
+  "browser_screenshot",
+  "browser_close",
 ] as const;
 
 // Zod schemas for LLM response validation (security hardening)
 const ExecutorToolActionSchema = z.object({
   action: z.literal("tool"),
-  tool: z.enum(ALLOWED_EXECUTOR_TOOLS),
-  args: z.record(z.string(), z.unknown()).optional(),
+  tools: z.array(z.object({
+    name: z.enum(ALLOWED_EXECUTOR_TOOLS),
+    args: z.record(z.string(), z.unknown()).optional(),
+  })),
   reasoning: z.string().max(500).optional(),
 });
 
@@ -204,35 +253,39 @@ export async function runExecutorNode(job: Job): Promise<Job> {
   const toolOutputs: string[] = [];
   const costs = [...job.costs_so_far, response.cost];
 
-  // Handle tool call (single pass for MVP)
-  if (parsed.action === "tool" && parsed.tool) {
-    const toolResult = await executeTool(
-      { name: parsed.tool, args: parsed.args || {} },
+  // Handle tool calls
+  if (parsed.action === "tool" && "tools" in parsed && Array.from(parsed.tools as any[]).length > 0) {
+    const tools = parsed.tools as { name: string; args?: Record<string, unknown> }[];
+    const toolResults = await executeTools(
+      tools.map(t => ({ name: t.name, args: t.args || {} })),
       {
         jobId: job.id,
         nodeName: "executor",
         allowedTools: config.allowed_tools,
-        memoryRead: (tier, key) =>
+        memoryRead: (tier: string, key: string) =>
           memoryRead(tier as "hot" | "warm" | "cold", key, memAccess),
-        memoryWrite: (tier, key, value) =>
+        memoryWrite: (tier: string, key: string, value: any) =>
           memoryWrite(tier as "hot" | "warm", key, value, memAccess),
       },
     );
-    toolOutputs.push(`${parsed.tool}: ${toolResult.output}`);
 
-    // Follow-up LLM call to synthesize the result
+    for (let i = 0; i < tools.length; i++) {
+      toolOutputs.push(`${tools[i].name}: ${toolResults[i].output}`);
+    }
+
+    // Follow-up LLM call to synthesize the results
     const followUp = await callLLM(
       {
         model: config.assigned_model,
         systemPrompt:
-          'You just ran a tool. Synthesize the result into a clear, user-friendly response.\n\n' +
-          'For web_search results, format as a readable list with titles and URLs (not raw JSON).\n' +
-          'For other tools, present the information clearly and concisely.\n\n' +
+          'You just ran tools. Synthesize the results into a clear, user-friendly response. You must output valid JSON.\n\n' +
+          'For web_search results, format as a readable list with titles and URLs.\n' +
+          'For other tools, present the information clearly.\n\n' +
           'If the task was SUCCESSFUL, respond with:\n' +
           '{ "result": "formatted response text", "summary": "brief summary" }\n\n' +
-          'If the task COULD NOT be completed (no results found, item not available, etc), respond with:\n' +
+          'If the task COULD NOT be completed, respond with:\n' +
           '{ "action": "blocked", "reason": "why it failed", "result": "explanation for user" }',
-        userMessage: `Original task: ${job.input}\nTool used: ${parsed.tool}\nTool output: ${toolResult.output}`,
+        userMessage: `Original task: ${job.input}\nTools used: ${tools.map(t => t.name).join(', ')}\nOutputs: ${toolResults.map((r: any) => r.output).join('\n---\n')}`,
         maxTokens: 2000,
         responseFormat: "json_object",
       },

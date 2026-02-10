@@ -29,6 +29,7 @@ export interface LLMRequest {
   userMessage: string;
   maxTokens: number;
   responseFormat?: "text" | "json_object";
+  messages?: OpenAI.Chat.Completions.ChatCompletionMessageParam[];
 }
 
 export interface LLMResponse {
@@ -48,10 +49,10 @@ export async function callLLM(
 
   const response = await client.chat.completions.create({
     model: req.model,
-    messages: [
+    messages: req.messages || [
       { role: "system", content: req.systemPrompt },
       { role: "user", content: req.userMessage },
-    ],
+    ] as any,
     max_tokens: req.maxTokens,
     ...(req.responseFormat === "json_object"
       ? { response_format: { type: "json_object" } }
