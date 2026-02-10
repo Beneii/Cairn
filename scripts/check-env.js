@@ -98,12 +98,12 @@ if (fs.existsSync(dashboardDist)) {
   warn("Dashboard not built — run: pnpm build");
 }
 
-// 3. Check truth.md (project root sanity)
-const truthPath = path.join(ROOT, "truth.md");
-if (fs.existsSync(truthPath)) {
-  ok("truth.md found (project root valid)");
+// 3. Check canonical architecture doc (project root sanity)
+const architecturePath = path.join(ROOT, "documents", "02_ARCHITECTURE.md");
+if (fs.existsSync(architecturePath)) {
+  ok("documents/02_ARCHITECTURE.md found (project root valid)");
 } else {
-  fail("truth.md not found — are you in the Cairn project root?");
+  fail("documents/02_ARCHITECTURE.md not found — documentation spine missing");
 }
 
 // 4. Print resolved URLs
