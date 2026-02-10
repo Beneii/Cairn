@@ -1,6 +1,6 @@
 import { getNodeConfig, checkCaller, checkTransition } from "@cairn/policy";
 import { appendEntry } from "@cairn/ledger";
-import { bus, newId, now, shortTime } from "@cairn/shared";
+import { bus, newId, now, shortTime, parseFailureMessage } from "@cairn/shared";
 import type { Job, Artifact } from "@cairn/shared";
 import { memoryRead, memoryWrite } from "@cairn/memory";
 import { executeTool } from "@cairn/executor";
@@ -220,8 +220,16 @@ export async function runExecutorNode(job: Job): Promise<Job> {
     );
     toolOutputs.push(`${parsed.tool}: ${toolResult.output}`);
 
-    // Follow-up LLM call to synthesize the result
-    const followUp = await callLLM(
+    if (!toolResult.success) {
+      const failure = parseFailureMessage(toolResult.output);
+      parsed = {
+        action: "blocked",
+        reason: failure.code ?? "TOOL_EXECUTION_FAILED",
+        result: `I couldn't complete that because ${failure.message || "the requested capability failed"}.`,
+      };
+    } else {
+      // Follow-up LLM call to synthesize the result
+      const followUp = await callLLM(
       {
         model: config.assigned_model,
         systemPrompt:
@@ -291,6 +299,7 @@ export async function runExecutorNode(job: Job): Promise<Job> {
         result: followUp.content.substring(0, 5000), // Truncate for safety
         summary: "Execution complete",
       };
+    }
     }
   }
 

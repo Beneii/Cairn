@@ -1,6 +1,6 @@
 import { checkTool, PolicyViolation } from "@cairn/policy";
 import { appendEntry } from "@cairn/ledger";
-import { newId, now, bus } from "@cairn/shared";
+import { newId, now, bus, FailureCode, withFailureCode } from "@cairn/shared";
 import type { ToolInput, ToolResult, ToolContext } from "./tools.js";
 import { getTool } from "./tools.js";
 
@@ -21,7 +21,7 @@ export async function executeTool(
       );
       return {
         success: false,
-        output: `Tool "${input.name}" is not permitted for this node`,
+        output: withFailureCode(FailureCode.PERMISSION_DENIED, `Tool "${input.name}" is not permitted for this node`),
       };
     }
     throw err;
@@ -32,7 +32,7 @@ export async function executeTool(
   if (!toolFn) {
     return {
       success: false,
-      output: `Tool "${input.name}" does not exist`,
+      output: withFailureCode(FailureCode.CAPABILITY_MISSING, `Tool "${input.name}" does not exist`),
     };
   }
 
@@ -57,6 +57,6 @@ export async function executeTool(
     return result;
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : String(err);
-    return { success: false, output: `Tool error: ${errorMsg}` };
+    return { success: false, output: withFailureCode(FailureCode.TOOL_EXECUTION_FAILED, `Tool error: ${errorMsg}`) };
   }
 }
