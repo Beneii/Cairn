@@ -10,7 +10,7 @@ export const NODES: Record<string, NodeConfig> = {
     max_runtime_seconds: 10,
     max_tokens_per_call: 1000,
     assigned_model: "gpt-4o-mini",
-    local_model: "phi-3.5-mini",
+    local_model: "phi3.5:latest",
   },
   planner: {
     name: "planner",
@@ -31,8 +31,8 @@ export const NODES: Record<string, NodeConfig> = {
     memory_write: ["hot", "warm"],
     max_runtime_seconds: 300,
     max_tokens_per_call: 5000,
-    assigned_model: "gpt-4o",
-    local_model: "phi-3-mini",
+    assigned_model: "gpt-4o-mini",
+    local_model: "phi3:mini",
   },
   critic: {
     name: "critic",
@@ -42,19 +42,19 @@ export const NODES: Record<string, NodeConfig> = {
     memory_write: [],
     max_runtime_seconds: 60,
     max_tokens_per_call: 4000,
-    assigned_model: "gpt-4o",
+    assigned_model: "gpt-4o-mini",
     local_model: "gemma3:4b",
   },
   web_locked: {
     name: "web_locked",
     allowed_callers: ["planner", "executor", "orchestrator"],
-    allowed_tools: [], // NO TOOLS - read-only analysis only
-    memory_access: [], // NO MEMORY ACCESS
-    memory_write: [], // NO MEMORY WRITE - this is critical
+    allowed_tools: [],
+    memory_access: [],
+    memory_write: [],
     max_runtime_seconds: 60,
     max_tokens_per_call: 4000,
     assigned_model: "gpt-4o-mini",
-    local_model: "phi-3.5-mini", // Web locked uses same small model as gatekeeper for safety checks
+    local_model: "phi3.5:latest",
   },
   logger: {
     name: "logger",
@@ -67,6 +67,17 @@ export const NODES: Record<string, NodeConfig> = {
     assigned_model: "none",
     local_model: "none",
   },
+  vision_worker: {
+    name: "vision_worker",
+    allowed_callers: ["planner", "executor", "orchestrator"],
+    allowed_tools: [],       // No tools — image in, text out
+    memory_access: ["hot"],  // Hot only — no goals, no warm/cold memory
+    memory_write: [],        // Cannot write memory (containment)
+    max_runtime_seconds: 60,
+    max_tokens_per_call: 4000,
+    assigned_model: "gpt-4o",
+    local_model: "llava-llama3:8b",
+  },
   web_agent: {
     name: "web_agent",
     allowed_callers: ["orchestrator"],
@@ -75,19 +86,20 @@ export const NODES: Record<string, NodeConfig> = {
     memory_write: ["hot", "warm"],
     max_runtime_seconds: 300,
     max_tokens_per_call: 5000,
-    assigned_model: "gpt-4o",
-    local_model: "phi-3.5-mini", // Web agent is autonomous but simple tool-user
+    assigned_model: "gpt-4o-mini",
+    local_model: "phi3.5:latest",
   },
 };
 
 /** Allowed transitions: from -> to[] */
 export const GRAPH_EDGES: Record<string, string[]> = {
   system: ["gatekeeper"],
-  gatekeeper: ["planner", "logger", "web_agent"],
-  planner: ["executor", "web_locked", "logger"],
-  executor: ["critic", "web_locked", "logger"],
+  gatekeeper: ["planner", "logger", "web_agent", "vision_worker"],
+  planner: ["executor", "web_locked", "vision_worker", "logger"],
+  executor: ["critic", "web_locked", "vision_worker", "logger"],
   critic: ["executor", "logger"],
-  web_locked: ["logger"], // Can only log, cannot call anything else
+  vision_worker: ["logger"], // Image in, text out, then done
+  web_locked: ["logger"],
   web_agent: ["logger"],
   logger: [],
 };

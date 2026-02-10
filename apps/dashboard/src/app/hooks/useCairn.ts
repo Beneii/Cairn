@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import type {
   ChatMessage,
+  ChatAttachment,
   Note,
   KanbanCard,
   LogEntry,
@@ -31,6 +32,7 @@ interface CairnState {
     mobile_app_enabled: boolean;
     default_client: "telegram" | "mobile";
     mobile_pairing_secret?: string;
+    local_mode_enabled: boolean;
   };
   goals: any[]; // refined in next step
   tasks: any[];
@@ -81,6 +83,7 @@ export function useCairn() {
       has_google_calendar: false,
       mobile_app_enabled: false,
       default_client: "telegram",
+      local_mode_enabled: false,
     },
     policy: {
       nodes: {},
@@ -219,8 +222,12 @@ export function useCairn() {
     };
   }, [wsUrl]);
 
-  const sendChat = useCallback((text: string) => {
-    wsRef.current?.send(JSON.stringify({ type: "chat:send", text }));
+  const sendChat = useCallback((text: string, attachments?: ChatAttachment[]) => {
+    const payload: Record<string, unknown> = { type: "chat:send", text };
+    if (attachments && attachments.length > 0) {
+      payload.attachments = attachments;
+    }
+    wsRef.current?.send(JSON.stringify(payload));
   }, []);
 
   const createNote = useCallback((content: string) => {

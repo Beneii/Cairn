@@ -40,35 +40,6 @@ export function NavBar({ currentView, setCurrentView, darkMode, editMode, viewMo
         </button>
       ))}
       <div className="w-px h-5 mx-1" style={{ backgroundColor: border }} />
-      {currentView === 'home' && onToggleEditMode && (
-        <>
-          <button
-            onClick={onToggleEditMode}
-            title={editMode ? "Lock layout" : "Edit layout"}
-            className={`transition-opacity ${editMode ? 'opacity-100' : 'opacity-40 hover:opacity-100'}`}
-          >
-            <LayoutDashboard size={18} strokeWidth={1.5} />
-          </button>
-          {editMode && onToggleViewMode && (
-            <button
-              onClick={onToggleViewMode}
-              title={viewMode === "stacked" ? "Split view" : "Stacked view"}
-              className="opacity-40 hover:opacity-100 transition-opacity"
-            >
-              {viewMode === "stacked" ? <Columns2 size={16} strokeWidth={1.5} /> : <Rows2 size={16} strokeWidth={1.5} />}
-            </button>
-          )}
-          {editMode && onResetLayout && (
-            <button
-              onClick={onResetLayout}
-              title="Reset layout"
-              className="opacity-40 hover:opacity-100 transition-opacity"
-            >
-              <RotateCcw size={16} strokeWidth={1.5} />
-            </button>
-          )}
-        </>
-      )}
     </div>
   );
 }

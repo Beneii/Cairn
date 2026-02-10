@@ -13,7 +13,7 @@ import type { ClientMessage } from "@cairn/shared";
 import { bus, newId, shortTime } from "@cairn/shared";
 import { initLedger } from "@cairn/ledger";
 import { initWarmMemory, initColdMemory, initEmbeddingService, runCurationCycle, getColdMemoryStats, warmGet, warmSet } from "@cairn/memory";
-import { initJobStore, initLLM, isLLMAvailable, processMessage } from "@cairn/orchestrator";
+import { initJobStore, initLLM, isLLMAvailable, processMessage, isOllamaAvailable, getLocalModels, pullModelStream } from "@cairn/orchestrator";
 import { startScheduler } from "@cairn/scheduler";
 import {
   initNotes,
@@ -149,6 +149,71 @@ async function main() {
     res.json({ status: "ok" });
   });
 
+  // ---- Ollama model management endpoints ----
+  app.get("/models", async (_req, res) => {
+    try {
+      const models = await getLocalModels();
+      res.json({ models });
+    } catch (err) {
+      res.status(502).json({ error: "Failed to reach Ollama" });
+    }
+  });
+
+  app.get("/models/status", async (_req, res) => {
+    const available = await isOllamaAvailable();
+    res.json({ available });
+  });
+
+  app.post("/models/pull", async (req, res) => {
+    const { name } = req.body;
+    if (!name || typeof name !== "string") {
+      res.status(400).json({ error: "Missing model name" });
+      return;
+    }
+
+    const stream = await pullModelStream(name);
+    if (!stream) {
+      res.status(502).json({ error: "Failed to start pull from Ollama" });
+      return;
+    }
+
+    // Stream Ollama's NDJSON progress as SSE
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+
+    const reader = stream.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          if (line.trim()) {
+            res.write(`data: ${line}\n\n`);
+          }
+        }
+      }
+      // Flush remaining buffer
+      if (buffer.trim()) {
+        res.write(`data: ${buffer}\n\n`);
+      }
+      res.write("data: [DONE]\n\n");
+      res.end();
+    } catch (err) {
+      console.error("[models] Stream error:", err);
+      res.write(`data: ${JSON.stringify({ error: "Stream interrupted" })}\n\n`);
+      res.end();
+    }
+  });
+
   // Google OAuth routes
   app.get("/oauth/google", (_req, res) => {
     const url = getAuthUrl();
@@ -275,8 +340,9 @@ async function main() {
           case "chat:send": {
             // Record that user is messaging from dashboard
             recordMessageSource("dashboard");
+            console.log(`[gateway] chat:send received. Text: "${msg.text.substring(0, 20)}...", Attachments: ${msg.attachments?.length || 0}`);
 
-            // Echo user message to all clients
+            // Echo user message to all clients (with attachments if present)
             broadcast({
               type: "chat:message",
               message: {
@@ -284,6 +350,7 @@ async function main() {
                 role: "user",
                 text: msg.text,
                 timestamp: shortTime(),
+                attachments: msg.attachments,
               },
             });
 
@@ -301,7 +368,7 @@ async function main() {
             }
 
             // Process through orchestrator (async — results stream via event bus)
-            processMessage(msg.text).catch((err) => {
+            processMessage(msg.text, msg.attachments).catch((err) => {
               console.error("[gateway] processMessage error:", err);
             });
             break;

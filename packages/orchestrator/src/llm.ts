@@ -1,5 +1,5 @@
 import OpenAI from "openai";
-import type { CostEntry } from "@cairn/shared";
+import type { CostEntry, ChatAttachment } from "@cairn/shared";
 import { calculateCost, now } from "@cairn/shared";
 import { getNodeConfig } from "@cairn/policy";
 import { chatOllama } from "./ollama.js";
@@ -38,6 +38,7 @@ export interface LLMRequest {
   maxTokens: number;
   responseFormat?: "text" | "json_object";
   messages?: OpenAI.Chat.Completions.ChatCompletionMessageParam[];
+  attachments?: ChatAttachment[];
 }
 
 export interface LLMResponse {
@@ -56,14 +57,29 @@ export async function callLLM(
   // ---- LOCAL MODE (OLLAMA) ----
   if (localMode) {
     const nodeConfig = getNodeConfig(nodeName);
-    const localModel = nodeConfig.local_model || "phi-3.5-mini"; // Fallback safety
+    const localModel = nodeConfig.local_model || "phi3.5:latest"; // Fallback safety
+
+    // Convert attachments to base64 images for Ollama
+    let images: string[] | undefined;
+    if (req.attachments && req.attachments.length > 0) {
+      images = req.attachments
+        .filter(a => a.type === "image" && a.dataUrl)
+        .map(a => a.dataUrl.split(",")[1]); // Remove data:image/png;base64, prefix
+    }
 
     try {
       const ollamaRes = await chatOllama({
         model: localModel,
-        messages: req.messages ? req.messages.map(m => ({ role: m.role, content: m.content as string })) : [
+        messages: req.messages ? req.messages.map(m => ({
+          role: m.role,
+          content: m.content as string
+        })) : [
           { role: "system", content: req.systemPrompt },
-          { role: "user", content: req.userMessage }
+          {
+            role: "user",
+            content: req.userMessage,
+            images
+          }
         ],
         stream: false
       });
@@ -94,12 +110,47 @@ export async function callLLM(
     throw new Error("LLM not available — set OPENAI_API_KEY to enable AI");
   }
 
+  // Construct messages with potential image attachments
+  let messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = req.messages || [];
+
+  if (!req.messages) {
+    const systemMsg: OpenAI.Chat.Completions.ChatCompletionMessageParam = {
+      role: "system",
+      content: req.systemPrompt
+    };
+
+    let userContent: OpenAI.Chat.Completions.ChatCompletionContentPart[] | string = req.userMessage;
+
+    // SCENARIO: Attachments present -> convert to multimodal content array
+    if (req.attachments && req.attachments.length > 0) {
+      userContent = [
+        { type: "text", text: req.userMessage }
+      ];
+
+      for (const att of req.attachments) {
+        if (att.type === "image" && att.dataUrl) {
+          userContent.push({
+            type: "image_url",
+            image_url: {
+              url: att.dataUrl, // OpenAI accepts data:image/... base64 URLs directly
+              detail: "auto"
+            }
+          });
+        }
+      }
+    }
+
+    const userMsg: OpenAI.Chat.Completions.ChatCompletionMessageParam = {
+      role: "user",
+      content: userContent
+    };
+
+    messages = [systemMsg, userMsg];
+  }
+
   const response = await client.chat.completions.create({
     model: req.model,
-    messages: req.messages || [
-      { role: "system", content: req.systemPrompt },
-      { role: "user", content: req.userMessage },
-    ] as any,
+    messages: validMessages(messages),
     max_tokens: req.maxTokens,
     ...(req.responseFormat === "json_object"
       ? { response_format: { type: "json_object" } }
@@ -127,4 +178,10 @@ export async function callLLM(
     cost,
     finishReason: choice?.finish_reason ?? "unknown",
   };
+}
+
+
+// Helper to ensure TypeScript is happy with the message types
+function validMessages(msgs: any[]): OpenAI.Chat.Completions.ChatCompletionMessageParam[] {
+  return msgs as OpenAI.Chat.Completions.ChatCompletionMessageParam[];
 }

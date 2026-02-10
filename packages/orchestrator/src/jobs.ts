@@ -18,7 +18,9 @@ export async function initJobStore(): Promise<void> {
   }
 }
 
-export function createJob(input: string): Job {
+import type { ChatAttachment } from "@cairn/shared";
+
+export function createJob(input: string, attachments?: ChatAttachment[]): Job {
   const job: Job = {
     id: newId(),
     status: "queued",
@@ -28,6 +30,7 @@ export function createJob(input: string): Job {
     costs_so_far: [],
     created_at: now(),
     updated_at: now(),
+    attachments
   };
   jobs.set(job.id, job);
   persist();

@@ -45,7 +45,9 @@ function appendHistory(withUser: { role: string; content: string }[], job: Job):
   }
 }
 
-export async function processMessage(userInput: string): Promise<void> {
+import type { ChatAttachment } from "@cairn/shared";
+
+export async function processMessage(userInput: string, attachments?: ChatAttachment[]): Promise<void> {
   try {
     // Capture user message BEFORE any node runs so all nodes see fresh history
     const history = warmGet<{ role: string; content: string }[]>("chat_history") || [];
@@ -56,7 +58,7 @@ export async function processMessage(userInput: string): Promise<void> {
     warmSet("chat_history", withUser);
 
     // Step 1: Gatekeeper — classify intent, acknowledge user
-    const job = await runGatekeeper(userInput);
+    const job = await runGatekeeper(userInput, attachments);
 
     if (job.status === "done") {
       bus.emit("nucleus:state", "idle");
@@ -80,6 +82,32 @@ export async function processMessage(userInput: string): Promise<void> {
 
       const totalCost = webJob.costs_so_far.reduce((sum: number, c: any) => sum + c.cost_usd, 0);
       await appendEntry("agent", "orchestrator", webJob.id, `Job completed by web_agent. Total cost: $${totalCost.toFixed(4)}`);
+      return;
+    }
+
+    // New Step: Vision Worker
+    if (job.metadata?.needs_vision) {
+      const { runVisionWorker } = await import("./nodes/vision-worker.js");
+      const visionJob = await runVisionWorker(job);
+
+      bus.emit("nucleus:state", "idle");
+      bus.emit("job:completed", visionJob);
+      captureRecentTask(visionJob);
+      appendHistory(withUser, visionJob);
+
+      // Emit the vision response to the user
+      const resultArtifact = visionJob.artifacts.find(a => a.type === "result");
+      if (resultArtifact) {
+        bus.emit("chat:message", {
+          id: newId(),
+          role: "cairn",
+          text: resultArtifact.content,
+          timestamp: shortTime(),
+        });
+      }
+
+      const totalCost = visionJob.costs_so_far.reduce((sum: number, c: any) => sum + c.cost_usd, 0);
+      await appendEntry("agent", "orchestrator", visionJob.id, `Job completed by vision_worker. Total cost: $${totalCost.toFixed(4)}`);
       return;
     }
 

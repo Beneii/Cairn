@@ -8,6 +8,14 @@ export interface Note {
   timestamp: string;
 }
 
+export interface ChatAttachment {
+  id: string;
+  type: "image";
+  mimeType: string;
+  dataUrl: string;
+  name: string;
+}
+
 export interface ChatMessage {
   id: string;
   role: "user" | "cairn";
@@ -15,6 +23,7 @@ export interface ChatMessage {
   timestamp: string;
   tools?: string[]; // Collapsible tool output
   source?: "telegram" | "dashboard";
+  attachments?: ChatAttachment[];
 }
 
 export interface Artifact {
