@@ -31,6 +31,9 @@ export default defineConfig({
       '/health': {
         target: `http://localhost:${process.env.GATEWAY_PORT || 3100}`,
       },
+      '/models': {
+        target: `http://localhost:${process.env.GATEWAY_PORT || 3100}`,
+      },
     },
   },
 })

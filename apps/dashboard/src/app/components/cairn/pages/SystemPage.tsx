@@ -15,8 +15,8 @@ interface SystemSettingsProps {
         lastPong: string | null;
         lastError: string | null;
         reconnectCount: number;
-        local_mode_enabled?: boolean;
     };
+    localModeEnabled: boolean;
     nodes: Record<string, any>;
     darkMode?: boolean;
     setLocalMode: (enabled: boolean) => void;
@@ -28,15 +28,12 @@ function StatusDot({ ok }: { ok: boolean }) {
     );
 }
 
-export function SystemSettings({ connected, diagnostics, nodes, darkMode = false, setLocalMode }: SystemSettingsProps) {
+export function SystemSettings({ connected, diagnostics, localModeEnabled, nodes, darkMode = false, setLocalMode }: SystemSettingsProps) {
     const [healthStatus, setHealthStatus] = useState<"checking" | "ok" | "error">("checking");
     const [healthDetail, setHealthDetail] = useState("");
     const [showNodes, setShowNodes] = useState(false);
 
-    // We rely on props for the effective state, but use local state for immediate UI feedback if needed.
-    // Actually, let's just use the prop-derived value to avoid sync issues, 
-    // or use local state that syncs with props.
-    const [localMode, setLocalModeState] = useState(diagnostics.local_mode_enabled ?? false);
+    const [localMode, setLocalModeState] = useState(localModeEnabled);
 
     const border = darkMode ? 'rgba(255,255,255,0.1)' : 'rgba(26,29,33,0.1)';
     const subtleBg = darkMode ? 'rgba(255,255,255,0.05)' : 'rgba(26,29,33,0.05)';
@@ -61,10 +58,10 @@ export function SystemSettings({ connected, diagnostics, nodes, darkMode = false
         checkHealth();
     }, []);
 
-    // Sync local state when prop changes (verification from server)
+    // Sync local state when server-confirmed prop changes
     useEffect(() => {
-        setLocalModeState(diagnostics.local_mode_enabled ?? false);
-    }, [diagnostics.local_mode_enabled]);
+        setLocalModeState(localModeEnabled);
+    }, [localModeEnabled]);
 
     const handleToggleLocalMode = () => {
         const newState = !localMode;

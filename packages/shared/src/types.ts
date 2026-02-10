@@ -12,6 +12,7 @@ export interface Job {
   artifacts: Artifact[];
   costs_so_far: CostEntry[];
   metadata?: Record<string, any>;
+  attachments?: ChatAttachment[];
   created_at: string;
   updated_at: string;
 }
@@ -87,6 +88,14 @@ export interface SubAgent {
 
 export type ChatRole = "user" | "cairn";
 
+export interface ChatAttachment {
+  id: string;
+  type: "image";
+  mimeType: string;
+  dataUrl: string;
+  name: string;
+}
+
 export interface ChatMessage {
   id: string;
   role: ChatRole;
@@ -94,6 +103,7 @@ export interface ChatMessage {
   timestamp: string;
   tools?: string[];
   source?: "telegram" | "dashboard" | "mobile";
+  attachments?: ChatAttachment[];
 }
 
 export type NoteStatus = "unread" | "read" | "archived";
@@ -137,13 +147,14 @@ export interface SystemConfig {
 }
 
 export type OllamaModel =
-  | "phi-3.5-mini"
+  | "phi3.5:latest"
   | "gemma3:12b"
-  | "phi-3-mini"
+  | "phi3:mini"
   | "gemma3:4b"
   | "mistral:7b-instruct"
   | "deepseek-coder-v2:6.7b"
-  | "qwen2.5:7b";
+  | "qwen2.5:7b"
+  | "llava-llama3:8b";
 
 // ---- Proactive Intelligence ----
 
@@ -262,7 +273,7 @@ export interface Task {
 
 export type ClientMessage =
   | { type: "ping" }
-  | { type: "chat:send"; text: string }
+  | { type: "chat:send"; text: string; attachments?: ChatAttachment[] }
   | { type: "note:create"; content: string }
   | { type: "note:mark_read"; id: string }
   | { type: "note:resurface"; id: string }

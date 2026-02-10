@@ -30,6 +30,7 @@ interface SettingsPageProps {
         mobile_app_enabled: boolean;
         default_client: "telegram" | "mobile";
         mobile_pairing_secret?: string;
+        local_mode_enabled: boolean;
     };
     setHeartbeat: (v: number) => void;
     setSpendLimit: (v: number) => void;
@@ -443,6 +444,7 @@ export function SettingsPage(props: SettingsPageProps) {
                                     darkMode={darkMode}
                                     connected={props.connected}
                                     diagnostics={props.diagnostics}
+                                    localModeEnabled={props.config.local_mode_enabled}
                                     nodes={props.nodes}
                                     setLocalMode={props.setLocalMode}
                                 />

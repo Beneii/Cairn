@@ -34,10 +34,9 @@ export async function pullModel(modelName: string): Promise<boolean> {
     try {
         const res = await fetch(`${OLLAMA_BASE_URL}/api/pull`, {
             method: "POST",
-            body: JSON.stringify({ name: modelName }),
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name: modelName, stream: false }),
         });
-        // Ollama streams the response, but for now we just wait for the request to start
-        // A more robust implementation would hook into the stream to show progress
         return res.ok;
     } catch (err) {
         console.error(`[ollama] Failed to pull model ${modelName}:`, err);
@@ -45,9 +44,32 @@ export async function pullModel(modelName: string): Promise<boolean> {
     }
 }
 
+/**
+ * Pull a model with streaming progress. Returns a ReadableStream of NDJSON
+ * lines from Ollama's pull API for the caller to pipe through (e.g. SSE).
+ */
+export async function pullModelStream(modelName: string): Promise<ReadableStream<Uint8Array> | null> {
+    try {
+        const res = await fetch(`${OLLAMA_BASE_URL}/api/pull`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name: modelName, stream: true }),
+        });
+        if (!res.ok || !res.body) return null;
+        return res.body;
+    } catch (err) {
+        console.error(`[ollama] Failed to start streaming pull for ${modelName}:`, err);
+        return null;
+    }
+}
+
 export interface OllamaChatRequest {
     model: string;
-    messages: { role: string; content: string }[];
+    messages: {
+        role: string;
+        content: string;
+        images?: string[]; // base64 encoded strings
+    }[];
     stream?: boolean;
 }
 

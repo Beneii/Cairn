@@ -50,7 +50,9 @@ const GatekeeperResponseSchema = z.object({
   is_task: z.boolean(),
 });
 
-export async function runGatekeeper(userInput: string): Promise<Job> {
+import type { ChatAttachment } from "@cairn/shared";
+
+export async function runGatekeeper(userInput: string, attachments?: ChatAttachment[]): Promise<Job> {
   const config = getNodeConfig("gatekeeper");
   checkCaller("system", "gatekeeper");
 
@@ -62,6 +64,31 @@ export async function runGatekeeper(userInput: string): Promise<Job> {
     "pending",
     `Gatekeeper processing: "${userInput.substring(0, 100)}"`,
   );
+  console.log(`[gatekeeper] Attachments received: ${attachments?.length || 0}`);
+
+  // IMMEDIATE ROUTING: If images are present, route directly to vision_worker
+  if (attachments && attachments.length > 0) {
+    console.log(`[gatekeeper] Image detected, routing to vision_worker`);
+    const job = createJob(userInput, attachments);
+
+    updateJob(job.id, {
+      intent: "task",
+      complexity: "medium",
+      nodes_traversed: ["gatekeeper"],
+      status: "running", // It's running because it needs to go to vision_worker
+      metadata: { needs_vision: true }
+    });
+
+    return {
+      ...job,
+      intent: "task",
+      complexity: "medium",
+      nodes_traversed: ["gatekeeper"],
+      status: "running",
+      metadata: { needs_vision: true }
+    };
+  }
+
 
   // Fetch context for better gating
   const activeGoals = getActiveGoals();
@@ -147,6 +174,11 @@ export async function runGatekeeper(userInput: string): Promise<Job> {
 
   // Create and update job
   const job = createJob(userInput);
+  // Attach attachments to job immediately
+  if (attachments && attachments.length > 0) {
+    job.attachments = attachments;
+  }
+
   updateJob(job.id, {
     intent: parsed.intent,
     complexity: parsed.complexity as Job["complexity"],
