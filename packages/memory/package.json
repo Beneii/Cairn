@@ -8,7 +8,9 @@
     "build": "tsc"
   },
   "dependencies": {
+    "@automerge/automerge": "^3.2.3",
     "@cairn/shared": "workspace:*",
+    "@cairn/p2p": "workspace:*",
     "better-sqlite3": "^11.0.0",
     "openai": "^4.57.0"
   },

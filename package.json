@@ -1,18 +1,30 @@
 {
-  "name": "cairn",
+  "name": "cairn-monorepo",
+  "version": "1.0.0",
   "private": true,
-  "type": "module",
+  "packageManager": "pnpm@10.2.1",
   "scripts": {
-    "dev": "pnpm --filter @cairn/gateway dev",
-    "dashboard": "pnpm --filter @cairn/dashboard dev",
-    "build": "pnpm -r build",
-    "start:prod": "NODE_ENV=production node apps/gateway/dist/index.js",
-    "cairn:check": "node scripts/check-env.js"
+    "dev": "turbo run dev --parallel",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "clean": "turbo run clean && rm -rf node_modules",
+    "login:google": "npx tsx scripts/browser-login.ts"
+  },
+  "devDependencies": {
+    "turbo": "^2.0.0",
+    "typescript": "^5.5.0",
+    "ts-node": "^10.9.2",
+    "tsx": "^4.7.1"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
   },
-  "dependencies": {
-    "devtools-protocol": "^0.0.1578551"
+  "pnpm": {
+    "overrides": {
+      "react": "18.3.1",
+      "react-dom": "18.3.1"
+    }
   }
 }

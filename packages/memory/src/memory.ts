@@ -1,6 +1,7 @@
 import type { MemoryTier } from "@cairn/shared";
 import { hotGet, hotSet } from "./hot.js";
 import { warmGet, warmSet } from "./warm.js";
+import { getDocument } from "./cold.js";
 
 export interface MemoryAccess {
   read: MemoryTier[];
@@ -20,8 +21,10 @@ export function memoryRead(
       return hotGet(key);
     case "warm":
       return warmGet(key);
-    case "cold":
-      throw new Error("Cold memory not implemented in Phase 1");
+    case "cold": {
+      const doc = getDocument(key);
+      return doc ? doc.content : undefined;
+    }
   }
 }
 

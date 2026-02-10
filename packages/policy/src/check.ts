@@ -39,12 +39,25 @@ export function checkTransition(from: string, to: string): void {
   }
 }
 
-export function checkTool(nodeName: string, tool: string): void {
+export function checkTool(nodeName: string, tool: string, toolTier: number): void {
   const config = NODES[nodeName];
   if (!config)
     throw new PolicyViolation("unknown_node", "system", nodeName);
+
   if (!config.allowed_tools.includes(tool)) {
     throw new PolicyViolation("forbidden_tool", nodeName, tool);
+  }
+
+  // Tier 3 always requires explicit approval unless in a pre-approved context
+  if (toolTier === 3) {
+    throw new PolicyViolation("tier_3_approval_required", nodeName, tool, "Tier 3 actions require explicit human-in-the-loop approval.");
+  }
+}
+
+export function checkAllowlist(domain: string, allowlist: string[]): void {
+  if (allowlist.includes("*")) return;
+  if (!allowlist.includes(domain)) {
+    throw new PolicyViolation("domain_not_allowed", "policy", domain, `Domain ${domain} is not in the allowlist.`);
   }
 }
 

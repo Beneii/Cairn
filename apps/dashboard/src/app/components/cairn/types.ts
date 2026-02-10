@@ -1,4 +1,4 @@
-export type NoteState = "unread" | "read";
+export type NoteState = "unread" | "read" | "archived";
 export type KanbanStatus = "backlog" | "active" | "blocked" | "done";
 
 export interface Note {
@@ -17,10 +17,43 @@ export interface ChatMessage {
   source?: "telegram" | "dashboard";
 }
 
+export interface Artifact {
+  id: string;
+  type: string;
+  content: string;
+  metadata: Record<string, unknown>;
+  origin_node: string;
+  created_at: string;
+}
+
+export interface CostEntry {
+  node: string;
+  model: string;
+  prompt_tokens: number;
+  completion_tokens: number;
+  cost_usd: number;
+  timestamp: string;
+}
+
+export interface Job {
+  id: string;
+  status: "queued" | "running" | "waiting" | "done" | "failed";
+  input: string;
+  intent?: string;
+  complexity?: "small" | "medium" | "large";
+  nodes_traversed: string[];
+  artifacts: Artifact[];
+  costs_so_far: CostEntry[];
+  metadata?: Record<string, any>;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface KanbanCard {
   id: string;
   title: string;
   status: KanbanStatus;
+  jobId?: string;
   project?: string;    // Category: "general", "work", or custom project name
   archived?: boolean;  // True if moved to archive page
   archivedAt?: string; // ISO timestamp when archived

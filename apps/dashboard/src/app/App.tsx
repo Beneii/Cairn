@@ -214,7 +214,11 @@ export default function App() {
         <ArchivePage
           nav={<NavBar currentView={currentView} setCurrentView={setCurrentView} darkMode={darkMode} setDarkMode={setDarkMode} />}
           cards={cairn.kanbanCards}
+          logs={cairn.archiveLogs}
+          systemDocs={cairn.archiveSystemDocs}
           onRestore={cairn.restoreCard}
+          onRefreshLogs={cairn.refreshArchiveLogs}
+          onRefreshSystemDocs={cairn.refreshSystemDocs}
           darkMode={darkMode}
         />
       )}

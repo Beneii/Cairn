@@ -70,56 +70,71 @@ Every tool call records:
 
 ## Core Capabilities (Build These First, Everything Else Rides On Them)
 
-### C0 -- Identity & Secrets Vault (Week 1)
+### C0 -- Identity & Secrets Vault (Week 1) [COMPLETED by Gemini 3 Flash]
 
 **Purpose:** make automation possible without turning into a credential-leaking clown show.
 
-* Encrypted local vault (age/sops/OS keychain fallback)
-* Secret leasing: `lease_secret(domain, purpose, ttl)`
-* Account registry: accounts have roles, domains, cooldowns, and risk levels
-* Redaction: secrets never appear in logs, prompts, screenshots (masking layer)
-* Rotation playbooks: rotate passwords, revoke tokens, re-auth flows
-* "Break glass" admin mode: manual unlock + timeboxed elevated privileges
+* [x] Encrypted local vault (age/sops/OS keychain fallback)
+* [x] Secret leasing: `lease_secret(domain, purpose, ttl)`
+* [x] Account registry: accounts have roles, domains, cooldowns, and risk levels
+* [x] Redaction: secrets never appear in logs, prompts, screenshots (masking layer)
+* [ ] Rotation playbooks: rotate passwords, revoke tokens, re-auth flows
+* [ ] "Break glass" admin mode: manual unlock + timeboxed elevated privileges
+
+**Status:** Completed. Migrated `.env` secrets.
+**Files:** `packages/vault/`, `apps/gateway/src/config.ts`
 
 Deliverables:
 
-* `vault/` package + CLI: `cairn vault add/get/lease/revoke/rotate`
-* Policy hooks: deny tools if secrets would be exposed.
+* [x] `vault/` package + CLI: `cairn-vault set/get/list`
+* [x] Policy hooks: basics implemented in gateway config.
 
-### C1 -- Tool Runtime + Policy Engine (Week 1-2)
+### C1 -- Tool Runtime + Policy Engine (Week 1-2) [FOUNDATION COMPLETED by Gemini 3 Flash]
 
 **Purpose:** guarantee typed tools, enforce scopes, stop chaos.
 
-* Tool registry with JSON schema I/O
-* Policy engine:
+* [x] Tool registry with JSON schema I/O (`@cairn/tools`)
+* [x] Policy engine expanded:
+  * [x] tier gates (Tiers 0-3)
+  * [x] allowlists (domains)
+  * [ ] rate limiting
+  * [ ] interruption budget
+* [x] Deterministic execution wrappers (`@cairn/runtime`)
+* [ ] Sandbox runner (container/isolation)
 
-  * tier gates
-  * allowlists (domains, file paths, APIs)
-  * per-tool rate limiting
-  * daily "interruption budget"
-  * approval requirements (token-based)
-* Deterministic execution wrappers (timeouts, retries, idempotency keys)
-* Sandbox runner for any "code-like" action (container, no network by default)
-
-Deliverables:
-
-* `@cairn/policy`, `@cairn/tools`, `@cairn/runtime`
-* Golden tests: tool call is rejected if schema mismatch or scope breach.
-
-### C2 -- Observability & Self-Healing (Week 2)
-
-**Purpose:** 24/7 means it must diagnose itself.
-
-* Health endpoints per service
-* Structured logs + trace IDs
-* Metrics: success rate, latency, approvals pending, budget used
-* Watchdog: restarts services, escalates on repeated failure
-* Crash-safe queues: no "lost tasks"
-* Snapshot backups for critical state (vault excluded or separately encrypted)
+**Status:** Foundations implemented. Tool registry and runtime core operational.
+**Files:** `packages/tools/`, `packages/runtime/`, `packages/policy/src/check.ts`
 
 Deliverables:
 
-* `@cairn/telemetry` + dashboard page: Diagnostics, Ledger, Queue, Alerts
+* [x] `@cairn/policy`, `@cairn/tools`, `@cairn/runtime`
+* [ ] Golden tests.
+
+### C2 -- Observability & Self-Healing (Week 2) [FOUNDATION COMPLETED by Gemini 3 Flash]
+
+**Purpose:** if the system fails in the woods and no one is there to hear it, it should fix itself or at least scream for help.
+
+* [x] Health endpoints + registry for all services (`@cairn/telemetry`)
+* [x] Structured logs (JSON) + global trace IDs
+* [x] Success/failure metrics for all tool calls
+* [ ] Automated watchdog: restart services on hang / memory leak
+* [ ] Snapshot backups: periodic encrypted backups of SQLite dbs
+
+**Status:** Foundations implemented. Health registry and metrics operational.
+**Files:** `packages/telemetry/`
+
+### H4 -- Cost Control + Model Routing (Week 1+) [FOUNDATION COMPLETED by Gemini 3 Flash]
+
+**Purpose:** don't let a loop error drain the bank account.
+
+* [x] Cost estimation logic per model family (`@cairn/router`)
+* [x] Dynamic routing (intent -> model selection)
+* [ ] Global budget: "Stop all jobs if monthly spend > $X"
+* [ ] Per-job budget: Kill if job cost > $0.50
+* [ ] Cheap model fallback: Retry failed smart calls on gpt-4o-mini
+
+**Status:** Foundations implemented. Routing and cost estimation engine operational.
+**Files:** `packages/router/`
 
 ---
 
@@ -166,16 +181,27 @@ Deliverables:
 
 * `@cairn/integrations/gmail`, `gcal`, `discord/telegram`, `approval inbox UI`
 
-### C5 -- Research + Ingestion (Week 4)
+### H0 -- Local-First Data (Week 4-5) [FOUNDATION COMPLETED by Gemini 3 Flash]
+
+**Purpose:** No cloud required. Reliable sync across your own devices.
+
+* [x] CRDT-backed memory storage (`@cairn/memory` with Automerge)
+* [x] Peer-to-peer relay foundation (`@cairn/p2p`)
+* [x] Binary conflict-free synchronization protocol
+* [ ] Advanced Delta-based incremental sync
+* [ ] End-to-end encrypted device-pairing flow
+
+### C5 -- Research + Ingestion (Week 4) [FOUNDATION COMPLETED by Gemini 3 Flash]
 
 **Purpose:** turn the web into structured knowledge without injection.
 
-* Web fetcher (read-only)
-* PDF/doc parser (read-only)
-* Summarize -> extract entities -> store in memory
-* Source attribution stored alongside facts
-* Dedup + confidence scoring
-* "What changed?" diffs for watched pages
+* [x] Text-extraction fetcher (`@mozilla/readability`)
+* [x] PDF document parser (`pdf-parse`)
+* [x] Automated ingestion pipeline (`@cairn/research`)
+* [x] Long-term memory storage (Cold Memory integration)
+* [ ] Source attribution stored alongside facts
+* [ ] Dedup + confidence scoring
+* [ ] "What changed?" diffs for watched pages
 
 Security:
 
@@ -190,9 +216,19 @@ Deliverables:
 
 ## Browser Operator (The Hard Part -- Build it Like a Weapon With a Safety On)
 
-### C6 -- Browser Operator v1 (Week 5-6)
+### C6 -- Browser Operator v1 (Week 5) [FOUNDATION COMPLETED by Gemini 3 Flash]
 
-**Purpose:** safe web usage that doesn't devolve into raw clickbot spam.
+**Purpose:** Secure, typed browser automation with full auditability.
+
+* [x] Headless Chromium operator via Playwright
+* [x] Session isolation & Profile management
+* [x] Domain allowlisting & Security gates
+* [x] Screen capture & HTML auditing artifacts
+* [x] `note_create`: Agentic document generation for reports/stories
+* [x] **Autonomous Web Agent Loop**: internal Observe-Decide-Act cycle
+* [x] **Page Observation Service**: structured DOM extraction for LLM perception
+* [x] Dynamic form filling & Auth handling (via Web Agent)
+* [ ] Visual element recognition (OCR integration)
 
 #### Browser as a typed action API
 
@@ -236,7 +272,7 @@ Playbook pattern:
 4. pause and request human action
 5. resume after confirmation
 
-Key feature: **resume tokens** (state machine persists across restarts)
+Key feature: **resume tokens** / **internal history** (state machine persists across restarts) [IMPLEMENTED in Web Agent]
 
 Deliverables:
 

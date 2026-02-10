@@ -19,17 +19,17 @@ You know the user's active goals and tasks. Use this context to give better ackn
   "complexity": "small" | "medium" | "large",
   "acknowledgement": "brief, warm response to the user",
   "needs_planner": true/false,
+  "needs_web_agent": true/false,
   "is_task": true/false
 }
 
 ## Routing Rules
-- Simple greetings: handle directly (needs_planner: false) — but reference their goals/tasks if relevant ("Hey! How's the running going?")
+- Simple greetings: handle directly (needs_planner: false, needs_web_agent: false)
 - Memory operations (remembering, recalling): ALWAYS route to planner
-- Questions about stored info: route to planner
-- Anything about goals, progress, tasks, or todos: ALWAYS route to planner
-- Web searches, data fetching, complex analysis: route to planner
-- If the user mentions progress on something or completing something: route to planner (so it can update goals/tasks)
-- If the user asks to do something or mentions a new task: route to planner
+- Web searches, YouTube, browsing, "go to website": ALWAYS set needs_web_agent: true, needs_planner: false.
+- General tasks and goals: route to planner (needs_planner: true)
+- If a request involves browsing AND complex multi-goal planning, route to planner first.
+- If it's a direct web action (e.g. "search openclaw on youtube"), route to web_agent directly.
 
 ## Kanban Suitability (is_task)
 - Set "is_task": true if the message represents a concrete objective, to-do, task, or significant note that should be tracked on a Kanban board.
@@ -46,6 +46,7 @@ const GatekeeperResponseSchema = z.object({
   complexity: z.enum(["small", "medium", "large"]),
   acknowledgement: z.string().max(500), // Limit output size
   needs_planner: z.boolean(),
+  needs_web_agent: z.boolean(),
   is_task: z.boolean(),
 });
 
@@ -98,6 +99,7 @@ export async function runGatekeeper(userInput: string): Promise<Job> {
     complexity: string;
     acknowledgement: string;
     needs_planner: boolean;
+    needs_web_agent: boolean;
     is_task: boolean;
   };
 
@@ -119,6 +121,7 @@ export async function runGatekeeper(userInput: string): Promise<Job> {
         complexity: "small",
         acknowledgement: "Let me look into that.",
         needs_planner: true,
+        needs_web_agent: false,
         is_task: true,
       };
     } else {
@@ -137,6 +140,7 @@ export async function runGatekeeper(userInput: string): Promise<Job> {
       complexity: "small",
       acknowledgement: "Let me look into that.",
       needs_planner: true,
+      needs_web_agent: false,
       is_task: true,
     };
   }
@@ -148,13 +152,13 @@ export async function runGatekeeper(userInput: string): Promise<Job> {
     complexity: parsed.complexity as Job["complexity"],
     nodes_traversed: ["gatekeeper"],
     costs_so_far: [response.cost],
-    status: parsed.needs_planner ? "running" : "done",
-    metadata: { is_task: parsed.is_task }
+    status: (parsed.needs_planner || parsed.needs_web_agent) ? "running" : "done",
+    metadata: { is_task: parsed.is_task, needs_web_agent: parsed.needs_web_agent }
   });
 
   // Send acknowledgement to UI ONLY if we're handling it directly
   // If routing to planner, let planner/executor send the final response
-  if (!parsed.needs_planner) {
+  if (!parsed.needs_planner && !parsed.needs_web_agent) {
     bus.emit("chat:message", {
       id: newId(),
       role: "cairn",
@@ -167,7 +171,7 @@ export async function runGatekeeper(userInput: string): Promise<Job> {
     "agent",
     "gatekeeper",
     job.id,
-    `Intent: ${parsed.intent}, Complexity: ${parsed.complexity}, Needs planner: ${parsed.needs_planner}`,
+    `Intent: ${parsed.intent}, Complexity: ${parsed.complexity}, Needs planner: ${parsed.needs_planner}, Needs web_agent: ${parsed.needs_web_agent}`,
   );
 
   // Return the latest state
@@ -177,7 +181,7 @@ export async function runGatekeeper(userInput: string): Promise<Job> {
     complexity: parsed.complexity as Job["complexity"],
     nodes_traversed: ["gatekeeper"],
     costs_so_far: [response.cost],
-    status: parsed.needs_planner ? "running" : "done",
-    metadata: { is_task: parsed.is_task }
+    status: (parsed.needs_planner || parsed.needs_web_agent) ? "running" : "done",
+    metadata: { is_task: parsed.is_task, needs_web_agent: parsed.needs_web_agent }
   };
 }
