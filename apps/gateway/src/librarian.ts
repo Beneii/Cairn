@@ -136,29 +136,50 @@ Respond in JSON format:
         tasks_categorized: tasksCategorized,
       });
 
-      // Send summary to user
-      const summaryParts: string[] = [];
-      if (tasksArchived > 0) {
-        summaryParts.push(`archived ${tasksArchived} completed task${tasksArchived === 1 ? "" : "s"}`);
-      }
-      if (tasksCategorized > 0) {
-        summaryParts.push(`categorized ${tasksCategorized} task${tasksCategorized === 1 ? "" : "s"}`);
-      }
+      // 3. Generate Daily Summary Document
+      if (isLLMAvailable()) {
+        try {
+          const taskSummary = doneCards.map(c => `- [${c.project || 'general'}] ${c.title}`).join("\n");
 
-      if (summaryParts.length > 0) {
-        bus.emit("chat:message", {
-          id: newId(),
-          role: "cairn",
-          text: `End-of-day housekeeping: ${summaryParts.join(" and ")}. Your kanban is tidy for tomorrow!`,
-          timestamp: shortTime(),
-        });
+          const synthesisResponse = await callLLM(
+            {
+              model: "gpt-4o",
+              systemPrompt: `You are the Librarian. Your job is to write a concise, professional daily summary of work completed.
+Include a brief overview and then group tasks by project.
+The user will read this in their Archive. Use professional but warm tone.
+Format: Markdown.`,
+              userMessage: `Synthesize today's completed work:\n${taskSummary}`,
+              maxTokens: 2000,
+            },
+            "librarian",
+            "daily"
+          );
+
+          // Save to Cold Memory as a "Daily Log"
+          const { addDocument } = await import("@cairn/memory");
+          addDocument(
+            "document",
+            `Daily Log: ${today}`,
+            synthesisResponse.content,
+            { type: "daily_log", date: today }
+          );
+
+          bus.emit("chat:message", {
+            id: newId(),
+            role: "cairn",
+            text: `I've compiled your daily summary and committed it to the Archive. ${tasksArchived} tasks organized.`,
+            timestamp: shortTime(),
+          });
+        } catch (err) {
+          console.error("[librarian] Summary generation error:", err);
+        }
       }
 
       await appendEntry(
         "agent",
         "librarian",
         "daily",
-        `Organization complete: ${tasksArchived} archived, ${tasksCategorized} categorized`
+        `Organization complete: ${tasksArchived} archived, ${tasksCategorized} categorized. Daily summary committed.`
       );
 
       console.log(

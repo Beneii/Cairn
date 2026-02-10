@@ -13,6 +13,8 @@
     "@cairn/ledger": "workspace:*",
     "@cairn/memory": "workspace:*",
     "@cairn/policy": "workspace:*",
+    "@cairn/research": "workspace:*",
+    "@cairn/browser": "workspace:*",
     "@cairn/shared": "workspace:*",
     "@cairn/tasks": "workspace:*",
     "zod": "^4.3.6"

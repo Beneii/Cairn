@@ -131,6 +131,7 @@
 | Task | Status | Notes |
 |------|--------|-------|
 | Research agent (deep web research) | ⬜ Todo | |
+| **Web Agent (autonomous browsing)** | ✅ Done | Observe-Decide-Act loop with history support |
 | Writing agent (long-form content) | ⬜ Todo | |
 | Analysis agent (data processing) | ⬜ Todo | |
 | Sub-agent visualization in Nucleus UI | ⬜ Todo | |
@@ -149,6 +150,8 @@
 | 2026-02-08 | **Cold memory tested!** | Semantic search working, scores 0.3-0.6 |
 | 2026-02-08 | **web_locked node created** | Prompt injection detection, content sanitization |
 | 2026-02-08 | **Proactive intelligence added** | Goal nudges, pattern detection, anomaly alerts |
+| 2026-02-10 | **Autonomous Web Agent core** | Structured observation + internal state-machine loop |
+| 2026-02-10 | **Web Agent Policy & History** | Secured via policy engine, recovered via internal history |
 
 ---
 
@@ -167,4 +170,4 @@
 
 ---
 
-*Last updated: 2026-02-08*
+*Last updated: 2026-02-10*
