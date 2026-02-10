@@ -32,7 +32,7 @@ import {
   restoreCard,
   updateCardProject,
 } from "./kanban.js";
-import { setOpenAIKey, setHeartbeat, setSpendLimit, setDecisionLimit, setInteractionLimit, setTelegramToken, setTelegramAdminChatId, getSystemConfig, setProactiveConfig, setMobileConfig, migrateSecrets } from "./config.js";
+import { setOpenAIKey, setHeartbeat, setSpendLimit, setDecisionLimit, setInteractionLimit, setTelegramToken, setTelegramAdminChatId, getSystemConfig, setProactiveConfig, setMobileConfig, setLocalMode, migrateSecrets } from "./config.js";
 import { setupBroadcast } from "./broadcast.js";
 import { initTelegram, isTelegramEnabled } from "./telegram.js";
 import { NODES, GRAPH_EDGES } from "@cairn/policy";
@@ -435,6 +435,11 @@ async function main() {
           }
           case "config:set_mobile_config": {
             await setMobileConfig(msg.enabled, msg.defaultClient);
+            broadcast({ type: "config:update", config: getSystemConfig() });
+            break;
+          }
+          case "config:set_local_mode": {
+            await setLocalMode(msg.enabled);
             broadcast({ type: "config:update", config: getSystemConfig() });
             break;
           }

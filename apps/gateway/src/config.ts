@@ -72,6 +72,10 @@ export async function setMobileConfig(enabled: boolean, defaultClient: "telegram
     await updateEnvVar("DEFAULT_CLIENT", defaultClient);
 }
 
+export async function setLocalMode(enabled: boolean): Promise<void> {
+    await updateEnvVar("LOCAL_MODE_ENABLED", String(enabled));
+}
+
 export function migrateSecrets(): void {
     const keys = ["OPENAI_API_KEY", "TELEGRAM_BOT_TOKEN", "TELEGRAM_ADMIN_CHAT_ID", "MOBILE_PAIRING_SECRET"];
     for (const key of keys) {
@@ -107,5 +111,6 @@ export function getSystemConfig() {
         default_client: (process.env.DEFAULT_CLIENT as "telegram" | "mobile") || "telegram",
         mobile_pairing_secret: process.env.MOBILE_PAIRING_SECRET,
         proactive: getProactiveConfig(),
+        local_mode_enabled: process.env.LOCAL_MODE_ENABLED === "true",
     };
 }

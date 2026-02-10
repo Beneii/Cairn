@@ -53,6 +53,7 @@ export interface NodeConfig {
   max_runtime_seconds: number;
   max_tokens_per_call: number;
   assigned_model: string;
+  local_model: string;
 }
 
 // ---- Ledger ----
@@ -132,7 +133,17 @@ export interface SystemConfig {
   monthly_spend_limit_usd: number;
   max_decisions_per_day: number;
   max_interactions_per_day: number;
+  local_mode_enabled: boolean;
 }
+
+export type OllamaModel =
+  | "phi-3.5-mini"
+  | "gemma3:12b"
+  | "phi-3-mini"
+  | "gemma3:4b"
+  | "mistral:7b-instruct"
+  | "deepseek-coder-v2:6.7b"
+  | "qwen2.5:7b";
 
 // ---- Proactive Intelligence ----
 
@@ -270,6 +281,7 @@ export type ClientMessage =
   | { type: "config:set_telegram_admin_chat_id"; chat_id: string }
   | { type: "config:set_proactive_config"; config: Partial<ProactiveConfig> }
   | { type: "config:set_mobile_config"; enabled: boolean; defaultClient: "telegram" | "mobile" }
+  | { type: "config:set_local_mode"; enabled: boolean }
   | { type: "mobile:connect"; secret: string }
   | { type: "mobile:send"; text: string }
   | { type: "goal:create"; title: string; success_definition: string }

@@ -10,6 +10,7 @@ export const NODES: Record<string, NodeConfig> = {
     max_runtime_seconds: 10,
     max_tokens_per_call: 1000,
     assigned_model: "gpt-4o-mini",
+    local_model: "phi-3.5-mini",
   },
   planner: {
     name: "planner",
@@ -20,6 +21,7 @@ export const NODES: Record<string, NodeConfig> = {
     max_runtime_seconds: 120,
     max_tokens_per_call: 10000,
     assigned_model: "gpt-4o",
+    local_model: "gemma3:12b",
   },
   executor: {
     name: "executor",
@@ -30,6 +32,7 @@ export const NODES: Record<string, NodeConfig> = {
     max_runtime_seconds: 300,
     max_tokens_per_call: 5000,
     assigned_model: "gpt-4o",
+    local_model: "phi-3-mini",
   },
   critic: {
     name: "critic",
@@ -40,6 +43,7 @@ export const NODES: Record<string, NodeConfig> = {
     max_runtime_seconds: 60,
     max_tokens_per_call: 4000,
     assigned_model: "gpt-4o",
+    local_model: "gemma3:4b",
   },
   web_locked: {
     name: "web_locked",
@@ -50,6 +54,7 @@ export const NODES: Record<string, NodeConfig> = {
     max_runtime_seconds: 60,
     max_tokens_per_call: 4000,
     assigned_model: "gpt-4o-mini",
+    local_model: "phi-3.5-mini", // Web locked uses same small model as gatekeeper for safety checks
   },
   logger: {
     name: "logger",
@@ -60,6 +65,7 @@ export const NODES: Record<string, NodeConfig> = {
     max_runtime_seconds: 5,
     max_tokens_per_call: 0,
     assigned_model: "none",
+    local_model: "none",
   },
   web_agent: {
     name: "web_agent",
@@ -70,6 +76,7 @@ export const NODES: Record<string, NodeConfig> = {
     max_runtime_seconds: 300,
     max_tokens_per_call: 5000,
     assigned_model: "gpt-4o",
+    local_model: "phi-3.5-mini", // Web agent is autonomous but simple tool-user
   },
 };
 

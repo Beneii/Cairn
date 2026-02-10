@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { getApiBase } from "../../../../config/runtime";
 import { PageLayout } from "../PageLayout";
 import { PageContent } from "../PageContent";
+import { ModelManager } from "../settings/ModelManager";
 
 interface SystemSettingsProps {
     connected: boolean;
@@ -14,9 +15,11 @@ interface SystemSettingsProps {
         lastPong: string | null;
         lastError: string | null;
         reconnectCount: number;
+        local_mode_enabled?: boolean;
     };
     nodes: Record<string, any>;
     darkMode?: boolean;
+    setLocalMode: (enabled: boolean) => void;
 }
 
 function StatusDot({ ok }: { ok: boolean }) {
@@ -25,10 +28,16 @@ function StatusDot({ ok }: { ok: boolean }) {
     );
 }
 
-export function SystemSettings({ connected, diagnostics, nodes, darkMode = false }: SystemSettingsProps) {
+export function SystemSettings({ connected, diagnostics, nodes, darkMode = false, setLocalMode }: SystemSettingsProps) {
     const [healthStatus, setHealthStatus] = useState<"checking" | "ok" | "error">("checking");
     const [healthDetail, setHealthDetail] = useState("");
     const [showNodes, setShowNodes] = useState(false);
+
+    // We rely on props for the effective state, but use local state for immediate UI feedback if needed.
+    // Actually, let's just use the prop-derived value to avoid sync issues, 
+    // or use local state that syncs with props.
+    const [localMode, setLocalModeState] = useState(diagnostics.local_mode_enabled ?? false);
+
     const border = darkMode ? 'rgba(255,255,255,0.1)' : 'rgba(26,29,33,0.1)';
     const subtleBg = darkMode ? 'rgba(255,255,255,0.05)' : 'rgba(26,29,33,0.05)';
 
@@ -51,6 +60,17 @@ export function SystemSettings({ connected, diagnostics, nodes, darkMode = false
         };
         checkHealth();
     }, []);
+
+    // Sync local state when prop changes (verification from server)
+    useEffect(() => {
+        setLocalModeState(diagnostics.local_mode_enabled ?? false);
+    }, [diagnostics.local_mode_enabled]);
+
+    const handleToggleLocalMode = () => {
+        const newState = !localMode;
+        setLocalModeState(newState); // Optimistic output
+        setLocalMode(newState); // Trigger parent action (WS send)
+    };
 
     const getNodeIcon = (name: string) => {
         if (name === "gatekeeper") return <Shield size={16} />;
@@ -81,12 +101,53 @@ export function SystemSettings({ connected, diagnostics, nodes, darkMode = false
                         </div>
                     </div>
                     <div className="p-3 rounded-lg" style={{ backgroundColor: subtleBg }}>
-                        <div className="text-xs opacity-50 mb-1">Gateway</div>
-                        <div className="flex items-center gap-2">
-                            <StatusDot ok={healthStatus === "ok"} />
-                            <span className="text-sm">{healthStatus === "checking" ? "Checking..." : healthStatus === "ok" ? "Healthy" : "Error"}</span>
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <div className="text-xs opacity-50 mb-1">Gateway</div>
+                                <div className="flex items-center gap-2">
+                                    <StatusDot ok={healthStatus === "ok"} />
+                                    <span className="text-sm">{healthStatus === "checking" ? "Checking..." : healthStatus === "ok" ? "Healthy" : "Error"}</span>
+                                </div>
+                            </div>
                         </div>
                     </div>
+                </div>
+            </section>
+
+            {/* Local Mode (Ollama) */}
+            <section className="mb-8">
+                <h3 className="text-xs uppercase tracking-widest opacity-50 mb-4 pb-2" style={{ borderBottom: `1px solid ${border}` }}>
+                    AI Intelligence
+                </h3>
+
+                <div className="p-4 rounded-lg border mb-4" style={{ backgroundColor: subtleBg, borderColor: border }}>
+                    <div className="flex items-center justify-between mb-2">
+                        <div>
+                            <div className="text-sm font-medium">Local Mode (Ollama)</div>
+                            <div className="text-xs opacity-60 max-w-md">
+                                Run all agents locally using Ollama by default. Requires Ollama running on localhost:11434.
+                                Cloud fallback is disabled when active.
+                            </div>
+                        </div>
+                        <label className="relative inline-flex items-center cursor-pointer">
+                            <input
+                                type="checkbox"
+                                className="sr-only peer"
+                                checked={localMode}
+                                onChange={handleToggleLocalMode}
+                            />
+                            <div className="w-11 h-6 bg-zinc-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-zinc-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
+                        </label>
+                    </div>
+
+                    {localMode && (
+                        <div className="mt-4 pt-4 border-t" style={{ borderColor: border }}>
+                            <div className="bg-blue-50 dark:bg-blue-900/20 text-blue-800 dark:text-blue-200 p-3 rounded text-xs mb-4">
+                                <strong>Active:</strong> Agents will use their assigned local models (e.g., Gatekeeper → Phi-3.5-mini).
+                            </div>
+                            <ModelManager darkMode={darkMode} />
+                        </div>
+                    )}
                 </div>
             </section>
 

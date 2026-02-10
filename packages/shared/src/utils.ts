@@ -76,6 +76,14 @@ export const MODEL_COSTS: Record<
 > = {
   "gpt-4o-mini": { prompt: 0.00015, completion: 0.0006 },
   "gpt-4o": { prompt: 0.0025, completion: 0.01 },
+  // Local models (Ollama) - free
+  "phi-3.5-mini": { prompt: 0, completion: 0 },
+  "gemma3:12b": { prompt: 0, completion: 0 },
+  "phi-3-mini": { prompt: 0, completion: 0 },
+  "gemma3:4b": { prompt: 0, completion: 0 },
+  "mistral:7b-instruct": { prompt: 0, completion: 0 },
+  "deepseek-coder-v2:6.7b": { prompt: 0, completion: 0 },
+  "qwen2.5:7b": { prompt: 0, completion: 0 },
 };
 
 export function calculateCost(
