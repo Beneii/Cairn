@@ -8,7 +8,7 @@ export function newId(): string {
 }
 
 /**
- * Finds the project root by walking up from the current file looking for truth.md
+ * Finds the project root by walking up from the current file looking for documents/02_ARCHITECTURE.md
  * This ensures data paths are consistent regardless of where the app is started from.
  */
 function findProjectRoot(): string {
@@ -17,10 +17,10 @@ function findProjectRoot(): string {
     return process.env.CAIRN_ROOT;
   }
 
-  // Walk up from this file's location to find truth.md (project root marker)
+  // Walk up from this file's location to find documents/02_ARCHITECTURE.md (project root marker)
   let current = dirname(fileURLToPath(import.meta.url));
   for (let i = 0; i < 10; i++) {
-    if (existsSync(join(current, "truth.md"))) {
+    if (existsSync(join(current, "documents", "02_ARCHITECTURE.md"))) {
       return current;
     }
     const parent = dirname(current);
