@@ -19,6 +19,7 @@
     "@cairn/policy": "workspace:*",
     "@cairn/scheduler": "workspace:*",
     "@cairn/shared": "workspace:*",
+    "@cairn/tasks": "workspace:*",
     "dotenv": "^17.2.3",
     "express": "^4.21.0",
     "grammy": "^1.39.3",

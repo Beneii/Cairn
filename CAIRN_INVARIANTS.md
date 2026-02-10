@@ -119,15 +119,15 @@
 
 ## 9. Phase Gates Are Hard Boundaries
 
-- Phase B work cannot enter the codebase until Phase A is complete and frozen
+- Later-phase work cannot enter the codebase until earlier phases are complete
 - No "temporary" hacks that bridge phases
 - No speculative abstractions for future phases
 - Adaptation > expansion
 
 **Violation examples**:
-- ❌ "While I'm here..." additions that belong in Phase B
-- ❌ Abstractions designed for Phase C use cases
-- ❌ Config options that only make sense post-RAG
+- ❌ "While I'm here..." additions that belong in a future phase
+- ❌ Abstractions designed for locked-phase use cases
+- ❌ Building Phase D autonomy features before Phase C goals are solid
 
 ---
 
@@ -164,4 +164,4 @@ Before merging ANY change, verify:
 
 ---
 
-*Last updated: Phase A completion (2026-02-05)*
+*Last updated: Phase C in progress (2026-02-09)*

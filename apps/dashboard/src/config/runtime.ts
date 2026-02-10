@@ -32,3 +32,15 @@ export function getApiBase(): string {
   }
   return `${window.location.protocol}//${window.location.host}`;
 }
+
+/** Direct gateway URL for mobile pairing (bypasses Vite proxy). */
+export function getGatewayUrl(): string {
+  if (import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL;
+  }
+  // In dev, Vite runs on :5173 but gateway is on :3100
+  const port = import.meta.env.DEV ? (import.meta.env.VITE_GATEWAY_PORT || "3100") : window.location.port;
+  const host = window.location.hostname;
+  const protocol = window.location.protocol;
+  return `${protocol}//${host}${port ? `:${port}` : ""}`;
+}

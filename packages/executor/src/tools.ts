@@ -65,7 +65,7 @@ function isValidMemoryKey(key: string, jobId: string): { valid: boolean; reason?
   }
 
   // Enforce job namespace for hot memory
-  // Note: warm memory allows global keys for user preferences
+  // Note: warm memory allows global keys for shared context
   return { valid: true };
 }
 
@@ -317,6 +317,231 @@ toolRegistry.set("calendar_read", async (args) => {
     return {
       success: false,
       output: `Calendar error: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
+});
+
+// ---- vector_search ----
+// Semantic search over cold memory
+toolRegistry.set("vector_search", async (args) => {
+  try {
+    const { initColdMemory, initEmbeddingService, isEmbeddingAvailable, createEmbedding, vectorSearch, getColdMemoryStats } = await import("@cairn/memory");
+
+    initColdMemory();
+    initEmbeddingService();
+
+    if (!isEmbeddingAvailable()) {
+      return {
+        success: false,
+        output: "Embedding service not available. Set OPENAI_API_KEY.",
+      };
+    }
+
+    const query = args.query as string;
+    if (!query) {
+      return { success: false, output: "Query required" };
+    }
+
+    const stats = getColdMemoryStats();
+    if (stats.chunkCount === 0) {
+      return { success: true, output: "Cold memory is empty." };
+    }
+
+    const { embedding } = await createEmbedding(query);
+    const results = vectorSearch(embedding, 5, 0.3);
+
+    return {
+      success: true,
+      output: JSON.stringify(results.map(r => ({
+        content: r.content,
+        score: r.score.toFixed(3),
+        source: r.document_title
+      }))),
+    };
+
+  } catch (err) {
+    return {
+      success: false,
+      output: `Vector search error: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
+});
+
+// ---- goals_read ----
+// Read active goals so the agent knows what the user is working toward
+toolRegistry.set("goals_read", async () => {
+  try {
+    const { getGoals, getActiveGoals } = await import("@cairn/goals");
+    const active = getActiveGoals();
+    const all = getGoals();
+    return {
+      success: true,
+      output: JSON.stringify({
+        active_count: active.length,
+        total_count: all.length,
+        active: active.map((g: any) => ({
+          id: g.id,
+          title: g.title,
+          success_definition: g.success_definition,
+          priority: g.priority,
+          time_horizon: g.time_horizon,
+          confidence: g.confidence,
+          anti_goals: g.anti_goals,
+          metrics: g.metrics,
+          timeline_events: g.timeline?.length || 0,
+          last_reviewed: g.last_reviewed,
+        })),
+      }),
+    };
+  } catch (err) {
+    return {
+      success: false,
+      output: `Goals read error: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
+});
+
+// ---- goals_update ----
+// Update a goal (status, timeline event, confidence, etc.)
+toolRegistry.set("goals_update", async (args) => {
+  try {
+    const { updateGoal, getGoal } = await import("@cairn/goals");
+    const { bus, newId } = await import("@cairn/shared");
+
+    const goalId = args.goal_id as string;
+    if (!goalId) return { success: false, output: "goal_id required" };
+
+    const goal = getGoal(goalId);
+    if (!goal) return { success: false, output: `Goal ${goalId} not found` };
+
+    const changes: Record<string, unknown> = {};
+
+    // Allow updating specific fields
+    if (args.status) changes.status = args.status;
+    if (args.confidence !== undefined) changes.confidence = args.confidence;
+    if (args.blocked_reason) changes.blocked_reason = args.blocked_reason;
+
+    // Add timeline event if provided
+    if (args.timeline_message) {
+      const event = {
+        id: newId(),
+        timestamp: new Date().toISOString(),
+        type: (args.timeline_type as string) || "comment",
+        message: args.timeline_message as string,
+        agent: "cairn",
+      };
+      changes.timeline = [...(goal.timeline || []), event];
+    }
+
+    const updated = updateGoal(goalId, changes);
+    if (!updated) return { success: false, output: "Update failed" };
+
+    // Broadcast the change
+    const { getGoals } = await import("@cairn/goals");
+    bus.emit("goals:updated", getGoals());
+
+    return {
+      success: true,
+      output: `Updated goal "${goal.title}": ${JSON.stringify(Object.keys(changes))}`,
+    };
+  } catch (err) {
+    return {
+      success: false,
+      output: `Goals update error: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
+});
+
+// ---- tasks_read ----
+// Read current tasks
+toolRegistry.set("tasks_read", async (args) => {
+  try {
+    const { getTasks } = await import("@cairn/tasks");
+    const filter = args.status ? { status: args.status as any } : undefined;
+    const tasks = getTasks(filter);
+    return {
+      success: true,
+      output: JSON.stringify({
+        count: tasks.length,
+        tasks: tasks.map((t: any) => ({
+          id: t.id,
+          title: t.title,
+          status: t.status,
+          type: t.type,
+          due_date: t.due_date,
+          scheduled_date: t.scheduled_date,
+          recurrence_rule: t.recurrence_rule,
+          source: t.source,
+        })),
+      }),
+    };
+  } catch (err) {
+    return {
+      success: false,
+      output: `Tasks read error: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
+});
+
+// ---- tasks_create ----
+// Create a task (agent-suggested or on behalf of user)
+toolRegistry.set("tasks_create", async (args) => {
+  try {
+    const { createTask } = await import("@cairn/tasks");
+    const { bus } = await import("@cairn/shared");
+
+    const title = args.title as string;
+    if (!title) return { success: false, output: "title required" };
+
+    const task = createTask({
+      title,
+      type: (args.type as "one-off" | "recurring") || "one-off",
+      due_date: args.due_date as string | undefined,
+      scheduled_date: args.scheduled_date as string | undefined,
+      recurrence_rule: args.recurrence_rule as any,
+      source: "cairn",
+      suggested_by_agent: true,
+    });
+
+    // Broadcast
+    const { getTasks } = await import("@cairn/tasks");
+    bus.emit("tasks:updated", getTasks());
+
+    return {
+      success: true,
+      output: `Created task: "${task.title}" (id: ${task.id})`,
+    };
+  } catch (err) {
+    return {
+      success: false,
+      output: `Task create error: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
+});
+
+// ---- tasks_complete ----
+// Mark a task as done
+toolRegistry.set("tasks_complete", async (args) => {
+  try {
+    const { completeTask, getTasks } = await import("@cairn/tasks");
+    const { bus } = await import("@cairn/shared");
+
+    const taskId = args.task_id as string;
+    if (!taskId) return { success: false, output: "task_id required" };
+
+    const result = completeTask(taskId);
+    if (!result) return { success: false, output: `Task ${taskId} not found` };
+
+    bus.emit("tasks:updated", getTasks());
+
+    return {
+      success: true,
+      output: `Completed task: "${result.title}"`,
+    };
+  } catch (err) {
+    return {
+      success: false,
+      output: `Task complete error: ${err instanceof Error ? err.message : String(err)}`,
     };
   }
 });

@@ -1,247 +1,134 @@
 # CAIRN
 
-**UI-First Agentic AI System Framework**
+**UI-First Agentic AI Personal Assistant**
 
 > A living instrument. The system lives; agents merely work.
 
 ## What is CAIRN?
 
-CAIRN is an agentic AI system framework built on three core principles:
+Cairn is a personal AI assistant built on three core principles:
 
 1. **UI is truth** — If it can't be seen in the UI (logs, animations, state, costs), it doesn't exist
 2. **System > Agent** — Agents are constrained workers; the system owns state, memory, permissions
 3. **No invisible work** — Every action produces visible evidence: logs, state changes, or animations
 
-These principles ensure complete transparency and control over AI agent behavior.
-
-## Current Status
-
-- ✅ **Production-ready React UI** with physics-based animations and all core components
-- ✅ **Complete architecture specification** in [truth.md](truth.md) (authoritative source)
-- ✅ **Backend services** (Gateway, Orchestrator, Executor, Memory, Ledger, Scheduler) — implemented and functional
-
 ## Quick Start
 
-### Running the Full Stack
-
 ```bash
-# Install dependencies (from project root)
+# Install dependencies
 pnpm install
 
-# Start gateway + scheduler
+# Start gateway (port 3100)
 pnpm dev
 
-# In another terminal, start dashboard
+# In another terminal, start dashboard (port 5173)
 pnpm dashboard
 ```
 
-Visit `http://localhost:5173` to see the dashboard connected to the live backend.
+Visit `http://localhost:5173` to see the dashboard.
 
-### Running Dashboard Only
+## Architecture
 
-```bash
-cd apps/dashboard
-pnpm install
-pnpm dev
+Six services, no more:
+
+1. **Gateway** — Express + WebSocket + Telegram bot. First point of contact.
+2. **Orchestrator** — Graph-based node execution (gatekeeper → planner → executor).
+3. **Executor** — Safe tool execution with policy enforcement.
+4. **Memory** — Hot (volatile TTL), Warm (persistent JSON), Cold (RAG/SQLite vectors).
+5. **Ledger** — Hash-chained append-only audit trail with cost tracking.
+6. **Scheduler** — Heartbeat, stall detection, integrity checks.
+
+### Data Flow
+
+```
+User (Dashboard/Telegram)
+  → Gateway (WebSocket/HTTP/Bot)
+  → Orchestrator (gatekeeper → planner → executor-node)
+  → Executor (runs tools with policy checks)
+  → Memory/Ledger
+  → Event bus → back to UI
 ```
 
-## Documentation
+## UI
 
-Start here based on your goal:
+### Home Panels
 
-- **New to CAIRN?** → Read [Getting Started](docs/01-getting-started/installation.md)
-- **Want to understand the architecture?** → See [Architecture Overview](docs/02-architecture/overview.md)
-- **Building UI components?** → Check [UI Components](docs/03-ui-components/overview.md)
-- **Exploring everything?** → Browse the [Documentation Index](docs/00-INDEX.md)
-- **Understanding core principles?** → Read [Core Principles](docs/07-reference/core-principles.md)
-
-## Core Concepts
-
-CAIRN orchestrates agents through six services working together:
-
-### The Six Services
-
-1. **Gateway** — Fast path for user input, intent classification, immediate responses
-2. **Orchestrator** — Graph-based execution engine with policy enforcement and permissions
-3. **Executor** — Safe, sandboxed tool execution (APIs, files, code)
-4. **Memory** — Three-tier system: Hot (volatile), Warm (curated), Cold (RAG-based)
-5. **Ledger** — Append-only audit trail with cost tracking
-6. **Scheduler** — Background heartbeat and job processing
-
-### Core Components (UI)
-
-The React frontend visualizes the entire system state:
-
-- **Nucleus** — Physics-based animation showing system state (idle, thinking, tooling, waiting, error)
+- **Nucleus** — Physics-based animation showing system state (idle/thinking/tooling/error)
 - **Chat** — Natural language conversation with collapsible tool outputs
-- **Notes** — Agent-read inbox (replaces prompt-stuffing)
-- **Kanban** — Task visualization (backlog, active, blocked, done)
-- **Logs** — Real-time system activity with type-based filtering
-- **Pages** — Agents, Integrations, Preferences, Archive, Diagnostics
+- **Notes** — Inbox for captured items (replaces prompt-stuffing)
+- **Kanban** — Task cards (backlog/active/blocked/done)
+- **Logs** — Real-time activity stream
 
-## Tech Stack
+### Pages
 
-### Frontend
-- **React 18** + TypeScript
-- **Vite 7** — Build tool
-- **Tailwind CSS 4** — Styling
-- **Framer Motion** — Animations
-- **Lucide** — Icons
-
-### Backend
-- **Node.js** + TypeScript
-- **pnpm** monorepo with workspaces
-- **LangGraph-style** orchestration
-- **OpenAI API** for LLM inference
-- **Telegram** integration for messaging
+- **Goals** — Active goals board (max 3), creation, timeline tracking
+- **Tasks** — Todo list with today/upcoming/recurring sections
+- **Settings** — System config, integrations, diagnostics
+- **Archive** — Archived kanban cards
 
 ## Project Structure
 
 ```
 cairn/
-├── README.md                  # You are here
-├── truth.md                   # Authoritative architecture specification
-├── SOUL.md                    # System values and tone
-├── IDENTITY.md                # Ownership and access
-├── POLICY.md                  # Hard safety rules
-├── CAPABILITIES.md            # Tools and tiers
-├── PHASE_GATES.md             # Development phase boundaries
+├── truth.md                   # Authoritative architecture spec
 ├── CAIRN_INVARIANTS.md        # Non-negotiable design constraints
-├── DEPLOYMENT.md              # VPS deployment guide
-├── docs/                      # Documentation
-│   ├── 00-INDEX.md
-│   ├── 01-getting-started/
-│   ├── 02-architecture/
-│   ├── 03-ui-components/
-│   ├── 06-contributing/
-│   └── 07-reference/
+├── PHASE_GATES.md             # Phase transition criteria
+├── SOUL.md / IDENTITY.md      # System values and identity
+├── POLICY.md / CAPABILITIES.md
 ├── apps/
-│   ├── dashboard/             # React frontend
-│   │   ├── src/app/
-│   │   │   ├── components/cairn/  # Core components
-│   │   │   └── App.tsx
-│   │   └── package.json
-│   └── gateway/               # WebSocket + HTTP server
-│       └── src/
+│   ├── gateway/               # Express + WebSocket + Telegram
+│   └── dashboard/             # React UI (Vite + Tailwind)
 ├── packages/
-│   ├── orchestrator/          # Graph execution engine
-│   ├── executor/              # Tool execution sandbox
-│   ├── memory/                # Hot/Warm memory system
+│   ├── shared/                # Types, event bus, protocol, utils
+│   ├── policy/                # Node configs, permission checks
+│   ├── orchestrator/          # Graph execution, LLM calls
+│   ├── executor/              # Tool runner with guardrails
+│   ├── memory/                # Hot/Warm/Cold memory tiers
 │   ├── ledger/                # Audit trail
 │   ├── scheduler/             # Heartbeat and jobs
-│   ├── policy/                # Permission enforcement
-│   └── shared/                # Common types and utilities
-├── data/                      # Runtime data (jobs, memory, ledger)
-├── configs/                   # Environment configs
-└── scripts/                   # Utility scripts
+│   ├── goals/                 # Goal tracking, briefings, proactive nudges
+│   ├── tasks/                 # Task management (one-off + recurring)
+│   └── integrations/          # Google OAuth + Calendar API
+├── data/                      # Runtime data (SQLite DBs, JSON, ledger)
+└── configs/                   # Environment configs
 ```
 
-## Key Features
+## Tech Stack
 
-### Physics-Based Nucleus
-
-The central UI component visualizes system state through organic motion:
-
-| State | Animation | Meaning |
-|-------|-----------|---------|
-| **Idle** | Gentle drift | Ready, no active work |
-| **Thinking** | Fast orbital spin | Planning/reasoning |
-| **Tooling** | Expansion + budding | Tool execution in progress |
-| **Waiting** | Nearly frozen | Waiting for external input |
-| **Error** | Rapid jitter | System error state |
-
-### No Prompt-Stuffing
-
-The **Notes** system replaces traditional prompt-stuffing:
-- Agents read messages from an inbox
-- Messages have read/unread states
-- Can be resurfaced if needed
-- Cleaner separation of concerns
-
-### Complete Transparency
-
-Everything is visible:
-- All tool calls logged with inputs/outputs
-- Cost tracking per job and model
-- Policy violations recorded
-- Security events audited
-- Sub-agent activity shown in real-time
-
-## Development
-
-### Local Development
-
-```bash
-# From project root
-pnpm install            # Install all dependencies
-pnpm dev                # Start gateway + scheduler
-pnpm dashboard          # Start dashboard (separate terminal)
-pnpm build              # Build all packages
-```
-
-### Project Guidelines
-
-See [apps/dashboard/guidelines/Guidelines.md](apps/dashboard/guidelines/Guidelines.md) for development standards.
-
-## Architecture
-
-For detailed architecture information, see [truth.md](truth.md) — the authoritative specification for the entire system.
-
-Key topics:
-- [Six Services Architecture](docs/02-architecture/overview.md)
-- [Execution Graph & Nodes](docs/02-architecture/execution-graph.md)
-- [Memory Tiers](docs/02-architecture/memory-tiers.md)
-
-## Contributing
-
-See [Contributing Guidelines](docs/06-contributing/code-style.md) for development standards, git workflow, and PR process.
-
-### Creating New Components
-
-1. Place in `apps/dashboard/src/app/components/cairn/`
-2. Export from component file
-3. Document in [docs/03-ui-components/](docs/03-ui-components/)
-4. Add TypeScript interfaces to [types.ts](apps/dashboard/src/app/components/cairn/types.ts)
+**Frontend**: React 18, Vite 7, Tailwind CSS 4, Framer Motion, Lucide, ReactFlow
+**Backend**: Node.js + TypeScript, pnpm monorepo, OpenAI API, better-sqlite3, Grammy (Telegram)
 
 ## Implementation Status
 
-### Phase A: Security Hardening ✅
-- Zod schema validation on all LLM outputs
-- Tool guardrails (SSRF protection, memory namespace)
-- Ledger hash chain verification
-- Error redaction
+### Phase A: Security ✅
+Zod validation, tool guardrails, ledger hash chains, error redaction.
 
-### Phase B: Core Expansion (Planned)
-- web_locked research node
-- Cold memory (RAG system)
+### Phase B: Core Expansion ✅
+Cold memory (RAG), Google Calendar, Telegram, Kanban, Notes, Proactive intelligence, Memory curator.
 
-### Phase C: Integrations (Planned)
-- Google read-only integration
-- Cost dashboards
-- Security auditor node
+### Phase C: Goals as First-Class Objects 🔧
+Goal CRUD, Goals Board UI, Tasks system, Planner goal-awareness, Timeline tracking, Drift detection.
 
-## Learn More
+### Phase D: Autonomy & Tools 🔒
+web_locked research, approval gates, cost dashboards, security auditor node.
 
-- **[Complete Documentation](docs/00-INDEX.md)** — Browse all docs
-- **[Architecture Specification](truth.md)** — Authoritative system design
-- **[Core Principles](docs/07-reference/core-principles.md)** — Understanding the philosophy
-- **[FAQ](docs/07-reference/faq.md)** — Common questions
+## Development
 
-## Questions?
+```bash
+pnpm install            # Install all dependencies
+pnpm build              # Build all packages
+pnpm dev                # Start gateway on :3100
+pnpm dashboard          # Start dashboard on :5173
+```
 
-- Check the [FAQ](docs/07-reference/faq.md)
-- Read [Troubleshooting](docs/07-reference/troubleshooting.md)
-- Review [Glossary](docs/07-reference/glossary.md) for terminology
+After editing `@cairn/shared`, run `pnpm build` before other packages see changes.
 
-## License
+## Documentation
 
-[To be determined]
-
-## Attribution
-
-- UI components built with [shadcn/ui](https://ui.shadcn.com/) (MIT)
-- Icons by [Lucide](https://lucide.dev/) (MIT)
-- See [ATTRIBUTIONS.md](apps/dashboard/ATTRIBUTIONS.md) for full credits
+- **[truth.md](truth.md)** — Authoritative architecture spec
+- **[CAIRN_INVARIANTS.md](CAIRN_INVARIANTS.md)** — Non-negotiable design rules
+- **[PHASE_GATES.md](PHASE_GATES.md)** — Phase boundaries and status
+- **[CAPABILITIES.md](CAPABILITIES.md)** — Tools, tiers, and interfaces
 
 ---
 

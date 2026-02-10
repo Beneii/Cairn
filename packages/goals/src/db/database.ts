@@ -1,7 +1,7 @@
 /**
  * SQLite Database Layer
  *
- * Persistent storage for goals and hypotheses.
+ * Persistent storage for goals.
  */
 
 import Database from "better-sqlite3";
@@ -34,38 +34,13 @@ CREATE TABLE IF NOT EXISTS goals (
   interruptions_today INTEGER DEFAULT 0,
   blocked_reason TEXT,
   actions_log TEXT DEFAULT '[]',
+  timeline TEXT DEFAULT '[]',
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
-);
-
--- Hypotheses (for reflection/learning)
-CREATE TABLE IF NOT EXISTS hypotheses (
-  id TEXT PRIMARY KEY,
-  goal_id TEXT,
-  domain TEXT NOT NULL,
-  hypothesis TEXT NOT NULL,
-  confidence REAL DEFAULT 0.5,
-  evidence_for INTEGER DEFAULT 0,
-  evidence_against INTEGER DEFAULT 0,
-  status TEXT DEFAULT 'active',
-  created_at TEXT NOT NULL,
-  updated_at TEXT NOT NULL
-);
-
--- Tool Results Cache
-CREATE TABLE IF NOT EXISTS tool_cache (
-  cache_key TEXT PRIMARY KEY,
-  tool_name TEXT NOT NULL,
-  input_hash TEXT NOT NULL,
-  output TEXT NOT NULL,
-  created_at TEXT NOT NULL,
-  expires_at TEXT NOT NULL
 );
 
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_goals_status ON goals(status);
-CREATE INDEX IF NOT EXISTS idx_hypotheses_status ON hypotheses(status);
-CREATE INDEX IF NOT EXISTS idx_cache_expires ON tool_cache(expires_at);
 `;
 
 // ---- Init ----
@@ -88,8 +63,10 @@ export function initDatabase(): Database.Database {
     db.exec("DROP TABLE IF EXISTS preference_profiles");
     db.exec("DROP TABLE IF EXISTS approvals");
     db.exec("DROP TABLE IF EXISTS snapshots");
+    db.exec("DROP TABLE IF EXISTS hypotheses");
+    db.exec("DROP TABLE IF EXISTS tool_cache");
 
-    // Migrate goals table if old schema detected
+    // Migrate goals table if old schema detected (missing domain or time_horizon or timeline)
     try {
         const cols = db.prepare("PRAGMA table_info(goals)").all() as Array<{ name: string }>;
         const colNames = cols.map(c => c.name);
@@ -98,8 +75,14 @@ export function initDatabase(): Database.Database {
             console.log("[db] Migrating goals table to new schema...");
             db.exec("DROP TABLE goals");
         }
-    } catch {
-        // Table doesn't exist yet
+
+        // Add timeline column if missing
+        if (!colNames.includes("timeline")) {
+            console.log("[db] Adding timeline column to goals table...");
+            db.exec("ALTER TABLE goals ADD COLUMN timeline TEXT DEFAULT '[]'");
+        }
+    } catch (err) {
+        console.error("[db] Migration error:", err);
     }
 
     // Create tables

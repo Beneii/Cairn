@@ -321,20 +321,28 @@ Implemented mechanisms:
 ```
 cairn/
   apps/
-    gateway/
-    dashboard/
+    gateway/            # Express + WebSocket + Telegram bot
+    dashboard/          # React UI (Vite + Tailwind + ReactFlow)
   packages/
-    orchestrator/       # includes nodes/ subdirectory
-    executor/
-    memory/
-    ledger/
-    scheduler/
-    policy/
-    shared/
+    shared/             # Types, event bus, protocol, utils
+    policy/             # Node configs, caller/transition checks
+    orchestrator/       # Graph execution, LLM calls, nodes/
+    executor/           # Tool runner with guardrails
+    memory/             # Hot (TTL) + Warm (JSON) + Cold (SQLite/RAG)
+    ledger/             # Hash-chained append-only audit log
+    scheduler/          # Heartbeat, stall detection, integrity
+    goals/              # Goal tracking, briefings, proactive nudges
+    tasks/              # Task management (one-off + recurring)
+    integrations/       # Google OAuth + Calendar API
   data/
+    cairn.db            # Goals SQLite
+    tasks.db            # Tasks SQLite
+    cold_memory.db      # RAG vector store
     jobs/
-    memory/
+    memory/             # Warm memory JSON
     ledger/
+    kanban/
+    notes/
   configs/
     dev.json
     prod.json
@@ -365,23 +373,35 @@ No hidden directories. No ad‑hoc files.
 
 ## 11. Build Phases
 
-### MVP (Mandatory)
+### Phase A — Security ✅
 
-* Gateway + Telegram
-* Orchestrator with 4 nodes: gatekeeper, planner, executor, logger
-* Logs panel
-* Notes inbox
-* Minimal heartbeat
+* Zod validation on all LLM outputs
+* Tool guardrails (URL allowlist, memory key protection, SSRF prevention)
+* Ledger hash chain verification
+* Error redaction
 
-### Phase 2
+### Phase B — Core Expansion ✅
 
-* Kanban
-* web_locked research
-* Cold memory (RAG)
+* Cold memory (RAG with SQLite + embeddings)
+* Google Calendar integration (OAuth + read/write)
+* Telegram bot integration
+* Kanban, Notes, Archive
+* Proactive intelligence (nudges, briefings, patterns)
+* Memory curator (warm → cold promotion)
 
-### Phase 3
+### Phase C — Goals as First‑Class Objects 🔧
 
-* Google read‑only integration
+* Goal CRUD via chat + dashboard
+* Goals Board UI (main view, not buried in settings)
+* Tasks system (one‑off + recurring, linked to goals)
+* Planner integration (check active goals before responding)
+* Timeline and progress tracking per goal
+* Drift detection + review cadence enforcement
+
+### Phase D — Autonomy & Tools 🔒
+
+* web_locked research node
+* Approval gates for high‑risk actions
 * Cost dashboards
 * Security auditor node
 

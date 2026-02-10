@@ -91,7 +91,7 @@ export interface ChatMessage {
   text: string;
   timestamp: string;
   tools?: string[];
-  source?: "telegram" | "dashboard";
+  source?: "telegram" | "dashboard" | "mobile";
 }
 
 export type NoteStatus = "unread" | "read";
@@ -148,3 +148,145 @@ export interface ProactiveConfig {
     pattern_suggestion: boolean;
   };
 }
+
+// ---- Goals ----
+
+export type GoalStatus =
+  | "active"
+  | "paused"
+  | "blocked"
+  | "completed"
+  | "abandoned";
+
+export type TimeHorizon = "1mo" | "3mo" | "6mo" | "12mo";
+
+export type GoalPriority = "hard" | "soft";
+
+export interface ActionLog {
+  id: string;
+  timestamp: string;
+  action: string;
+  result: "success" | "failed" | "pending" | "skipped";
+  details?: string;
+}
+
+export interface Goal {
+  id: string;
+  title: string;
+  status: GoalStatus;
+
+  // Core definition
+  time_horizon: TimeHorizon;
+  priority: GoalPriority;
+  success_definition: string;
+  anti_goals: string[];
+  metrics: string[];
+
+  // Behavioral tuning
+  allowed_interruption_level: number;
+  review_cadence_days: number;
+  confidence: number;
+
+  // Connections
+  related_projects: string[];
+
+  // Scheduling
+  last_reviewed?: string;
+  next_review?: string;
+
+  // Interruption budget
+  max_interruptions_per_day: number;
+  interruptions_today: number;
+
+  // State
+  blocked_reason?: string;
+
+  // History
+  actions_log: ActionLog[];
+  timeline: GoalTimelineEvent[];
+
+  // Metadata
+  created_at: string;
+  updated_at: string;
+}
+
+export interface GoalTimelineEvent {
+  id: string;
+  timestamp: string;
+  type: "created" | "updated" | "milestone" | "comment" | "status_change";
+  message: string;
+  agent?: string; // "user" or agent name
+}
+
+// ---- Tasks ----
+
+export type TaskStatus = "todo" | "done" | "archived";
+export type TaskType = "one-off" | "recurring";
+
+export interface Task {
+  id: string;
+  title: string;
+  status: TaskStatus;
+  type: TaskType;
+
+  // Scheduling
+  due_date?: string;       // Hard deadline
+  scheduled_date?: string; // Planned execution date (YYYY-MM-DD)
+
+  // Recurrence (if type === recurring)
+  recurrence_rule?: "daily" | "weekly" | "monthly";
+
+  // Context
+  source: "user" | "cairn";
+  suggested_by_agent?: boolean; // If true, requires user approval
+
+  // Metadata
+  created_at: string;
+  updated_at: string;
+  completed_at?: string;
+}
+
+// ---- WebSocket Protocol ----
+
+export type ClientMessage =
+  | { type: "ping" }
+  | { type: "chat:send"; text: string }
+  | { type: "note:create"; content: string }
+  | { type: "note:mark_read"; id: string }
+  | { type: "note:resurface"; id: string }
+  | { type: "kanban:archive"; id: string }
+  | { type: "kanban:restore"; id: string }
+  | { type: "kanban:set_project"; id: string; project: string }
+  | { type: "config:request_sync" }
+  | { type: "config:set_openai_key"; key: string }
+  | { type: "config:set_heartbeat"; interval_ms: number }
+  | { type: "config:set_spend_limit"; limit_usd: number }
+  | { type: "config:set_decision_limit"; limit: number }
+  | { type: "config:set_interaction_limit"; limit: number }
+  | { type: "config:set_telegram_token"; token: string }
+  | { type: "config:set_telegram_admin_chat_id"; chat_id: string }
+  | { type: "config:set_proactive_config"; config: Partial<ProactiveConfig> }
+  | { type: "config:set_mobile_config"; enabled: boolean; defaultClient: "telegram" | "mobile" }
+  | { type: "mobile:connect"; secret: string }
+  | { type: "mobile:send"; text: string }
+  | { type: "goal:create"; title: string; success_definition: string }
+  | { type: "goal:update"; id: string; changes: Partial<Goal> }
+  | { type: "goal:delete"; id: string }
+  | { type: "task:create"; title: string; taskType: TaskType; schedule?: { due?: string; on?: string; recurrence?: "daily" | "weekly" | "monthly" } }
+  | { type: "task:update"; id: string; changes: Partial<Task> }
+  | { type: "task:delete"; id: string };
+
+export type ServerMessage =
+  | { type: "pong" }
+  | { type: "error"; message: string }
+  | { type: "nucleus:state"; state: NucleusState; subAgents?: SubAgent[] }
+  | { type: "chat:message"; message: ChatMessage }
+  | { type: "note:update"; notes: Note[] }
+  | { type: "kanban:update"; cards: KanbanCard[] }
+  | { type: "log:entry"; entry: LogEntry }
+  | { type: "job:update"; job: { id: string; status: JobStatus; nodes_traversed: string[] } }
+  | { type: "config:update"; config: SystemConfig }
+  | { type: "policy:update"; nodes: NodeConfig[]; edges: any[] }
+  | { type: "goal:update"; goals: Goal[] }
+  | { type: "task:update"; tasks: Task[] }
+  | { type: "mobile:authenticated"; success: boolean };

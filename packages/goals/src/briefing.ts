@@ -67,10 +67,6 @@ export interface DailyBriefing {
         blockedCount: number;
         needsAttention: GoalSummary[];
     };
-    hypotheses: {
-        recentlyValidated: string[];
-        recentlyInvalidated: string[];
-    };
     recommendations: string[];
     warnings: string[];
     confidence: number;  // How confident is this briefing? (affects delivery)
@@ -91,10 +87,9 @@ export async function generateDailyBriefing(): Promise<DailyBriefing> {
     const hour = now.getHours();
 
     // Get data
-    const [calendar, activeGoals, hypotheses] = await Promise.all([
+    const [calendar, activeGoals] = await Promise.all([
         getTodaysCalendar(),
         db.getActiveGoals(),
-        db.getActiveHypotheses(),
     ]);
     const blockedGoals = db.getGoals().filter(g => g.status === "blocked");
 
@@ -143,14 +138,6 @@ export async function generateDailyBriefing(): Promise<DailyBriefing> {
         recommendations.push(`${blockedGoals.length} goal(s) blocked. Review constraints.`);
     }
 
-    // Hypothesis-based insights
-    const invalidated = db.getInvalidatedHypotheses().slice(0, 3);
-    const validated = hypotheses.filter(h => h.confidence > 0.8).slice(0, 3);
-
-    if (invalidated.length > 0) {
-        recommendations.push(`Recently learned: ${invalidated.map(h => h.hypothesis).join("; ")}`);
-    }
-
     // Get accurate free block count if provider supports it
     let freeBlockCount: number;
     if (calendarSource?.findFreeBlocks) {
@@ -181,10 +168,6 @@ export async function generateDailyBriefing(): Promise<DailyBriefing> {
             activeCount: activeGoals.length,
             blockedCount: blockedGoals.length,
             needsAttention,
-        },
-        hypotheses: {
-            recentlyValidated: validated.map(h => h.hypothesis),
-            recentlyInvalidated: invalidated.map(h => h.hypothesis),
         },
         recommendations,
         warnings,

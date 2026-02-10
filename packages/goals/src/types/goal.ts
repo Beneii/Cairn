@@ -8,78 +8,19 @@
  */
 
 import { now, newId } from "@cairn/shared";
+import type { Goal } from "@cairn/shared";
 
-// ---- Goal Status ----
+export type {
+    Goal,
+    GoalStatus,
+    GoalPriority,
+    TimeHorizon,
+    ActionLog,
+} from "@cairn/shared";
 
-export type GoalStatus =
-    | "active"      // Currently pursuing (max 3)
-    | "paused"      // Temporarily stopped
-    | "blocked"     // Can't proceed (needs input or change)
-    | "completed"   // Success criteria met
-    | "abandoned";  // User killed it
-
-// ---- Time Horizon ----
-
-export type TimeHorizon = "1mo" | "3mo" | "6mo" | "12mo";
-
-// ---- Priority ----
-
-export type GoalPriority = "hard" | "soft";
-// hard = active constraint, Cairn nudges work toward it
-// soft = only surfaces opportunities, no pressure
-
-// ---- Action Log ----
-
-export interface ActionLog {
-    id: string;
-    timestamp: string;
-    action: string;          // "reviewed", "made_progress", "stalled", "updated_definition"
-    result: "success" | "failed" | "pending" | "skipped";
-    details?: string;
-}
-
-// ---- Goal ----
+// ---- Constants ----
 
 export const MAX_ACTIVE_GOALS = 3;
-
-export interface Goal {
-    id: string;
-    title: string;
-    status: GoalStatus;
-
-    // Core definition (user-authored, Cairn-sharpened)
-    time_horizon: TimeHorizon;
-    priority: GoalPriority;
-    success_definition: string;         // What "done" looks like
-    anti_goals: string[];               // Explicit things to avoid
-    metrics: string[];                  // How to measure progress (qualitative or quantitative)
-
-    // Behavioral tuning
-    allowed_interruption_level: number; // 0-1: how aggressive Cairn is about this goal
-    review_cadence_days: number;        // How often to review (in days)
-    confidence: number;                 // 0-1: how solid this goal actually is
-
-    // Connections
-    related_projects: string[];         // Linked Kanban project names
-
-    // Scheduling
-    last_reviewed?: string;
-    next_review?: string;
-
-    // Interruption budget
-    max_interruptions_per_day: number;
-    interruptions_today: number;
-
-    // State
-    blocked_reason?: string;
-
-    // History
-    actions_log: ActionLog[];
-
-    // Metadata
-    created_at: string;
-    updated_at: string;
-}
 
 // ---- Factory ----
 
@@ -104,6 +45,7 @@ export function createGoal(
         max_interruptions_per_day: 3,
         interruptions_today: 0,
         actions_log: [],
+        timeline: [],
         created_at: timestamp,
         updated_at: timestamp,
         ...options,

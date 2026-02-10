@@ -24,7 +24,7 @@ export const NODES: Record<string, NodeConfig> = {
   executor: {
     name: "executor",
     allowed_callers: ["planner", "orchestrator"],
-    allowed_tools: ["memory_read", "memory_write", "ledger_write", "web_search", "fetch_url", "vector_search"],
+    allowed_tools: ["memory_read", "memory_write", "ledger_write", "web_search", "fetch_url", "vector_search", "calendar_read", "gmail_read", "goals_read", "goals_update", "tasks_read", "tasks_create", "tasks_complete"],
     memory_access: ["hot", "warm"],
     memory_write: ["hot", "warm"],
     max_runtime_seconds: 300,

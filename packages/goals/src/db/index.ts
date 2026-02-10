@@ -18,15 +18,3 @@ export {
     resetDailyInterruptions,
     deleteGoal,
 } from "./goalDb.js";
-
-// Hypothesis DB
-export type { Hypothesis, HypothesisStatus } from "./hypothesisDb.js";
-export {
-    getActiveHypotheses,
-    getHypothesis,
-    getInvalidatedHypotheses,
-    createHypothesis,
-    recordEvidence,
-    invalidateHypothesis,
-    deleteHypothesis,
-} from "./hypothesisDb.js";

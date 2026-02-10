@@ -44,7 +44,7 @@ export type SideEffectType =
     | "spends:money"
     | "none";
 
-// ---- Safety Tiers (from approval.ts) ----
+// ---- Safety Tiers ----
 
 export type SafetyTier = "auto" | "notify" | "approve" | "never";
 

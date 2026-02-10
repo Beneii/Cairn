@@ -64,7 +64,20 @@ export async function setProactiveConfig(config: Partial<ProactiveConfig>): Prom
     setProactive(config);
 }
 
+export async function setMobileConfig(enabled: boolean, defaultClient: "telegram" | "mobile"): Promise<void> {
+    await updateEnvVar("MOBILE_APP_ENABLED", String(enabled));
+    await updateEnvVar("DEFAULT_CLIENT", defaultClient);
+}
+
 export function getSystemConfig() {
+    // Auto-generate pairing secret if missing (in-memory only for now, or persist if needed)
+    // For simplicity, we'll derive it or generate it once per process if not in env, 
+    // but better to persist it. Let's persist it.
+    if (!process.env.MOBILE_PAIRING_SECRET) {
+        const secret = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+        updateEnvVar("MOBILE_PAIRING_SECRET", secret).catch(console.error);
+    }
+
     return {
         heartbeat_interval_ms: Number(process.env.HEARTBEAT_INTERVAL_MS ?? 60000),
         monthly_spend_limit_usd: Number(process.env.MONTHLY_SPEND_LIMIT_USD ?? 50),
@@ -74,6 +87,9 @@ export function getSystemConfig() {
         has_telegram_token: !!process.env.TELEGRAM_BOT_TOKEN,
         telegram_admin_chat_id: process.env.TELEGRAM_ADMIN_CHAT_ID || "",
         has_google_calendar: isGoogleAuthenticated(),
+        mobile_app_enabled: process.env.MOBILE_APP_ENABLED === "true",
+        default_client: (process.env.DEFAULT_CLIENT as "telegram" | "mobile") || "telegram",
+        mobile_pairing_secret: process.env.MOBILE_PAIRING_SECRET,
         proactive: getProactiveConfig(),
     };
 }

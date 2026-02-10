@@ -24,8 +24,35 @@ function captureRecentTask(job: Job): void {
   }
 }
 
+// Append the AI response to chat history so future turns see it
+function appendHistory(withUser: { role: string; content: string }[], job: Job): void {
+  try {
+    // Find the actual response text from artifacts (executor uses "result", planner uses "plan")
+    const resultArtifact = job.artifacts.find(a => a.type === "result" || a.type === "blocked");
+    const aiResponse = resultArtifact?.content
+      || job.artifacts.find(a => a.type === "plan")?.content
+      || "Done";
+
+    const finalHistory = [
+      ...withUser,
+      { role: "assistant", content: aiResponse }
+    ].slice(-20);
+    warmSet("chat_history", finalHistory);
+  } catch (err) {
+    console.error("[orchestrator] Failed to append history:", err);
+  }
+}
+
 export async function processMessage(userInput: string): Promise<void> {
   try {
+    // Capture user message BEFORE any node runs so all nodes see fresh history
+    const history = warmGet<{ role: string; content: string }[]>("chat_history") || [];
+    const withUser = [
+      ...history,
+      { role: "user", content: userInput }
+    ].slice(-20); // Keep last 20 entries (~10 turns)
+    warmSet("chat_history", withUser);
+
     // Step 1: Gatekeeper — classify intent, acknowledge user
     const job = await runGatekeeper(userInput);
 
@@ -33,6 +60,8 @@ export async function processMessage(userInput: string): Promise<void> {
       bus.emit("nucleus:state", "idle");
       bus.emit("job:completed", job);
       captureRecentTask(job);
+      // Capture the gatekeeper's direct response
+      appendHistory(withUser, job);
       await appendEntry("agent", "orchestrator", job.id, "Job completed by gatekeeper");
       return;
     }
@@ -44,6 +73,7 @@ export async function processMessage(userInput: string): Promise<void> {
       bus.emit("nucleus:state", "idle");
       bus.emit("job:completed", plannedJob);
       captureRecentTask(plannedJob);
+      appendHistory(withUser, plannedJob);
       await appendEntry("agent", "orchestrator", plannedJob.id, "Job completed by planner");
       return;
     }
@@ -52,6 +82,7 @@ export async function processMessage(userInput: string): Promise<void> {
     const completedJob = await runExecutorNode(plannedJob);
     bus.emit("job:completed", completedJob);
     captureRecentTask(completedJob);
+    appendHistory(withUser, completedJob);
     await appendEntry("agent", "orchestrator", completedJob.id, "Job completed by executor");
   } catch (err) {
     // Security: Redact sensitive information from errors before displaying

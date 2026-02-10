@@ -57,8 +57,8 @@ can_call: [planner, logger]
 ```yaml
 role: Create execution plans, decide routing
 model: gpt-4o
-tools: [memory_read]
-memory_read: [hot, warm]
+tools: [memory_read, vector_search]
+memory_read: [hot, warm, cold]
 memory_write: [hot, warm]
 can_call: [executor, logger]
 ```
@@ -68,9 +68,9 @@ can_call: [executor, logger]
 ```yaml
 role: Execute plans, run tools, produce results
 model: gpt-4o
-tools: [memory_read, memory_write, ledger_write, web_search, fetch_url]
-memory_read: [hot, warm]
-memory_write: [hot]
+tools: [memory_read, memory_write, ledger_write, web_search, fetch_url, calendar_read, gmail_read, vector_search]
+memory_read: [hot, warm, cold]
+memory_write: [hot, warm]
 can_call: [logger]
 ```
 
@@ -89,48 +89,25 @@ can_call: []
 
 ## Tool Registry
 
-### Currently Implemented (MVP)
+### Implemented
 
 | Tool | Description | Allowed Nodes |
 |------|-------------|---------------|
 | `memory_read` | Read from hot/warm memory | planner, executor |
 | `memory_write` | Write to hot/warm memory | executor |
 | `ledger_write` | Append entry to audit ledger | executor, logger |
-| `web_search` | Search the web (mocked in MVP) | executor |
+| `web_search` | Search the web (DuckDuckGo) | executor |
 | `fetch_url` | Fetch content from a URL | executor |
+| `calendar_read` | Read Google Calendar events | executor |
+| `gmail_read` | Read recent emails | executor |
+| `vector_search` | Query cold memory via RAG embeddings | planner, executor |
 
-### Tool Input/Output Contracts
-
-All tools follow this interface:
-
-```typescript
-interface ToolInput {
-  name: string;
-  args: Record<string, unknown>;
-}
-
-interface ToolResult {
-  success: boolean;
-  output: string;
-  artifact?: Artifact;
-}
-```
-
-### Phase 2 Tools (Planned)
+### Phase D Tools (Planned)
 
 | Tool | Description | Notes |
 |------|-------------|-------|
 | `browser` | Headless browser for JS-rendered pages | web_locked node only |
 | `parser` | Extract structured data from HTML | web_locked node only |
-| `vector_search` | Query cold memory via embeddings | RAG retrieval |
-
-### Phase 3 Tools (Planned)
-
-| Tool | Description | Notes |
-|------|-------------|-------|
-| `google_calendar_read` | Read calendar events | Read-only integration |
-| `google_drive_read` | Read documents | Read-only integration |
-| `gmail_read` | Read emails | Read-only integration |
 
 ---
 
@@ -154,22 +131,22 @@ access: All nodes can read, gatekeeper/planner/executor can write
 type: Persistent, JSON files
 ttl: None (persists until cleared)
 use_cases:
-  - User preferences
+  - User context and preferences
   - Task summaries
   - Recent important events
-  - Stable context
-access: planner/executor can read, planner can write
+  - Chat history (last 10 turns)
+access: planner/executor can read and write
 ```
 
-### Cold Memory (Phase 2)
+### Cold Memory
 
 ```yaml
-type: Vector database + RAG
+type: SQLite + vector embeddings (RAG)
 ttl: None (permanent archive)
 use_cases:
-  - Historical notes
-  - Document archive
+  - Historical notes and documents
   - Long-term knowledge
+  - Semantic search over past context
 access: Read-only via vector_search tool
 write: Curator process only (warm → cold promotion)
 ```
@@ -178,43 +155,43 @@ write: Curator process only (warm → cold promotion)
 
 ## Interface Capabilities
 
-### Currently Implemented (MVP)
+### Implemented
 
 | Interface | Type | Status |
 |-----------|------|--------|
-| WebSocket | Real-time bidirectional | ✅ Active |
-| HTTP REST | Health checks, status | ✅ Active |
-| Dashboard UI | React web application | ✅ Active |
+| WebSocket | Real-time bidirectional | Active |
+| HTTP REST | Health checks, OAuth | Active |
+| Dashboard UI | React web application | Active |
+| Telegram Bot | Messaging | Active |
 
-### Planned Interfaces
+### Planned
 
 | Interface | Type | Phase |
 |-----------|------|-------|
-| Telegram Bot | Messaging | MVP (pending) |
-| Mobile App | iOS/Android | Phase 3 |
-| CLI | Command line | Phase 2 |
+| Mobile App | iOS/Android | Phase D+ |
 
 ---
 
 ## UI Capabilities
 
-### Panels
+### Home Panels
 
-| Panel | Purpose | Status |
-|-------|---------|--------|
-| **Nucleus** | Visual state indicator (idle/thinking/tooling/error) | ✅ |
-| **Chat** | Conversation interface | ✅ |
-| **Notes** | Inbox for captured items | ✅ |
-| **Logs** | Real-time activity stream | ✅ |
-| **Kanban** | Task board (backlog/active/blocked/done) | ✅ |
+| Panel | Purpose |
+|-------|---------|
+| **Nucleus** | Visual state indicator (idle/thinking/tooling/error) |
+| **Chat** | Conversation interface with tool output |
+| **Notes** | Inbox for captured items |
+| **Kanban** | Task cards (backlog/active/blocked/done) |
+| **Logs** | Real-time activity stream |
 
 ### Pages
 
-| Page | Purpose | Status |
-|------|---------|--------|
-| **Agents** | View node graph and configurations | ✅ |
-| **Integrations** | Manage external connections | ✅ (placeholder) |
-| **Preferences** | System configuration | ✅ |
+| Page | Purpose |
+|------|---------|
+| **Goals** | Active goals board (max 3), creation, timeline |
+| **Tasks** | Todo list (today/upcoming/recurring) |
+| **Settings** | System config, integrations, diagnostics |
+| **Archive** | Archived kanban cards |
 
 ---
 
@@ -242,18 +219,21 @@ write: Curator process only (warm → cold promotion)
 
 ### Implemented
 
+- Zod schema validation on all LLM outputs
 - Policy enforcement at node transitions
 - Tool allowlists per node
 - Memory tier access control
 - Hash-chained append-only ledger
 - Heartbeat integrity checks
+- URL allowlists (SSRF prevention)
+- Memory key protection (system keys blocked)
+- Error redaction before user display
 
-### Planned (Phase 3)
+### Planned (Phase D)
 
 - Prompt injection detection in web content
-- Secret exposure detection in outputs
-- Forbidden file access detection
 - Security auditor node
+- Approval gates for high-risk actions
 
 ---
 

@@ -8,11 +8,13 @@
     "build": "tsc"
   },
   "dependencies": {
+    "@cairn/goals": "workspace:*",
     "@cairn/integrations": "workspace:*",
     "@cairn/ledger": "workspace:*",
     "@cairn/memory": "workspace:*",
     "@cairn/policy": "workspace:*",
     "@cairn/shared": "workspace:*",
+    "@cairn/tasks": "workspace:*",
     "zod": "^4.3.6"
   },
   "devDependencies": {

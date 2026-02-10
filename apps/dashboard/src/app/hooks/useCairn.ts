@@ -28,7 +28,12 @@ interface CairnState {
     telegram_admin_chat_id: string;
     has_google_calendar: boolean;
     proactive?: ProactiveConfig;
+    mobile_app_enabled: boolean;
+    default_client: "telegram" | "mobile";
+    mobile_pairing_secret?: string;
   };
+  goals: any[]; // refined in next step
+  tasks: any[];
   policy: {
     nodes: Record<string, any>;
     edges: Record<string, string[]>;
@@ -57,6 +62,8 @@ export function useCairn() {
     notes: [],
     kanbanCards: [],
     logs: [],
+    goals: [],
+    tasks: [],
     config: {
       heartbeat_interval_ms: 60000,
       monthly_spend_limit_usd: 50,
@@ -66,6 +73,8 @@ export function useCairn() {
       has_telegram_token: false,
       telegram_admin_chat_id: "",
       has_google_calendar: false,
+      mobile_app_enabled: false,
+      default_client: "telegram",
     },
     policy: {
       nodes: {},
@@ -91,7 +100,7 @@ export function useCairn() {
     function connect() {
       if (!mountedRef.current) return;
       if (wsRef.current?.readyState === WebSocket.OPEN ||
-          wsRef.current?.readyState === WebSocket.CONNECTING) return;
+        wsRef.current?.readyState === WebSocket.CONNECTING) return;
 
       console.log(`[cairn] connecting to ${wsUrl}`);
       const socket = new WebSocket(wsUrl);
@@ -161,6 +170,12 @@ export function useCairn() {
               break;
             case "policy:update":
               setState((s) => ({ ...s, policy: { nodes: msg.nodes, edges: msg.edges } }));
+              break;
+            case "goal:update":
+              setState((s) => ({ ...s, goals: msg.goals }));
+              break;
+            case "task:update":
+              setState((s) => ({ ...s, tasks: msg.tasks }));
               break;
             case "pong":
               setState((s) => ({
@@ -249,6 +264,34 @@ export function useCairn() {
     wsRef.current?.send(JSON.stringify({ type: "config:set_proactive_config", config }));
   }, []);
 
+  const createGoal = useCallback((title: string, success_definition: string) => {
+    wsRef.current?.send(JSON.stringify({ type: "goal:create", title, success_definition }));
+  }, []);
+
+  const updateGoal = useCallback((id: string, changes: Record<string, unknown>) => {
+    wsRef.current?.send(JSON.stringify({ type: "goal:update", id, changes }));
+  }, []);
+
+  const deleteGoal = useCallback((id: string) => {
+    wsRef.current?.send(JSON.stringify({ type: "goal:delete", id }));
+  }, []);
+
+  const createTask = useCallback((title: string, type: "one-off" | "recurring", schedule?: any) => {
+    wsRef.current?.send(JSON.stringify({ type: "task:create", title, taskType: type, schedule }));
+  }, []);
+
+  const updateTask = useCallback((id: string, changes: Record<string, unknown>) => {
+    wsRef.current?.send(JSON.stringify({ type: "task:update", id, changes }));
+  }, []);
+
+  const deleteTask = useCallback((id: string) => {
+    wsRef.current?.send(JSON.stringify({ type: "task:delete", id }));
+  }, []);
+
+  const setMobileConfig = useCallback((enabled: boolean, defaultClient: "telegram" | "mobile") => {
+    wsRef.current?.send(JSON.stringify({ type: "config:set_mobile_config", enabled, defaultClient }));
+  }, []);
+
   return {
     ...state,
     sendChat,
@@ -266,5 +309,12 @@ export function useCairn() {
     restoreCard,
     setCardProject,
     setProactiveConfig,
+    setMobileConfig,
+    createGoal,
+    updateGoal,
+    deleteGoal,
+    createTask,
+    updateTask,
+    deleteTask,
   };
 }

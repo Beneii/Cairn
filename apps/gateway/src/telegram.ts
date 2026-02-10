@@ -2,7 +2,7 @@ import { Bot } from "grammy";
 import { bus, newId, shortTime } from "@cairn/shared";
 import type { ChatMessage } from "@cairn/shared";
 import { isLLMAvailable, processMessage } from "@cairn/orchestrator";
-import { recordMessageSource, shouldSendToTelegram } from "./session-tracker.js";
+import { recordMessageSource } from "./session-tracker.js";
 
 let bot: Bot | null = null;
 let activeChatIds = new Set<number>();
@@ -92,33 +92,37 @@ export function initTelegram(): void {
     }
   });
 
-  // Listen for chat messages from the event bus and forward to Telegram
-  bus.on("chat:message", (message: ChatMessage) => {
-    if (message.role === "cairn" && bot) {
-      // Only send to Telegram if user is actively using it or away from dashboard
-      if (!shouldSendToTelegram()) {
-        return;
-      }
-
-      // Send response to all active Telegram chats
-      for (const chatId of activeChatIds) {
-        bot.api.sendMessage(chatId, message.text).catch((err) => {
-          console.error(`[telegram] Failed to send message to ${chatId}:`, err);
-          // Remove chat if we can't send to it
-          activeChatIds.delete(chatId);
-        });
-      }
-    }
-  });
-
   // Start the bot
   bot.start({
     onStart: (botInfo) => {
       console.log(`[telegram] Bot started: @${botInfo.username}`);
     },
+  }).catch((err) => {
+    console.error("[telegram] Failed to start bot:", err.message);
+    // Continue running the gateway even if Telegram fails
+    bot = null;
   });
 
   console.log("[telegram] Initializing bot...");
+}
+
+/**
+ * Send a message to all active Telegram chats.
+ * This is called by the broadcast system when routing logic determines
+ * Telegram should receive the message.
+ */
+export async function sendTelegramMessage(text: string): Promise<void> {
+  if (!bot || activeChatIds.size === 0) return;
+
+  for (const chatId of activeChatIds) {
+    try {
+      await bot.api.sendMessage(chatId, text);
+    } catch (err) {
+      console.error(`[telegram] Failed to send message to ${chatId}:`, err);
+      // Remove chat if we can't send to it (e.g. blocked)
+      activeChatIds.delete(chatId);
+    }
+  }
 }
 
 /**

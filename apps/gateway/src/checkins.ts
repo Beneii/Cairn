@@ -1,9 +1,7 @@
 /**
  * Proactive Check-ins Agent
  *
- * Periodic job that sends personalized check-ins based on:
  * - Time of day (morning, afternoon, evening)
- * - User preferences from warm memory
  * - Recent tasks and active projects
  * - Blocked tasks that need attention
  * - GOALS: Due dates and inactivity detection
@@ -79,7 +77,6 @@ export function startCheckInProcessor(): void {
       }
 
       // Gather context for personalization
-      const preferences = warmGet("user_preferences") ?? {};
       const recentTasks = warmGet("recent_tasks") ?? [];
       const cards = getCards();
       const blockedTasks = cards.filter((c) => c.status === "blocked" && !c.archived);
@@ -98,10 +95,6 @@ export function startCheckInProcessor(): void {
         contextParts.push(
           `Active tasks (${activeTasks.length}): ${activeTasks.slice(0, 3).map((t) => t.title).join(", ")}`
         );
-      }
-
-      if (Object.keys(preferences).length > 0) {
-        contextParts.push(`User preferences: ${JSON.stringify(preferences)}`);
       }
 
       console.log(`[checkins] Generating ${timeContext.period} check-in`);

@@ -28,6 +28,7 @@ interface GoalRow {
     interruptions_today: number;
     blocked_reason: string | null;
     actions_log: string;
+    timeline: string;
     created_at: string;
     updated_at: string;
 }
@@ -52,6 +53,7 @@ function rowToGoal(row: GoalRow): Goal {
         interruptions_today: row.interruptions_today,
         blocked_reason: row.blocked_reason ?? undefined,
         actions_log: parseJSON<ActionLog[]>(row.actions_log, []),
+        timeline: parseJSON<any[]>(row.timeline, []),
         created_at: row.created_at,
         updated_at: row.updated_at,
     };
@@ -106,9 +108,9 @@ export function createGoal(goal: Goal): Goal {
       anti_goals, metrics, allowed_interruption_level, review_cadence_days,
       confidence, related_projects, last_reviewed, next_review,
       max_interruptions_per_day, interruptions_today, blocked_reason,
-      actions_log, created_at, updated_at
+      actions_log, timeline, created_at, updated_at
     ) VALUES (
-      ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+      ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
     )
   `);
 
@@ -120,7 +122,7 @@ export function createGoal(goal: Goal): Goal {
         JSON.stringify(goal.related_projects), goal.last_reviewed ?? null,
         goal.next_review ?? null, goal.max_interruptions_per_day,
         goal.interruptions_today, goal.blocked_reason ?? null,
-        JSON.stringify(goal.actions_log), goal.created_at, goal.updated_at
+        JSON.stringify(goal.actions_log), JSON.stringify(goal.timeline || []), goal.created_at, goal.updated_at
     );
 
     console.log(`[goals-db] Created goal: ${goal.title}`);
@@ -150,7 +152,7 @@ export function updateGoal(id: string, updates: Partial<Goal>): Goal | undefined
       confidence = ?, related_projects = ?, last_reviewed = ?,
       next_review = ?, max_interruptions_per_day = ?,
       interruptions_today = ?, blocked_reason = ?,
-      actions_log = ?, updated_at = ?
+      actions_log = ?, timeline = ?, updated_at = ?
     WHERE id = ?
   `);
 
@@ -162,7 +164,7 @@ export function updateGoal(id: string, updates: Partial<Goal>): Goal | undefined
         JSON.stringify(updated.related_projects), updated.last_reviewed ?? null,
         updated.next_review ?? null, updated.max_interruptions_per_day,
         updated.interruptions_today, updated.blocked_reason ?? null,
-        JSON.stringify(updated.actions_log), updated.updated_at, id
+        JSON.stringify(updated.actions_log), JSON.stringify(updated.timeline || []), updated.updated_at, id
     );
 
     return updated;

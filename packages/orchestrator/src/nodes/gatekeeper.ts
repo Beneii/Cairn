@@ -5,27 +5,40 @@ import type { Job } from "@cairn/shared";
 import { callLLM } from "../llm.js";
 import { createJob, updateJob } from "../jobs.js";
 import { z } from "zod";
+import { getActiveGoals } from "@cairn/goals";
+import { getTasks } from "@cairn/tasks";
+import { warmGet } from "@cairn/memory";
 
-const SYSTEM_PROMPT = `You are the Cairn gatekeeper. You receive user messages and must:
-1. Classify the intent (greeting, question, task, note)
-2. Estimate complexity (small, medium, large)
-3. Generate an immediate, brief acknowledgement to the user
+const SYSTEM_PROMPT = `You are the Cairn gatekeeper. You receive user messages and decide whether to handle them directly or route to the planner.
 
-Respond in JSON format:
+You know the user's active goals and tasks. Use this context to give better acknowledgements and make smarter routing decisions.
+
+## Response Format (JSON)
 {
   "intent": "greeting" | "question" | "task" | "note",
   "complexity": "small" | "medium" | "large",
-  "acknowledgement": "string - brief response to user",
-  "needs_planner": boolean
+  "acknowledgement": "brief, warm response to the user",
+  "needs_planner": true/false,
+  "is_task": true/false
 }
 
-Guidelines:
-- Simple greetings without follow-up: handle directly (needs_planner: false)
-- Memory operations (remembering, recalling info): ALWAYS route to planner (needs_planner: true)
-- Questions about stored information: route to planner (needs_planner: true)
-- Tasks requiring tools or multi-step planning: route to planner (needs_planner: true)
-- Web searches, data fetching, complex analysis: route to planner (needs_planner: true)
-- Always be brief and conversational in acknowledgements`;
+## Routing Rules
+- Simple greetings: handle directly (needs_planner: false) — but reference their goals/tasks if relevant ("Hey! How's the running going?")
+- Memory operations (remembering, recalling): ALWAYS route to planner
+- Questions about stored info: route to planner
+- Anything about goals, progress, tasks, or todos: ALWAYS route to planner
+- Web searches, data fetching, complex analysis: route to planner
+- If the user mentions progress on something or completing something: route to planner (so it can update goals/tasks)
+- If the user asks to do something or mentions a new task: route to planner
+
+## Kanban Suitability (is_task)
+- Set "is_task": true if the message represents a concrete objective, to-do, task, or significant note that should be tracked on a Kanban board.
+- Set "is_task": false for simple greetings ("hi"), acknowledgements ("thanks", "ok"), or small talk that doesn't need a persistent card.
+
+## Style
+- Be warm and conversational, not robotic
+- Keep acknowledgements brief (1 sentence)
+- When routing to planner, your acknowledgement is NOT shown — the planner/executor will respond`;
 
 // Zod schema for LLM response validation (security hardening)
 const GatekeeperResponseSchema = z.object({
@@ -33,6 +46,7 @@ const GatekeeperResponseSchema = z.object({
   complexity: z.enum(["small", "medium", "large"]),
   acknowledgement: z.string().max(500), // Limit output size
   needs_planner: z.boolean(),
+  is_task: z.boolean(),
 });
 
 export async function runGatekeeper(userInput: string): Promise<Job> {
@@ -48,10 +62,28 @@ export async function runGatekeeper(userInput: string): Promise<Job> {
     `Gatekeeper processing: "${userInput.substring(0, 100)}"`,
   );
 
+  // Fetch context for better gating
+  const activeGoals = getActiveGoals();
+  const history = warmGet<{ role: string; content: string }[]>("chat_history") || [];
+
+  const historyBlock = history.length > 0
+    ? `\nRecent Chat History:\n${history.map(m => `${m.role}: ${m.content}`).join("\n")}`
+    : "";
+
+  const activeTasks = getTasks({ status: "todo" });
+
+  const goalsBlock = activeGoals.length > 0
+    ? `\nActive Goals:\n${activeGoals.map(g => `- ${g.title}`).join("\n")}`
+    : "";
+
+  const tasksBlock = activeTasks.length > 0
+    ? `\nOpen Tasks:\n${activeTasks.map((t: any) => `- ${t.title}`).join("\n")}`
+    : "";
+
   const response = await callLLM(
     {
       model: config.assigned_model,
-      systemPrompt: SYSTEM_PROMPT,
+      systemPrompt: SYSTEM_PROMPT + goalsBlock + tasksBlock + historyBlock,
       userMessage: userInput,
       maxTokens: config.max_tokens_per_call,
       responseFormat: "json_object",
@@ -66,6 +98,7 @@ export async function runGatekeeper(userInput: string): Promise<Job> {
     complexity: string;
     acknowledgement: string;
     needs_planner: boolean;
+    is_task: boolean;
   };
 
   try {
@@ -86,6 +119,7 @@ export async function runGatekeeper(userInput: string): Promise<Job> {
         complexity: "small",
         acknowledgement: "Let me look into that.",
         needs_planner: true,
+        is_task: true,
       };
     } else {
       parsed = validationResult.data;
@@ -103,6 +137,7 @@ export async function runGatekeeper(userInput: string): Promise<Job> {
       complexity: "small",
       acknowledgement: "Let me look into that.",
       needs_planner: true,
+      is_task: true,
     };
   }
 
@@ -114,6 +149,7 @@ export async function runGatekeeper(userInput: string): Promise<Job> {
     nodes_traversed: ["gatekeeper"],
     costs_so_far: [response.cost],
     status: parsed.needs_planner ? "running" : "done",
+    metadata: { is_task: parsed.is_task }
   });
 
   // Send acknowledgement to UI ONLY if we're handling it directly
@@ -142,5 +178,6 @@ export async function runGatekeeper(userInput: string): Promise<Job> {
     nodes_traversed: ["gatekeeper"],
     costs_so_far: [response.cost],
     status: parsed.needs_planner ? "running" : "done",
+    metadata: { is_task: parsed.is_task }
   };
 }

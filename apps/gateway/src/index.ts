@@ -12,7 +12,7 @@ dotenv.config();
 import type { ClientMessage } from "@cairn/shared";
 import { bus, newId, shortTime } from "@cairn/shared";
 import { initLedger } from "@cairn/ledger";
-import { initWarmMemory, initColdMemory, initEmbeddingService, runCurationCycle, getColdMemoryStats } from "@cairn/memory";
+import { initWarmMemory, initColdMemory, initEmbeddingService, runCurationCycle, getColdMemoryStats, warmGet, warmSet } from "@cairn/memory";
 import { initJobStore, initLLM, isLLMAvailable, processMessage } from "@cairn/orchestrator";
 import { startScheduler } from "@cairn/scheduler";
 import {
@@ -31,7 +31,7 @@ import {
   restoreCard,
   updateCardProject,
 } from "./kanban.js";
-import { setOpenAIKey, setHeartbeat, setSpendLimit, setDecisionLimit, setInteractionLimit, setTelegramToken, setTelegramAdminChatId, getSystemConfig, setProactiveConfig } from "./config.js";
+import { setOpenAIKey, setHeartbeat, setSpendLimit, setDecisionLimit, setInteractionLimit, setTelegramToken, setTelegramAdminChatId, getSystemConfig, setProactiveConfig, setMobileConfig } from "./config.js";
 import { setupBroadcast } from "./broadcast.js";
 import { initTelegram, isTelegramEnabled } from "./telegram.js";
 import { NODES, GRAPH_EDGES } from "@cairn/policy";
@@ -40,7 +40,9 @@ import { startLibrarianProcessor } from "./librarian.js";
 import { startCheckInProcessor, startProactiveProcessor } from "./checkins.js";
 import { initGoogleOAuth, getAuthUrl, exchangeCodeForTokens } from "@cairn/integrations";
 import { initCalendarProvider, getCalendarProvider } from "@cairn/executor";
-import { setBriefingCalendarSource } from "@cairn/goals";
+import { setBriefingCalendarSource, getGoals, createGoal as createGoalFactory, updateGoal, saveGoal } from "@cairn/goals";
+import { deleteGoal, getGoal } from "@cairn/goals";
+import { getTasks, createTask, updateTask, deleteTask, completeTask, initDatabase as initTasks } from "@cairn/tasks";
 
 const HOST = process.env.HOST || "0.0.0.0";
 const PORT = process.env.PORT ?? 3100;
@@ -215,16 +217,34 @@ async function main() {
     broadcast({ type: "kanban:update", cards }),
   );
 
-  // Auto-create kanban cards from jobs
-  bus.on("job:created", (job) => {
-    const title = job.input.length > 50 ? job.input.substring(0, 47) + "..." : job.input;
-    createCard(title, "active", job.id);
+  // Auto-create kanban cards from jobs IF they are classified as tasks
+  bus.on("job:updated", async (job) => {
+    // Only create card if classified as a task and not already created
+    if (job.status === "running" && job.metadata?.is_task) {
+      const existing = getCards().find(c => c.jobId === job.id);
+      if (!existing) {
+        const title = job.input.length > 50 ? job.input.substring(0, 47) + "..." : job.input;
+        await createCard(title, "active", job.id);
+      }
+    }
+
+    if (job.status === "done") {
+      await updateCardByJobId(job.id, "done");
+    }
+    if (job.status === "failed") {
+      await updateCardByJobId(job.id, "blocked");
+    }
   });
+
   bus.on("job:completed", (job) => {
+    // This is a redundancy for explicit completion events
     updateCardByJobId(job.id, "done");
   });
-  bus.on("job:failed", (job) => {
-    updateCardByJobId(job.id, "blocked");
+  bus.on("goals:updated", (goals) => {
+    broadcast({ type: "goal:update", goals });
+  });
+  bus.on("tasks:updated", (tasks) => {
+    broadcast({ type: "task:update", tasks });
   });
 
   // 5. Handle WebSocket connections
@@ -237,6 +257,8 @@ async function main() {
     socket.send(JSON.stringify({ type: "kanban:update", cards: getCards() }));
     socket.send(JSON.stringify({ type: "config:update", config: getSystemConfig() }));
     socket.send(JSON.stringify({ type: "policy:update", nodes: NODES, edges: GRAPH_EDGES }));
+    socket.send(JSON.stringify({ type: "goal:update", goals: getGoals() }));
+    socket.send(JSON.stringify({ type: "task:update", tasks: getTasks() }));
 
     socket.on("message", async (raw) => {
       try {
@@ -362,9 +384,122 @@ async function main() {
             });
             break;
           }
+          case "mobile:connect": {
+            const config = getSystemConfig();
+            if (msg.secret !== config.mobile_pairing_secret) {
+              socket.send(JSON.stringify({ type: "error", message: "Invalid pairing secret" }));
+              return;
+            }
+            console.log("[ws] Mobile app authenticated");
+            socket.send(JSON.stringify({ type: "mobile:authenticated", success: true }));
+            // Send initial state
+            socket.send(JSON.stringify({ type: "nucleus:state", state: "idle" }));
+            socket.send(JSON.stringify({ type: "note:update", notes: getNotes() }));
+            socket.send(JSON.stringify({ type: "goal:update", goals: getGoals() }));
+            socket.send(JSON.stringify({ type: "task:update", tasks: getTasks() }));
+            break;
+          }
+          case "mobile:send": {
+            // Mobile app sending a message
+            recordMessageSource("mobile");
+
+            // Echo to dashboard/other clients
+            broadcast({
+              type: "chat:message",
+              message: {
+                id: newId(),
+                role: "user",
+                text: msg.text,
+                timestamp: shortTime(),
+                source: "mobile"
+              },
+            });
+
+            // Process via LLM
+            if (!isLLMAvailable()) {
+              broadcast({ type: "error", message: "LLM unavailable" });
+              break;
+            }
+            processMessage(msg.text).catch(console.error);
+            break;
+          }
+          case "config:set_mobile_config": {
+            await setMobileConfig(msg.enabled, msg.defaultClient);
+            broadcast({ type: "config:update", config: getSystemConfig() });
+            break;
+          }
           case "config:request_sync": {
             socket.send(JSON.stringify({ type: "config:update", config: getSystemConfig() }));
             socket.send(JSON.stringify({ type: "policy:update", nodes: NODES, edges: GRAPH_EDGES }));
+            break;
+          }
+          case "goal:create": {
+            const goal = createGoalFactory(msg.title, { success_definition: msg.success_definition });
+
+            // Add initial timeline event
+            goal.timeline = [{
+              id: newId(),
+              timestamp: shortTime(),
+              type: "created",
+              message: "Goal created",
+              agent: "user"
+            }];
+
+            saveGoal(goal);
+            // Broadcast updated goals list
+            broadcast({ type: "goal:update", goals: getGoals() });
+
+            // Trigger proactive scoping message
+            const scopingMessage = `I see you've created a new goal: "${goal.title}".\n\nWould you like me to help you scope this out? I can help create a timeline, break it down into milestones, or suggest immediate next steps.`;
+
+            bus.emit("chat:message", {
+              id: newId(),
+              role: "cairn",
+              text: scopingMessage,
+              timestamp: shortTime(),
+            });
+
+            // Inject into chat history so Gatekeeper sees this context
+            const history = warmGet<{ role: string; content: string }[]>("chat_history") || [];
+            warmSet("chat_history", [
+              ...history,
+              { role: "assistant", content: scopingMessage }
+            ].slice(-10));
+            break;
+          }
+          case "goal:update": {
+            await updateGoal(msg.id, msg.changes);
+            break;
+          }
+          case "goal:delete": {
+            await deleteGoal(msg.id);
+            break;
+          }
+          case "task:create": {
+            createTask({
+              title: msg.title,
+              type: msg.taskType,
+              // Map schedule to fields
+              due_date: msg.schedule?.due,
+              scheduled_date: msg.schedule?.on,
+              recurrence_rule: msg.schedule?.recurrence
+            });
+            // Manual broadcast until package emits event
+            broadcast({ type: "task:update", tasks: getTasks() });
+            break;
+          }
+          case "task:update": {
+            if (msg.changes.status === 'done') {
+              completeTask(msg.id);
+            } else {
+              updateTask(msg.id, msg.changes);
+            }
+            broadcast({ type: "task:update", tasks: getTasks() });
+            break;
+          }
+          case "task:delete": {
+            deleteTask(msg.id);
+            broadcast({ type: "task:update", tasks: getTasks() });
             break;
           }
           case "ping":

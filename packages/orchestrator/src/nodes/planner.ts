@@ -2,53 +2,50 @@ import { getNodeConfig, checkCaller, checkTransition } from "@cairn/policy";
 import { appendEntry } from "@cairn/ledger";
 import { bus, newId, now, shortTime } from "@cairn/shared";
 import type { Job, Artifact } from "@cairn/shared";
-import { warmGet, isEmbeddingAvailable, createEmbedding, vectorSearch, getColdMemoryStats } from "@cairn/memory";
+import { isEmbeddingAvailable, createEmbedding, vectorSearch, getColdMemoryStats, warmGet } from "@cairn/memory";
 import { callLLM } from "../llm.js";
 import { updateJob } from "../jobs.js";
 import { z } from "zod";
 import { getCalendarProvider } from "@cairn/executor";
+import { getActiveGoals } from "@cairn/goals";
+import { getTasks } from "@cairn/tasks";
 
-const SYSTEM_PROMPT = `You are the Cairn planner. You receive a user task and create an execution plan.
+const SYSTEM_PROMPT = `You are Cairn's planner. You decide how to handle the user's request and create execution plans.
 
-You have access to the user's preferences and context from warm memory. Use this context to personalize responses.
+You are a personal assistant — warm, direct, helpful. You know the user's active goals and tasks and should always consider them.
 
-The executor node has access to the following tools:
-- memory_read(tier, key): Read from memory (tier: "hot" for session, "warm" for persistent)
-- memory_write(tier, key, value): Write to memory to remember important information
-- ledger_write(type, content): Log an entry
-- web_search(query): Search the web for information
-- fetch_url(url): Fetch the content of a public URL
-- calendar_read(days): Read calendar events for N days (requires Google Calendar)
-- calendar.find_optimal_slot(duration, preferredTimeOfDay, withinDays): Find best time slots
-- vector_search(query): Search long-term memory for semantically similar content
+## What the Executor Can Do
 
-Memory Guidelines:
-- Use memory_write to remember: user preferences, learned facts, important context
-- Examples: location preferences, work details, recurring requests, personal info
-- Check memory first before asking the user for info you might already know
-- Use vector_search to find relevant information from past conversations and documents
+The executor has these tools:
+- memory_read/write: Read and store persistent information about the user
+- web_search, fetch_url: Search the web, fetch pages
+- calendar_read, gmail_read: Read calendar events and emails
+- vector_search: Search long-term memory (documents, past conversations)
+- goals_read, goals_update: Read goals, add timeline events, update status/confidence
+- tasks_read, tasks_create, tasks_complete: Read/create/complete tasks
 
-Schedule Awareness:
-- If the user's request conflicts with an upcoming event (within 30 minutes), mention it
-- If the user seems busy (6+ hours booked today), suggest deferring non-urgent tasks
-- Use calendar.find_optimal_slot when the user wants to schedule something
+## Decision Making
 
-Respond in JSON format:
+- Simple questions/greetings you can answer yourself → needs_executor: false
+- Anything requiring tools, web lookups, memory access, or goal/task management → needs_executor: true
+- If the user mentions progress on something, route to executor so it can update the relevant goal's timeline
+- If the user mentions something they need to do, route to executor to create a task
+- If the request relates to a goal, mention the connection in your plan
+
+## Response Format (JSON)
 {
-  "plan": "string - describe the plan step by step",
+  "plan": "step-by-step plan description",
   "steps": ["step 1", "step 2", ...],
-  "response": "string - the response to deliver to the user",
-  "needs_executor": boolean,
+  "response": "response text for the user (used only if needs_executor is false)",
+  "needs_executor": true/false,
   "tools_needed": ["tool_name", ...]
 }
 
-Guidelines:
-- For simple questions you can answer directly (needs_executor: false)
-- For tasks requiring tool use, create a clear plan (needs_executor: true)
-- Include memory_read in tools_needed if you should check stored context first
-- Include memory_write in tools_needed if you should remember something important
-- Include vector_search in tools_needed if the task could benefit from past knowledge
-- Be thorough but concise in your plans`;
+## Style
+- Be conversational, not robotic
+- Keep responses concise but thoughtful
+- Connect things to the user's goals when relevant — you're tracking their life, not just answering questions
+- If you can answer directly without tools, do so (needs_executor: false) — don't over-route`;
 
 // Whitelist of allowed tool names (security hardening)
 const ALLOWED_TOOLS = [
@@ -57,18 +54,23 @@ const ALLOWED_TOOLS = [
   "ledger_write",
   "web_search",
   "fetch_url",
+  "gmail_read",
   "calendar_read",
-  "calendar.find_optimal_slot",
   "vector_search",
+  "goals_read",
+  "goals_update",
+  "tasks_read",
+  "tasks_create",
+  "tasks_complete",
 ] as const;
 
 // Zod schema for LLM response validation (security hardening)
 const PlannerResponseSchema = z.object({
-  plan: z.string().max(2000), // Limit output size
-  steps: z.array(z.string().max(500)).max(20), // Max 20 steps, each 500 chars
-  response: z.string().max(2000), // Limit output size
+  plan: z.string().max(2000),
+  steps: z.array(z.string().max(500)).max(20),
+  response: z.string().max(2000).optional().default(""), // Only used when needs_executor is false
   needs_executor: z.boolean(),
-  tools_needed: z.array(z.enum(ALLOWED_TOOLS)), // Only allow whitelisted tools
+  tools_needed: z.array(z.enum(ALLOWED_TOOLS)),
 });
 
 interface PlannerResult {
@@ -122,9 +124,14 @@ export async function runPlanner(
 
   bus.emit("nucleus:state", "thinking");
 
-  // Read warm memory for user context
-  const preferences = warmGet("user_preferences") ?? {};
-  const recentTasks = warmGet("recent_tasks") ?? [];
+  // Read conversation history so the planner can reference recent messages
+  const chatHistory = warmGet<{ role: string; content: string }[]>("chat_history") || [];
+
+  // Read active goals
+  const activeGoals = getActiveGoals();
+
+  // Read active tasks
+  const activeTasks = getTasks({ status: "todo" });
 
   // Add time awareness
   const timeContext = getTimeContext();
@@ -166,10 +173,23 @@ export async function runPlanner(
     // Not critical, continue without it
   }
 
+  const goalsBlock = activeGoals.length > 0
+    ? `Active Goals (${activeGoals.length}):\n${activeGoals.map(g => `- ${g.title}: ${g.success_definition} (Priority: ${g.priority}, Confidence: ${g.confidence ?? "?"})`).join("\n")}`
+    : "Active Goals: none";
+
+  const tasksBlock = activeTasks.length > 0
+    ? `Open Tasks (${activeTasks.length}):\n${activeTasks.map((t: any) => `- ${t.title}${t.due_date ? ` (due: ${t.due_date})` : ""}${t.scheduled_date ? ` (scheduled: ${t.scheduled_date})` : ""}`).join("\n")}`
+    : "Open Tasks: none";
+
+  // Build conversation history block (last ~5 exchanges, skip current message which is in job.input)
+  const historyBlock = chatHistory.length > 0
+    ? `Recent conversation:\n${chatHistory.slice(-10).map(m => `${m.role}: ${m.content}`).join("\n")}`
+    : "";
+
   const contextBlock = `Current time: ${timeContext.timestamp} (${timeContext.period})
 ${calendarContext}${coldMemoryContext}
-User preferences: ${JSON.stringify(preferences)}
-Recent tasks: ${JSON.stringify(recentTasks)}
+${historyBlock ? historyBlock + "\n" : ""}${goalsBlock}
+${tasksBlock}
 User request: ${job.input}`;
 
   await appendEntry("agent", "planner", job.id, "Planner creating execution plan");
