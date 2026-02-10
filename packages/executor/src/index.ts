@@ -1,4 +1,4 @@
-export { executeTool } from "./executor.js";
+export { executeTool, executeTools } from "./executor.js";
 export {
   getTool,
   listTools,

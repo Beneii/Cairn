@@ -5,6 +5,8 @@ import { warmGet, warmSet } from "@cairn/memory";
 import { runGatekeeper } from "./nodes/gatekeeper.js";
 import { runPlanner } from "./nodes/planner.js";
 import { runExecutorNode } from "./nodes/executor-node.js";
+import { runCriticNode } from "./nodes/critic.js";
+import { runWebAgent } from "./nodes/web-agent.js";
 
 // Auto-capture recent conversations to warm memory
 function captureRecentTask(job: Job): void {
@@ -62,7 +64,22 @@ export async function processMessage(userInput: string): Promise<void> {
       captureRecentTask(job);
       // Capture the gatekeeper's direct response
       appendHistory(withUser, job);
-      await appendEntry("agent", "orchestrator", job.id, "Job completed by gatekeeper");
+
+      const totalCost = job.costs_so_far.reduce((sum, c) => sum + c.cost_usd, 0);
+      await appendEntry("agent", "orchestrator", job.id, `Job completed by gatekeeper. Total cost: $${totalCost.toFixed(4)}`);
+      return;
+    }
+
+    // New Step: Web Agent (Autonomous Loop)
+    if (job.metadata?.needs_web_agent) {
+      const webJob = await runWebAgent(job);
+      bus.emit("nucleus:state", "idle");
+      bus.emit("job:completed", webJob);
+      captureRecentTask(webJob);
+      appendHistory(withUser, webJob);
+
+      const totalCost = webJob.costs_so_far.reduce((sum: number, c: any) => sum + c.cost_usd, 0);
+      await appendEntry("agent", "orchestrator", webJob.id, `Job completed by web_agent. Total cost: $${totalCost.toFixed(4)}`);
       return;
     }
 
@@ -74,16 +91,56 @@ export async function processMessage(userInput: string): Promise<void> {
       bus.emit("job:completed", plannedJob);
       captureRecentTask(plannedJob);
       appendHistory(withUser, plannedJob);
-      await appendEntry("agent", "orchestrator", plannedJob.id, "Job completed by planner");
+
+      const totalCost = plannedJob.costs_so_far.reduce((sum, c) => sum + c.cost_usd, 0);
+      await appendEntry("agent", "orchestrator", plannedJob.id, `Job completed by planner. Total cost: $${totalCost.toFixed(4)}`);
       return;
     }
 
-    // Step 3: Executor — execute plan, run tools if needed
-    const completedJob = await runExecutorNode(plannedJob);
+    // Step 3: Multi-turn Refinement Loop (Executor -> Critic)
+    let completedJob = plannedJob;
+    let refinementCount = 0;
+    const MAX_REFINEMENTS = 2;
+
+    while (refinementCount <= MAX_REFINEMENTS) {
+      completedJob = await runExecutorNode(completedJob);
+
+      // Run Critic to evaluate the executor's work
+      const criticJob = await runCriticNode(completedJob);
+      const criticism = (criticJob as any)._criticResult;
+
+      if (!criticism || criticism.action === "accept") {
+        completedJob = criticJob;
+        break;
+      }
+
+      // If critic requests refinement, loop back to executor with feedback in a new artifact
+      refinementCount++;
+      await appendEntry("agent", "orchestrator", job.id, `Critic requested refinement (loop ${refinementCount}/${MAX_REFINEMENTS}): ${criticism.feedback}`);
+
+      // Inject feedback as a task for the next executor run
+      const feedbackArtifact = {
+        id: newId(),
+        type: "critic_feedback" as any,
+        content: criticism.feedback || "Improve the previous result based on context.",
+        metadata: {},
+        origin_node: "critic" as any,
+        created_at: now()
+      };
+
+      completedJob = {
+        ...criticJob,
+        status: "running" as any,
+        artifacts: [...criticJob.artifacts, feedbackArtifact]
+      };
+    }
+
     bus.emit("job:completed", completedJob);
     captureRecentTask(completedJob);
     appendHistory(withUser, completedJob);
-    await appendEntry("agent", "orchestrator", completedJob.id, "Job completed by executor");
+
+    const totalCost = completedJob.costs_so_far.reduce((sum, c) => sum + c.cost_usd, 0);
+    await appendEntry("agent", "orchestrator", completedJob.id, `Job completed after ${refinementCount} refinements. Total cost: $${totalCost.toFixed(4)}`);
   } catch (err) {
     // Security: Redact sensitive information from errors before displaying
     const rawError = err instanceof Error ? err.message : String(err);

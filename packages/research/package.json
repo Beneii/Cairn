@@ -1,0 +1,23 @@
+{
+    "name": "@cairn/research",
+    "version": "0.0.1",
+    "private": true,
+    "type": "module",
+    "main": "dist/index.js",
+    "scripts": {
+        "build": "tsc"
+    },
+    "dependencies": {
+        "@cairn/shared": "workspace:*",
+        "@cairn/memory": "workspace:*",
+        "@mozilla/readability": "^0.5.0",
+        "jsdom": "^24.0.0",
+        "pdf-parse": "^1.1.1"
+    },
+    "devDependencies": {
+        "@types/jsdom": "^21.1.6",
+        "@types/node": "^25.2.0",
+        "@types/pdf-parse": "^1.1.4",
+        "typescript": "^5.6.0"
+    }
+}

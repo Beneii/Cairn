@@ -3,4 +3,5 @@ export {
   appendEntry,
   getEntries,
   verifyChain,
+  recordEvent,
 } from "./ledger.js";

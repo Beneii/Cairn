@@ -10,7 +10,7 @@ import { getCalendarProvider } from "@cairn/executor";
 import { getActiveGoals } from "@cairn/goals";
 import { getTasks } from "@cairn/tasks";
 
-const SYSTEM_PROMPT = `You are Cairn's planner. You decide how to handle the user's request and create execution plans.
+const SYSTEM_PROMPT = `You are Cairn's planner. You decide how to handle the user's request and create execution plans. You must output valid JSON.
 
 You are a personal assistant — warm, direct, helpful. You know the user's active goals and tasks and should always consider them.
 
@@ -23,6 +23,9 @@ The executor has these tools:
 - web_search, fetch_url: Search the web, fetch pages
 - calendar_read, gmail_read: Read calendar events and emails
 - vector_search: Search long-term memory (documents, past conversations)
+- research_ingest: Securely ingest web content or PDF into cold memory
+- browser_navigate, browser_click, browser_type, browser_press, browser_screenshot: Securely interact with web pages (fill forms, press keys, capture visuals)
+- note_create: Create a persistent note/document in the dashboard (use this for writing reports, stories, or structured data)
 - goals_read, goals_update: Read goals, add timeline events, update status/confidence
 - tasks_read, tasks_create, tasks_complete: Read/create/complete tasks
 
@@ -64,6 +67,15 @@ const ALLOWED_TOOLS = [
   "tasks_read",
   "tasks_create",
   "tasks_complete",
+  "research_ingest",
+  "browser_navigate",
+  "browser_click",
+  "browser_type",
+  "browser_press",
+  "browser_fill",
+  "browser_screenshot",
+  "browser_close",
+  "note_create",
 ] as const;
 
 // Zod schema for LLM response validation (security hardening)

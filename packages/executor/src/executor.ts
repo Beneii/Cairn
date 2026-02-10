@@ -10,7 +10,7 @@ export async function executeTool(
 ): Promise<ToolResult> {
   // 1. Policy enforcement
   try {
-    checkTool(context.nodeName, input.name);
+    checkTool(context.nodeName, input.name, 0);
   } catch (err) {
     if (err instanceof PolicyViolation) {
       await appendEntry(
@@ -59,4 +59,11 @@ export async function executeTool(
     const errorMsg = err instanceof Error ? err.message : String(err);
     return { success: false, output: withFailureCode(FailureCode.TOOL_EXECUTION_FAILED, `Tool error: ${errorMsg}`) };
   }
+}
+
+export async function executeTools(
+  inputs: ToolInput[],
+  context: ToolContext & { allowedTools: string[] },
+): Promise<ToolResult[]> {
+  return Promise.all(inputs.map((input) => executeTool(input, context)));
 }

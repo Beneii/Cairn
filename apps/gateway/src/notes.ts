@@ -43,10 +43,19 @@ export async function markNoteRead(id: string): Promise<void> {
   }
 }
 
-export async function resurfaceNote(id: string): Promise<void> {
+export async function archiveNote(id: string): Promise<void> {
   const note = notes.find((n) => n.id === id);
   if (note) {
-    note.status = "unread";
+    note.status = "archived";
+    await persist();
+    bus.emit("note:updated", getNotes());
+  }
+}
+
+export async function deleteNote(id: string): Promise<void> {
+  const index = notes.findIndex((n) => n.id === id);
+  if (index !== -1) {
+    notes.splice(index, 1);
     await persist();
     bus.emit("note:updated", getNotes());
   }
