@@ -58,6 +58,7 @@ interface SettingsPageProps {
         lastError: string | null;
         reconnectCount: number;
     };
+    setLocalMode: (enabled: boolean) => void;
     nodes: Record<string, any>;
 }
 
@@ -443,6 +444,7 @@ export function SettingsPage(props: SettingsPageProps) {
                                     connected={props.connected}
                                     diagnostics={props.diagnostics}
                                     nodes={props.nodes}
+                                    setLocalMode={props.setLocalMode}
                                 />
                             </div>
                         )}

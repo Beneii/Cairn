@@ -319,6 +319,10 @@ export function useCairn() {
     wsRef.current?.send(JSON.stringify({ type: "config:set_mobile_config", enabled, defaultClient }));
   }, []);
 
+  const setLocalMode = useCallback((enabled: boolean) => {
+    wsRef.current?.send(JSON.stringify({ type: "config:set_local_mode", enabled }));
+  }, []);
+
   return {
     ...state,
     sendChat,
@@ -346,5 +350,6 @@ export function useCairn() {
     refreshArchiveLogs,
     refreshSystemDocs,
     getJobDetails,
+    setLocalMode,
   };
 }

@@ -188,6 +188,7 @@ export default function App() {
           connected={cairn.connected}
           diagnostics={cairn.diagnostics}
           nodes={cairn.policy.nodes}
+          setLocalMode={cairn.setLocalMode}
         />
       )}
       {currentView === 'goals' && (
@@ -219,6 +220,8 @@ export default function App() {
           onRestore={cairn.restoreCard}
           onRefreshLogs={cairn.refreshArchiveLogs}
           onRefreshSystemDocs={cairn.refreshSystemDocs}
+          lastJobDetails={cairn.lastJobDetails}
+          onGetJobDetails={cairn.getJobDetails}
           darkMode={darkMode}
         />
       )}
