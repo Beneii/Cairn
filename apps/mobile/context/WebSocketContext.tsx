@@ -97,7 +97,11 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
             ws.onopen = () => {
                 console.log('WebSocket connected');
                 setConnected(true);
-                ws.send(JSON.stringify({ type: 'mobile:connect', secret: config.secret }));
+                if (config.token) {
+                    ws.send(JSON.stringify({ type: 'auth:mobile', token: config.token }));
+                } else {
+                    ws.send(JSON.stringify({ type: 'mobile:connect', secret: config.secret }));
+                }
             };
 
             ws.onclose = () => {

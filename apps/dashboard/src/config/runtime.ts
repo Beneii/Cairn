@@ -33,6 +33,10 @@ export function getApiBase(): string {
   return `${window.location.protocol}//${window.location.host}`;
 }
 
+export function getDashboardAuthToken(): string | undefined {
+  return import.meta.env.VITE_DASHBOARD_AUTH_TOKEN;
+}
+
 /** Direct gateway URL for mobile pairing (bypasses Vite proxy). */
 export function getGatewayUrl(): string {
   if (import.meta.env.VITE_API_URL) {

@@ -1,5 +1,5 @@
 
-import { getNodeConfig, checkCaller } from "@cairn/policy";
+import { getNodeConfig, checkCaller, checkTransition } from "@cairn/policy";
 import { appendEntry } from "@cairn/ledger";
 import type { Job } from "@cairn/shared";
 import { callLLM } from "../llm.js";
@@ -18,6 +18,7 @@ Output clear, concise text. Do not output markdown code blocks unless requested.
 export async function runVisionWorker(job: Job): Promise<Job> {
     const config = getNodeConfig("vision_worker");
     checkCaller("orchestrator", "vision_worker");
+    checkTransition("gatekeeper", "vision_worker");
 
     await appendEntry(
         "agent",

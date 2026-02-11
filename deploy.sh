@@ -65,7 +65,7 @@ run_remote "
     # Check if Node.js is installed
     if ! command -v node &> /dev/null; then
         echo '  Installing Node.js...'
-        curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+        curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
         sudo apt-get install -y nodejs
     else
         echo '  Node.js already installed'
@@ -170,7 +170,7 @@ Type=simple
 User=$REMOTE_USER
 WorkingDirectory=$REMOTE_DIR
 Environment=\"NODE_ENV=production\"
-ExecStart=/usr/bin/pnpm --filter @cairn/gateway dev
+ExecStart=/usr/bin/pnpm --filter @cairn/gateway start
 Restart=always
 RestartSec=10
 StandardOutput=journal
@@ -189,9 +189,9 @@ After=network.target
 [Service]
 Type=simple
 User=$REMOTE_USER
-WorkingDirectory=$REMOTE_DIR/apps/dashboard
+WorkingDirectory=$REMOTE_DIR
 Environment=\"NODE_ENV=production\"
-ExecStart=/usr/bin/pnpm dev
+ExecStart=/usr/bin/pnpm --filter @cairn/dashboard start
 Restart=always
 RestartSec=10
 StandardOutput=journal

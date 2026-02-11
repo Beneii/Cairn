@@ -1,6 +1,15 @@
 import { fetchAndExtract } from './fetcher.js';
 import { fetchAndParsePDF } from './parser.js';
-import { addDocument, initColdMemory, initEmbeddingService } from '@cairn/memory';
+import {
+    addDocument,
+    addChunk,
+    chunkText,
+    createBatchEmbeddings,
+    estimateTokenCount,
+    initColdMemory,
+    initEmbeddingService,
+    isEmbeddingAvailable,
+} from '@cairn/memory';
 import { bus } from '@cairn/shared';
 
 export interface IngestionResult {
@@ -11,13 +20,34 @@ export interface IngestionResult {
     charCount: number;
 }
 
+async function storeDocumentWithChunks(
+    title: string,
+    content: string,
+    metadata: Record<string, unknown>
+) {
+    const doc = addDocument("document", title, content, metadata);
+
+    if (isEmbeddingAvailable()) {
+        const chunks = chunkText(content);
+        if (chunks.length > 0) {
+            const embeddingResult = await createBatchEmbeddings(chunks);
+            for (let i = 0; i < chunks.length; i++) {
+                const tokenCount = embeddingResult.tokenCounts[i] || estimateTokenCount(chunks[i]);
+                addChunk(doc.id, i, chunks[i], embeddingResult.embeddings[i], tokenCount);
+            }
+        }
+    }
+
+    return doc;
+}
+
 export async function ingestWebPage(url: string): Promise<IngestionResult> {
     const extracted = await fetchAndExtract(url);
 
     await initColdMemory();
     await initEmbeddingService();
 
-    const doc = addDocument("document", extracted.title, extracted.textContent, {
+    const doc = await storeDocumentWithChunks(extracted.title, extracted.textContent, {
         byline: extracted.byline,
         excerpt: extracted.excerpt,
         type: 'web'
@@ -47,7 +77,7 @@ export async function ingestPDF(url: string): Promise<IngestionResult> {
     await initColdMemory();
     await initEmbeddingService();
 
-    const doc = addDocument("document", parsed.title, parsed.text, {
+    const doc = await storeDocumentWithChunks(parsed.title, parsed.text, {
         pageCount: parsed.pageCount,
         type: 'pdf'
     });

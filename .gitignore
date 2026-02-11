@@ -24,6 +24,9 @@ build/
 
 # ---- runtime data (personal) ----
 data/
+debug_profile/
+debug_browser.js
+build_error.txt
 
 # ---- misc ----
 .DS_Store

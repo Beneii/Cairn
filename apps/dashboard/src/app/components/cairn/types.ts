@@ -22,7 +22,7 @@ export interface ChatMessage {
   text: string;
   timestamp: string;
   tools?: string[]; // Collapsible tool output
-  source?: "telegram" | "dashboard";
+  source?: "telegram" | "dashboard" | "mobile";
   attachments?: ChatAttachment[];
 }
 

@@ -9,7 +9,7 @@ import type {
   ProactiveConfig,
 } from "../components/cairn/types";
 import type { NucleusState } from "../components/cairn/Nucleus";
-import { getWsUrl, getApiBase, getMode } from "../../config/runtime";
+import { getWsUrl, getApiBase, getMode, getDashboardAuthToken } from "../../config/runtime";
 
 interface CairnState {
   connected: boolean;
@@ -28,11 +28,10 @@ interface CairnState {
     has_telegram_token: boolean;
     telegram_admin_chat_id: string;
     has_google_calendar: boolean;
-    proactive?: ProactiveConfig;
-    mobile_app_enabled: boolean;
-    default_client: "telegram" | "mobile";
-    mobile_pairing_secret?: string;
-    local_mode_enabled: boolean;
+      proactive?: ProactiveConfig;
+      mobile_app_enabled: boolean;
+      default_client: "telegram" | "mobile";
+      local_mode_enabled: boolean;
   };
   goals: any[]; // refined in next step
   tasks: any[];
@@ -58,6 +57,7 @@ export function useCairn() {
   const wsUrl = getWsUrl();
   const apiBase = getApiBase();
   const mode = getMode();
+  const dashboardAuthToken = getDashboardAuthToken();
 
   const [state, setState] = useState<CairnState>({
     connected: false,
@@ -117,6 +117,9 @@ export function useCairn() {
 
       socket.onopen = () => {
         if (!mountedRef.current) { socket.close(); return; }
+        if (dashboardAuthToken) {
+          socket.send(JSON.stringify({ type: "auth:dashboard", token: dashboardAuthToken }));
+        }
         setState((s) => ({
           ...s,
           connected: true,
@@ -201,6 +204,8 @@ export function useCairn() {
                 diagnostics: { ...s.diagnostics, lastPong: new Date().toISOString() },
               }));
               break;
+            case "dashboard:authenticated":
+              break;
           }
         } catch {
           // Ignore malformed messages
@@ -220,7 +225,7 @@ export function useCairn() {
         wsRef.current.close();
       }
     };
-  }, [wsUrl]);
+  }, [wsUrl, dashboardAuthToken]);
 
   const sendChat = useCallback((text: string, attachments?: ChatAttachment[]) => {
     const payload: Record<string, unknown> = { type: "chat:send", text };

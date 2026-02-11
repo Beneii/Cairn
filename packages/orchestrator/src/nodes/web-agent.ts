@@ -1,4 +1,4 @@
-import { getNodeConfig, checkCaller } from "@cairn/policy";
+import { getNodeConfig, checkCaller, checkTransition } from "@cairn/policy";
 import { appendEntry } from "@cairn/ledger";
 import { bus, newId, now, shortTime } from "@cairn/shared";
 import type { Job, Artifact } from "@cairn/shared";
@@ -54,6 +54,7 @@ const WebAgentResponseSchema = z.object({
 export async function runWebAgent(job: Job): Promise<Job> {
     const config = getNodeConfig("web_agent");
     checkCaller("orchestrator", "web_agent");
+    checkTransition("gatekeeper", "web_agent");
 
     let currentJob = job;
     let turns = 0;
