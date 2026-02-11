@@ -1,0 +1,31 @@
+# Cairn AI Assistant - systemd service
+#
+# Install:
+#   sudo cp scripts/cairn.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable cairn
+#   sudo systemctl start cairn
+#
+# Gateway serves the dashboard on port 3100 (single process).
+# Requires: pnpm install && pnpm build
+
+[Unit]
+Description=Cairn AI Assistant
+After=network.target
+Wants=ollama.service
+
+[Service]
+Type=simple
+User=cairn
+WorkingDirectory=/home/cairn/Cairn
+EnvironmentFile=-/home/cairn/Cairn/.env
+Environment="NODE_ENV=production"
+ExecStart=/usr/bin/node apps/gateway/dist/index.js
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=cairn
+
+[Install]
+WantedBy=multi-user.target

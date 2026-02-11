@@ -14,13 +14,15 @@ cd "$CAIRN_DIR"
 if [[ "${1:-}" == "--install-timer" ]]; then
   echo -e "${YELLOW}Installing auto-update timer...${NC}"
 
+  CAIRN_USER="$(whoami)"
+
   sudo tee /etc/systemd/system/cairn-update.service > /dev/null <<EOF
 [Unit]
 Description=Cairn Auto-Update
 
 [Service]
 Type=oneshot
-User=$(whoami)
+User=$CAIRN_USER
 WorkingDirectory=$CAIRN_DIR
 ExecStart=$CAIRN_DIR/update.sh
 StandardOutput=journal
@@ -45,12 +47,11 @@ EOF
   sudo systemctl enable --now cairn-update.timer
 
   echo -e "${GREEN}Auto-update timer installed (daily ~4am).${NC}"
-  echo -e "Check status: ${CYAN}systemctl list-timers cairn-update*${NC}"
-  echo -e "View logs:    ${CYAN}sudo journalctl -u cairn-update -n 20${NC}"
+  echo -e "Check: ${CYAN}systemctl list-timers cairn-update*${NC}"
   exit 0
 fi
 
-# ===== Normal update flow =====
+# ===== Normal update =====
 echo -e "${GREEN}Cairn Update${NC}"
 echo ""
 
@@ -58,7 +59,7 @@ echo ""
 echo -e "${YELLOW}[1/4]${NC} Pulling latest changes..."
 BEFORE=$(git rev-parse HEAD)
 if ! git pull --ff-only; then
-  echo -e "${RED}Pull failed. You may have local changes or a diverged branch.${NC}"
+  echo -e "${RED}Pull failed. Local changes or diverged branch.${NC}"
   echo -e "Try: ${CYAN}git stash && ./update.sh${NC}"
   exit 1
 fi
@@ -84,6 +85,11 @@ fi
 echo -e "${YELLOW}[3/4]${NC} Building..."
 pnpm build
 
+if [[ ! -f "$CAIRN_DIR/apps/gateway/dist/index.js" ]]; then
+  echo -e "${RED}Build failed: apps/gateway/dist/index.js missing.${NC}"
+  exit 1
+fi
+
 # 4. Restart
 echo -e "${YELLOW}[4/4]${NC} Restarting Cairn..."
 sudo systemctl restart cairn
@@ -93,6 +99,6 @@ if systemctl is-active --quiet cairn; then
   echo -e "${GREEN}Update complete. Cairn is running.${NC}"
 else
   echo -e "${RED}Cairn failed to start after update.${NC}"
-  echo -e "Check logs: ${CYAN}sudo journalctl -u cairn -n 50${NC}"
+  echo -e "Check: ${CYAN}sudo journalctl -u cairn -n 50${NC}"
   exit 1
 fi
