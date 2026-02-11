@@ -1,20 +1,21 @@
 {
-    "name": "@cairn/goals",
-    "version": "0.0.1",
-    "private": true,
-    "type": "module",
-    "main": "dist/index.js",
-    "scripts": {
-        "build": "tsc"
-    },
-    "dependencies": {
-        "@cairn/memory": "workspace:*",
-        "@cairn/shared": "workspace:*",
-        "better-sqlite3": "^11.0.0"
-    },
-    "devDependencies": {
-        "@types/better-sqlite3": "^7.6.11",
-        "@types/node": "^22.0.0",
-        "typescript": "^5.6.0"
-    }
+  "name": "@cairn/goals",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "lint": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@cairn/memory": "workspace:*",
+    "@cairn/shared": "workspace:*",
+    "better-sqlite3": "^11.0.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.11",
+    "@types/node": "^22.0.0",
+    "typescript": "^5.6.0"
+  }
 }

@@ -70,7 +70,7 @@ export function queueForPromotion(request: PromotionRequest): void {
 /**
  * Promote content directly to cold memory (bypasses queue)
  */
-export async function promoteToСold(request: PromotionRequest): Promise<PromotionResult> {
+export async function promoteToCold(request: PromotionRequest): Promise<PromotionResult> {
     if (!isEmbeddingAvailable()) {
         return { success: false, error: "Embedding service not available" };
     }
@@ -158,7 +158,7 @@ async function processQueue(): Promise<void> {
         const request = promotionQueue.shift()!;
 
         try {
-            await promoteToСold(request);
+            await promoteToCold(request);
         } catch (err) {
             console.error(`[curator] Failed to promote "${request.title}":`, err);
         }
@@ -233,7 +233,7 @@ function checkPromotionCriteria(key: string, value: unknown): boolean {
         const obj = value as Record<string, unknown>;
 
         // Explicit promotion flag
-        if (obj._promoteToСold === true) return true;
+        if (obj._promoteToCold === true) return true;
 
         // Check age (promote items older than 1 hour)
         if (obj.createdAt && typeof obj.createdAt === "string") {

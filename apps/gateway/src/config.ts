@@ -77,7 +77,7 @@ export async function setLocalMode(enabled: boolean): Promise<void> {
 }
 
 export function migrateSecrets(): void {
-    const keys = ["OPENAI_API_KEY", "TELEGRAM_BOT_TOKEN", "TELEGRAM_ADMIN_CHAT_ID", "MOBILE_PAIRING_SECRET"];
+    const keys = ["OPENAI_API_KEY", "TELEGRAM_BOT_TOKEN", "TELEGRAM_ADMIN_CHAT_ID", "MOBILE_PAIRING_SECRET", "DASHBOARD_AUTH_TOKEN", "MOBILE_AUTH_TOKEN"];
     for (const key of keys) {
         if (!getSecret(key) && process.env[key]) {
             console.log(`[vault] Migrating ${key} to vault...`);
@@ -86,7 +86,7 @@ export function migrateSecrets(): void {
     }
 }
 
-export function getSystemConfig() {
+export function getSystemConfig(options?: { includeSecrets?: boolean }) {
     // Auto-generate pairing secret if missing (in-memory only for now, or persist if needed)
     // For simplicity, we'll derive it or generate it once per process if not in env, 
     // but better to persist it. Let's persist it.
@@ -109,8 +109,20 @@ export function getSystemConfig() {
         has_google_calendar: isGoogleAuthenticated(),
         mobile_app_enabled: process.env.MOBILE_APP_ENABLED === "true",
         default_client: (process.env.DEFAULT_CLIENT as "telegram" | "mobile") || "telegram",
-        mobile_pairing_secret: process.env.MOBILE_PAIRING_SECRET,
         proactive: getProactiveConfig(),
         local_mode_enabled: process.env.LOCAL_MODE_ENABLED === "true",
+        ...(options?.includeSecrets ? { mobile_pairing_secret: process.env.MOBILE_PAIRING_SECRET } : {}),
     };
+}
+
+export function getMobilePairingSecret(): string | undefined {
+    return process.env.MOBILE_PAIRING_SECRET;
+}
+
+export function getDashboardAuthToken(): string | undefined {
+    return getSecret("DASHBOARD_AUTH_TOKEN") || process.env.DASHBOARD_AUTH_TOKEN;
+}
+
+export function getMobileAuthToken(): string | undefined {
+    return getSecret("MOBILE_AUTH_TOKEN") || process.env.MOBILE_AUTH_TOKEN;
 }

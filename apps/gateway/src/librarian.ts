@@ -155,14 +155,31 @@ Format: Markdown.`,
             "daily"
           );
 
-          // Save to Cold Memory as a "Daily Log"
-          const { addDocument } = await import("@cairn/memory");
-          addDocument(
+          // Save to cold memory and chunk/embed when available for semantic retrieval.
+          const {
+            addDocument,
+            addChunk,
+            chunkText,
+            createBatchEmbeddings,
+            estimateTokenCount,
+            isEmbeddingAvailable,
+          } = await import("@cairn/memory");
+          const doc = addDocument(
             "document",
             `Daily Log: ${today}`,
             synthesisResponse.content,
             { type: "daily_log", date: today }
           );
+          if (isEmbeddingAvailable()) {
+            const chunks = chunkText(synthesisResponse.content);
+            if (chunks.length > 0) {
+              const embeddingResult = await createBatchEmbeddings(chunks);
+              for (let i = 0; i < chunks.length; i++) {
+                const tokenCount = embeddingResult.tokenCounts[i] || estimateTokenCount(chunks[i]);
+                addChunk(doc.id, i, chunks[i], embeddingResult.embeddings[i], tokenCount);
+              }
+            }
+          }
 
           bus.emit("chat:message", {
             id: newId(),

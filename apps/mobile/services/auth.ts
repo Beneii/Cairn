@@ -5,6 +5,7 @@ const KEY_PAIRING_CONFIG = 'cairn_pairing_config';
 export interface PairingConfig {
     secret: string;
     url: string;
+    token?: string;
 }
 
 export const AuthService = {

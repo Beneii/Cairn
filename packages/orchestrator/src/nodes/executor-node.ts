@@ -273,77 +273,94 @@ export async function runExecutorNode(job: Job): Promise<Job> {
       toolOutputs.push(`${tools[i].name}: ${toolResults[i].output}`);
     }
 
-    // Follow-up LLM call to synthesize the results
-    const followUp = await callLLM(
-      {
-        model: config.assigned_model,
-        systemPrompt:
-          'You just ran tools. Synthesize the results into a clear, user-friendly response. You must output valid JSON.\n\n' +
-          'For web_search results, format as a readable list with titles and URLs.\n' +
-          'For other tools, present the information clearly.\n\n' +
-          'If the task was SUCCESSFUL, respond with:\n' +
-          '{ "result": "formatted response text", "summary": "brief summary" }\n\n' +
-          'If the task COULD NOT be completed, respond with:\n' +
-          '{ "action": "blocked", "reason": "why it failed", "result": "explanation for user" }',
-        userMessage: `Original task: ${job.input}\nTools used: ${tools.map(t => t.name).join(', ')}\nOutputs: ${toolResults.map((r: any) => r.output).join('\n---\n')}`,
-        maxTokens: 2000,
-        responseFormat: "json_object",
-      },
-      "executor",
-      job.id,
-    );
+    const failedResults = toolResults
+      .map((r, i) => ({ result: r, tool: tools[i] }))
+      .filter(({ result }) => !result.success);
 
-    costs.push(followUp.cost);
+    if (failedResults.length > 0) {
+      const failureSummary = failedResults
+        .map(({ tool, result }) => `${tool.name}: ${result.output}`)
+        .join("\n");
 
-    // Parse and validate follow-up synthesis with Zod
-    try {
-      const followParsed = JSON.parse(followUp.content);
-      const validationResult = ExecutorSynthesisSchema.safeParse(followParsed);
+      parsed = {
+        action: "blocked",
+        reason: "Tool execution failed",
+        result: `I couldn't complete this because one or more required tools failed:\n${failureSummary}`,
+      };
+    } else {
 
-      if (!validationResult.success) {
-        console.error("[executor] Synthesis validation failed:", validationResult.error);
+      // Follow-up LLM call to synthesize the results
+      const followUp = await callLLM(
+        {
+          model: config.assigned_model,
+          systemPrompt:
+            'You just ran tools. Synthesize the results into a clear, user-friendly response. You must output valid JSON.\n\n' +
+            'For web_search results, format as a readable list with titles and URLs.\n' +
+            'For other tools, present the information clearly.\n\n' +
+            'If the task was SUCCESSFUL, respond with:\n' +
+            '{ "result": "formatted response text", "summary": "brief summary" }\n\n' +
+            'If the task COULD NOT be completed, respond with:\n' +
+            '{ "action": "blocked", "reason": "why it failed", "result": "explanation for user" }',
+          userMessage: `Original task: ${job.input}\nTools used: ${tools.map(t => t.name).join(', ')}\nOutputs: ${toolResults.map((r: any) => r.output).join('\n---\n')}`,
+          maxTokens: 2000,
+          responseFormat: "json_object",
+        },
+        "executor",
+        job.id,
+      );
+
+      costs.push(followUp.cost);
+
+      // Parse and validate follow-up synthesis with Zod
+      try {
+        const followParsed = JSON.parse(followUp.content);
+        const validationResult = ExecutorSynthesisSchema.safeParse(followParsed);
+
+        if (!validationResult.success) {
+          console.error("[executor] Synthesis validation failed:", validationResult.error);
+          await appendEntry(
+            "agent",
+            "executor",
+            job.id,
+            `Synthesis validation failed: ${validationResult.error.message}`,
+          );
+          parsed = {
+            action: "complete",
+            result: followUp.content.substring(0, 5000), // Truncate for safety
+            summary: "Execution complete",
+          };
+        } else {
+          const data = validationResult.data;
+          if ("action" in data && data.action === "blocked") {
+            // Synthesis indicated the task is blocked
+            parsed = {
+              action: "blocked",
+              result: data.result,
+              reason: data.reason,
+            };
+          } else {
+            // Successful synthesis
+            parsed = {
+              action: "complete",
+              result: data.result,
+              summary: "summary" in data ? data.summary : undefined,
+            };
+          }
+        }
+      } catch (err) {
+        console.error("[executor] Synthesis parse error:", err);
         await appendEntry(
           "agent",
           "executor",
           job.id,
-          `Synthesis validation failed: ${validationResult.error.message}`,
+          `Synthesis parse failed: ${err instanceof Error ? err.message : String(err)}`,
         );
         parsed = {
           action: "complete",
           result: followUp.content.substring(0, 5000), // Truncate for safety
           summary: "Execution complete",
         };
-      } else {
-        const data = validationResult.data;
-        if ("action" in data && data.action === "blocked") {
-          // Synthesis indicated the task is blocked
-          parsed = {
-            action: "blocked",
-            result: data.result,
-            reason: data.reason,
-          };
-        } else {
-          // Successful synthesis
-          parsed = {
-            action: "complete",
-            result: data.result,
-            summary: "summary" in data ? data.summary : undefined,
-          };
-        }
       }
-    } catch (err) {
-      console.error("[executor] Synthesis parse error:", err);
-      await appendEntry(
-        "agent",
-        "executor",
-        job.id,
-        `Synthesis parse failed: ${err instanceof Error ? err.message : String(err)}`,
-      );
-      parsed = {
-        action: "complete",
-        result: followUp.content.substring(0, 5000), // Truncate for safety
-        summary: "Execution complete",
-      };
     }
   }
 

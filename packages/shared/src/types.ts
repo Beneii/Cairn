@@ -138,11 +138,17 @@ export interface LogEntry {
   content: string;
 }
 export interface SystemConfig {
-  openai_api_key?: string;
   heartbeat_interval_ms: number;
   monthly_spend_limit_usd: number;
   max_decisions_per_day: number;
   max_interactions_per_day: number;
+  has_openai_key: boolean;
+  has_telegram_token: boolean;
+  telegram_admin_chat_id: string;
+  has_google_calendar: boolean;
+  mobile_app_enabled: boolean;
+  default_client: "telegram" | "mobile";
+  proactive: ProactiveConfig;
   local_mode_enabled: boolean;
 }
 
@@ -293,6 +299,8 @@ export type ClientMessage =
   | { type: "config:set_proactive_config"; config: Partial<ProactiveConfig> }
   | { type: "config:set_mobile_config"; enabled: boolean; defaultClient: "telegram" | "mobile" }
   | { type: "config:set_local_mode"; enabled: boolean }
+  | { type: "auth:dashboard"; token: string }
+  | { type: "auth:mobile"; token: string }
   | { type: "mobile:connect"; secret: string }
   | { type: "mobile:send"; text: string }
   | { type: "goal:create"; title: string; success_definition: string }
@@ -315,10 +323,11 @@ export type ServerMessage =
   | { type: "log:entry"; entry: LogEntry }
   | { type: "job:update"; job: { id: string; status: JobStatus; nodes_traversed: string[] } }
   | { type: "config:update"; config: SystemConfig }
-  | { type: "policy:update"; nodes: NodeConfig[]; edges: any[] }
+  | { type: "policy:update"; nodes: Record<string, NodeConfig>; edges: Record<string, string[]> }
   | { type: "goal:update"; goals: Goal[] }
   | { type: "task:update"; tasks: Task[] }
   | { type: "archive:logs"; logs: any[] }
   | { type: "archive:system_docs"; docs: any[] }
   | { type: "job:details"; job: Job }
-  | { type: "mobile:authenticated"; success: boolean };
+  | { type: "dashboard:authenticated"; success: boolean; capabilities?: string[] }
+  | { type: "mobile:authenticated"; success: boolean; capabilities?: string[] };

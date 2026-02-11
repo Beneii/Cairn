@@ -5,7 +5,8 @@
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
-    "build": "tsc"
+    "build": "tsc",
+    "lint": "tsc --noEmit"
   },
   "dependencies": {
     "@cairn/goals": "workspace:*",
@@ -17,6 +18,7 @@
     "@cairn/browser": "workspace:*",
     "@cairn/shared": "workspace:*",
     "@cairn/tasks": "workspace:*",
+    "@cairn/telemetry": "workspace:*",
     "zod": "^4.3.6"
   },
   "devDependencies": {

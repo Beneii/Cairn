@@ -14,6 +14,7 @@ The project's documentation is located in the `documents/` directory and serves 
 - **[04 — Policies and Gates](documents/04_POLICIES_AND_GATES.md)**: Security and capability gates.
 - **[05 — Roadmap](documents/05_ROADMAP.md)**: Intent vs. implemented reality.
 - **[06 — Local Branch Builder Spec](documents/06_LOCAL_BRANCH_BUILDER_SPEC.md)**: Specification for the developer worker capability.
+- **[09 — Tool Migration Matrix](documents/09_TOOL_MIGRATION_MATRIX.md)**: Legacy-to-manifest tool migration status and runtime gates.
 
 ## Project Structure
 

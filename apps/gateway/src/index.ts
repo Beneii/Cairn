@@ -32,7 +32,7 @@ import {
   restoreCard,
   updateCardProject,
 } from "./kanban.js";
-import { setOpenAIKey, setHeartbeat, setSpendLimit, setDecisionLimit, setInteractionLimit, setTelegramToken, setTelegramAdminChatId, getSystemConfig, setProactiveConfig, setMobileConfig, setLocalMode, migrateSecrets } from "./config.js";
+import { setOpenAIKey, setHeartbeat, setSpendLimit, setDecisionLimit, setInteractionLimit, setTelegramToken, setTelegramAdminChatId, getSystemConfig, getMobilePairingSecret, getDashboardAuthToken, getMobileAuthToken, setProactiveConfig, setMobileConfig, setLocalMode, migrateSecrets } from "./config.js";
 import { setupBroadcast } from "./broadcast.js";
 import { initTelegram, isTelegramEnabled } from "./telegram.js";
 import { NODES, GRAPH_EDGES } from "@cairn/policy";
@@ -44,6 +44,8 @@ import { initCalendarProvider, getCalendarProvider } from "@cairn/executor";
 import { setBriefingCalendarSource, getGoals, createGoal as createGoalFactory, updateGoal, saveGoal } from "@cairn/goals";
 import { deleteGoal, getGoal } from "@cairn/goals";
 import { getTasks, createTask, updateTask, deleteTask, completeTask, initDatabase as initTasks } from "@cairn/tasks";
+import { loadSystemDocs } from "./system-docs.js";
+import { authorizeMessage, createSession, getCapabilities, grantDashboardSession, grantMobileSession } from "./ws-auth.js";
 
 const HOST = process.env.HOST || "0.0.0.0";
 const PORT = process.env.PORT ?? 3100;
@@ -320,14 +322,20 @@ async function main() {
   });
 
   // 5. Handle WebSocket connections
-  wss.on("connection", (socket) => {
+  const isLocalAddress = (addr?: string): boolean =>
+    addr === "127.0.0.1" || addr === "::1" || addr === "::ffff:127.0.0.1";
+
+  wss.on("connection", (socket, req) => {
     console.log("[ws] client connected");
+    const ws = socket as typeof socket & { _session?: ReturnType<typeof createSession> };
+    ws._session = createSession(isLocalAddress(req.socket.remoteAddress));
+    const session = ws._session as ReturnType<typeof createSession>;
 
     // Send initial state
     socket.send(JSON.stringify({ type: "nucleus:state", state: "idle" }));
     socket.send(JSON.stringify({ type: "note:update", notes: getNotes() }));
     socket.send(JSON.stringify({ type: "kanban:update", cards: getCards() }));
-    socket.send(JSON.stringify({ type: "config:update", config: getSystemConfig() }));
+    socket.send(JSON.stringify({ type: "config:update", config: getSystemConfig({ includeSecrets: session.isLocal }) }));
     socket.send(JSON.stringify({ type: "policy:update", nodes: NODES, edges: GRAPH_EDGES }));
     socket.send(JSON.stringify({ type: "goal:update", goals: getGoals() }));
     socket.send(JSON.stringify({ type: "task:update", tasks: getTasks() }));
@@ -335,8 +343,35 @@ async function main() {
     socket.on("message", async (raw) => {
       try {
         const msg: ClientMessage = JSON.parse(raw.toString());
+        const authz = authorizeMessage(session, (msg as any).type);
+        if (!authz.allowed) {
+          socket.send(JSON.stringify({ type: "error", message: authz.reason || "Denied" }));
+          return;
+        }
+
+        if ((msg as any).type === "auth:mobile") {
+          const expectedToken = getMobileAuthToken();
+          const token = (msg as any).token as string | undefined;
+          if (!expectedToken || token !== expectedToken) {
+            socket.send(JSON.stringify({ type: "error", message: "Invalid mobile auth token" }));
+            return;
+          }
+          grantMobileSession(session);
+          socket.send(JSON.stringify({ type: "mobile:authenticated", success: true, capabilities: getCapabilities(session) }));
+          return;
+        }
 
         switch (msg.type) {
+          case "auth:dashboard": {
+            const expectedToken = getDashboardAuthToken();
+            if (!expectedToken || msg.token !== expectedToken) {
+              socket.send(JSON.stringify({ type: "error", message: "Invalid dashboard auth token" }));
+              return;
+            }
+            grantDashboardSession(session);
+            socket.send(JSON.stringify({ type: "dashboard:authenticated", success: true, capabilities: getCapabilities(session) }));
+            break;
+          }
           case "chat:send": {
             // Record that user is messaging from dashboard
             recordMessageSource("dashboard");
@@ -462,13 +497,14 @@ async function main() {
             break;
           }
           case "mobile:connect": {
-            const config = getSystemConfig();
-            if (msg.secret !== config.mobile_pairing_secret) {
+            const pairingSecret = getMobilePairingSecret();
+            if (!pairingSecret || msg.secret !== pairingSecret) {
               socket.send(JSON.stringify({ type: "error", message: "Invalid pairing secret" }));
               return;
             }
             console.log("[ws] Mobile app authenticated");
-            socket.send(JSON.stringify({ type: "mobile:authenticated", success: true }));
+            grantMobileSession(session);
+            socket.send(JSON.stringify({ type: "mobile:authenticated", success: true, capabilities: getCapabilities(session) }));
             // Send initial state
             socket.send(JSON.stringify({ type: "nucleus:state", state: "idle" }));
             socket.send(JSON.stringify({ type: "note:update", notes: getNotes() }));
@@ -511,7 +547,7 @@ async function main() {
             break;
           }
           case "config:request_sync": {
-            socket.send(JSON.stringify({ type: "config:update", config: getSystemConfig() }));
+            socket.send(JSON.stringify({ type: "config:update", config: getSystemConfig({ includeSecrets: session.isLocal }) }));
             socket.send(JSON.stringify({ type: "policy:update", nodes: NODES, edges: GRAPH_EDGES }));
             break;
           }
@@ -599,29 +635,7 @@ async function main() {
             break;
           }
           case "archive:get_system_docs": {
-            const rootDir = path.join(process.cwd(), "../../");
-            const docFiles = [
-              "truth.md",
-              "ROADMAP.md",
-              "SOUL.md",
-              "IDENTITY.md",
-              "POLICY.md",
-              "CAPABILITIES.md",
-              "DEPLOYMENT.md",
-              "CAIRN_INVARIANTS.md",
-              "PHASE_GATES.md"
-            ];
-            const docs = docFiles.map(filename => {
-              const filePath = path.join(rootDir, filename);
-              if (fs.existsSync(filePath)) {
-                return {
-                  id: filename,
-                  title: filename,
-                  content: fs.readFileSync(filePath, "utf-8")
-                };
-              }
-              return null;
-            }).filter(d => d !== null);
+            const docs = loadSystemDocs();
             socket.send(JSON.stringify({ type: "archive:system_docs", docs }));
             break;
           }

@@ -50,7 +50,7 @@ export {
 // Curator (warm → cold promotion)
 export {
   queueForPromotion,
-  promoteToСold,
+  promoteToCold,
   runCurationCycle,
   getCuratorStats,
   type PromotionRequest,

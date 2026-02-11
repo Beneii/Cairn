@@ -1,21 +1,22 @@
 {
-    "name": "@cairn/runtime",
-    "version": "0.0.1",
-    "private": true,
-    "type": "module",
-    "main": "dist/index.js",
-    "scripts": {
-        "build": "tsc"
-    },
-    "dependencies": {
-        "@cairn/shared": "workspace:*",
-        "@cairn/policy": "workspace:*",
-        "@cairn/tools": "workspace:*",
-        "@cairn/ledger": "workspace:*",
-        "@cairn/telemetry": "workspace:*"
-    },
-    "devDependencies": {
-        "@types/node": "^25.2.0",
-        "typescript": "^5.6.0"
-    }
+  "name": "@cairn/runtime",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "lint": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@cairn/shared": "workspace:*",
+    "@cairn/policy": "workspace:*",
+    "@cairn/tools": "workspace:*",
+    "@cairn/ledger": "workspace:*",
+    "@cairn/telemetry": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^25.2.0",
+    "typescript": "^5.6.0"
+  }
 }
