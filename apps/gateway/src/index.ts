@@ -257,7 +257,7 @@ async function main() {
     console.log("[oauth] Google authenticated, calendar provider switched to Google");
 
     // Redirect to dashboard
-    const dashboardUrl = process.env.DASHBOARD_URL || "http://localhost:5173";
+    const dashboardUrl = process.env.DASHBOARD_URL || `http://localhost:${PORT}`;
     res.redirect(`${dashboardUrl}?google=connected`);
   });
 
@@ -675,7 +675,17 @@ async function main() {
   // 12. Start proactive intelligence (goal-driven nudges)
   startProactiveProcessor();
 
-  // 13. Listen
+  // 13. Serve dashboard static files (single-process production deployment)
+  const dashboardDist = path.join(process.cwd(), "../../apps/dashboard/dist");
+  if (fs.existsSync(dashboardDist)) {
+    app.use(express.static(dashboardDist));
+    app.get("*", (_req, res) => {
+      res.sendFile(path.join(dashboardDist, "index.html"));
+    });
+    console.log(`[gateway] serving dashboard from ${dashboardDist}`);
+  }
+
+  // 14. Listen
   server.listen(Number(PORT), HOST, () => {
     console.log(`[gateway] mode     → ${process.env.NODE_ENV || "development"}`);
     console.log(`[gateway] listening → ${HOST}:${PORT}`);

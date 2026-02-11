@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "turbo run dev --parallel",
     "build": "turbo run build",
+    "start": "NODE_ENV=production pnpm --filter @cairn/gateway start",
     "lint": "turbo run lint",
     "test": "turbo run test",
     "clean": "turbo run clean && rm -rf node_modules",

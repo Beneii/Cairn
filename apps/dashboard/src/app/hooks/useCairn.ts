@@ -28,10 +28,10 @@ interface CairnState {
     has_telegram_token: boolean;
     telegram_admin_chat_id: string;
     has_google_calendar: boolean;
-      proactive?: ProactiveConfig;
-      mobile_app_enabled: boolean;
-      default_client: "telegram" | "mobile";
-      local_mode_enabled: boolean;
+    proactive?: ProactiveConfig;
+    mobile_app_enabled: boolean;
+    default_client: "telegram" | "mobile";
+    local_mode_enabled: boolean;
   };
   goals: any[]; // refined in next step
   tasks: any[];

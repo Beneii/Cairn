@@ -54,7 +54,8 @@ const WebAgentResponseSchema = z.object({
 export async function runWebAgent(job: Job): Promise<Job> {
     const config = getNodeConfig("web_agent");
     checkCaller("orchestrator", "web_agent");
-    checkTransition("gatekeeper", "web_agent");
+    const prevNode = job.nodes_traversed[job.nodes_traversed.length - 1] || "gatekeeper";
+    checkTransition(prevNode, "web_agent");
 
     let currentJob = job;
     let turns = 0;
