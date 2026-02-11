@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "turbo run dev --parallel",
     "build": "turbo run build",
-    "start": "NODE_ENV=production pnpm --filter @cairn/gateway start",
+    "start": "NODE_ENV=production node apps/gateway/dist/index.js",
+    "prod:verify": "pnpm build && test -f apps/gateway/dist/index.js && echo 'OK: apps/gateway/dist/index.js exists' || (echo 'FAIL: apps/gateway/dist/index.js missing' && exit 1)",
     "lint": "turbo run lint",
     "test": "turbo run test",
     "clean": "turbo run clean && rm -rf node_modules",

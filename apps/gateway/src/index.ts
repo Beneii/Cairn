@@ -4,11 +4,11 @@ import { WebSocketServer } from "ws";
 import fs from "fs";
 import path from "path";
 import dotenv from "dotenv";
+import { getProjectRoot } from "@cairn/shared";
 
 // Load environment variables from root .env
-dotenv.config({ path: path.join(process.cwd(), "../../.env") });
-// Also try local if not found or as fallback
-dotenv.config();
+const PROJECT_ROOT = getProjectRoot();
+dotenv.config({ path: path.join(PROJECT_ROOT, ".env") });
 import type { ClientMessage } from "@cairn/shared";
 import { bus, newId, shortTime } from "@cairn/shared";
 import { initLedger } from "@cairn/ledger";
@@ -240,7 +240,7 @@ async function main() {
     }
 
     // Save refresh token to .env
-    const envPath = path.join(process.cwd(), "../../.env");
+    const envPath = path.join(PROJECT_ROOT, ".env");
     let envContent = "";
     try { envContent = fs.readFileSync(envPath, "utf-8"); } catch { }
 
@@ -676,7 +676,7 @@ async function main() {
   startProactiveProcessor();
 
   // 13. Serve dashboard static files (single-process production deployment)
-  const dashboardDist = path.join(process.cwd(), "../../apps/dashboard/dist");
+  const dashboardDist = path.join(PROJECT_ROOT, "apps/dashboard/dist");
   if (fs.existsSync(dashboardDist)) {
     app.use(express.static(dashboardDist));
     app.get("*", (_req, res) => {
