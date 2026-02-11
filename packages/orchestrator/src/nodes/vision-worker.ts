@@ -18,7 +18,8 @@ Output clear, concise text. Do not output markdown code blocks unless requested.
 export async function runVisionWorker(job: Job): Promise<Job> {
     const config = getNodeConfig("vision_worker");
     checkCaller("orchestrator", "vision_worker");
-    checkTransition("gatekeeper", "vision_worker");
+    const prevNode = job.nodes_traversed[job.nodes_traversed.length - 1] || "gatekeeper";
+    checkTransition(prevNode, "vision_worker");
 
     await appendEntry(
         "agent",
