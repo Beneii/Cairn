@@ -323,16 +323,17 @@ async function main() {
   });
 
   // 5. Handle WebSocket connections
-  const isLocalAddress = (addr?: string): boolean =>
-    addr === "127.0.0.1" ||
-    addr === "::1" ||
-    addr === "::ffff:127.0.0.1" ||
-    addr?.startsWith("100."); // Trust Tailscale IPs
-
   wss.on("connection", (socket, req) => {
     console.log("[ws] client connected");
+    const addr = req.socket.remoteAddress ?? "";
+    const isTrusted =
+      addr === "127.0.0.1" ||
+      addr === "::1" ||
+      addr === "::ffff:127.0.0.1" ||
+      addr.startsWith("100.");
+
     const ws = socket as typeof socket & { _session?: ReturnType<typeof createSession> };
-    ws._session = createSession(isLocalAddress(req.socket.remoteAddress));
+    ws._session = createSession(isTrusted);
     const session = ws._session as ReturnType<typeof createSession>;
 
     // Send initial state
