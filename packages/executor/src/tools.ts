@@ -754,7 +754,7 @@ toolRegistry.set("note_create", async (args) => {
     if (!content) return { success: false, output: "Content required" };
 
     // Emit event for the UI/gateway to pick up and store
-    bus.emit("note:create" as any, { content });
+    bus.emit("note:create", { content });
 
     return {
       success: true,

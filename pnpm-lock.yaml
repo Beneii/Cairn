@@ -430,9 +430,6 @@ importers:
       '@cairn/tasks':
         specifier: workspace:*
         version: link:../tasks
-      '@cairn/telemetry':
-        specifier: workspace:*
-        version: link:../telemetry
       zod:
         specifier: ^4.3.6
         version: 4.3.6
@@ -491,9 +488,6 @@ importers:
       '@automerge/automerge':
         specifier: ^3.2.3
         version: 3.2.3
-      '@cairn/p2p':
-        specifier: workspace:*
-        version: link:../p2p
       '@cairn/shared':
         specifier: workspace:*
         version: link:../shared
@@ -531,9 +525,6 @@ importers:
       '@cairn/policy':
         specifier: workspace:*
         version: link:../policy
-      '@cairn/router':
-        specifier: workspace:*
-        version: link:../router
       '@cairn/shared':
         specifier: workspace:*
         version: link:../shared
@@ -553,25 +544,6 @@ importers:
       '@types/node':
         specifier: ^25.2.0
         version: 25.2.0
-      typescript:
-        specifier: ^5.6.0
-        version: 5.9.3
-
-  packages/p2p:
-    dependencies:
-      '@cairn/shared':
-        specifier: workspace:*
-        version: link:../shared
-      ws:
-        specifier: ^8.18.0
-        version: 8.19.0
-    devDependencies:
-      '@types/node':
-        specifier: ^25.2.0
-        version: 25.2.0
-      '@types/ws':
-        specifier: ^8.5.12
-        version: 8.18.1
       typescript:
         specifier: ^5.6.0
         version: 5.9.3
@@ -613,44 +585,6 @@ importers:
       '@types/pdf-parse':
         specifier: ^1.1.4
         version: 1.1.5
-      typescript:
-        specifier: ^5.6.0
-        version: 5.9.3
-
-  packages/router:
-    dependencies:
-      '@cairn/shared':
-        specifier: workspace:*
-        version: link:../shared
-    devDependencies:
-      '@types/node':
-        specifier: ^25.2.0
-        version: 25.2.0
-      typescript:
-        specifier: ^5.6.0
-        version: 5.9.3
-
-  packages/runtime:
-    dependencies:
-      '@cairn/ledger':
-        specifier: workspace:*
-        version: link:../ledger
-      '@cairn/policy':
-        specifier: workspace:*
-        version: link:../policy
-      '@cairn/shared':
-        specifier: workspace:*
-        version: link:../shared
-      '@cairn/telemetry':
-        specifier: workspace:*
-        version: link:../telemetry
-      '@cairn/tools':
-        specifier: workspace:*
-        version: link:../tools
-    devDependencies:
-      '@types/node':
-        specifier: ^25.2.0
-        version: 25.2.0
       typescript:
         specifier: ^5.6.0
         version: 5.9.3
@@ -704,38 +638,6 @@ importers:
       '@types/node':
         specifier: ^22.0.0
         version: 22.19.10
-      typescript:
-        specifier: ^5.6.0
-        version: 5.9.3
-
-  packages/telemetry:
-    dependencies:
-      '@cairn/shared':
-        specifier: workspace:*
-        version: link:../shared
-    devDependencies:
-      '@types/node':
-        specifier: ^25.2.0
-        version: 25.2.0
-      typescript:
-        specifier: ^5.6.0
-        version: 5.9.3
-
-  packages/tools:
-    dependencies:
-      '@cairn/shared':
-        specifier: workspace:*
-        version: link:../shared
-      zod:
-        specifier: ^3.23.8
-        version: 3.25.76
-      zod-to-json-schema:
-        specifier: ^3.23.1
-        version: 3.25.1(zod@3.25.76)
-    devDependencies:
-      '@types/node':
-        specifier: ^25.2.0
-        version: 25.2.0
       typescript:
         specifier: ^5.6.0
         version: 5.9.3
@@ -7370,11 +7272,6 @@ packages:
   yocto-queue@0.1.0:
     resolution: {integrity: sha512-rVksvsnNCdJ/ohGc6xgPwyN8eheCxsiLM8mxuE/t/mOVqJewPuO1miLpTHQiRgTKCLexL4MeAFVagts7HmNZ2Q==}
     engines: {node: '>=10'}
-
-  zod-to-json-schema@3.25.1:
-    resolution: {integrity: sha512-pM/SU9d3YAggzi6MtR4h7ruuQlqKtad8e9S0fmxcMi+ueAK5Korys/aWcV9LIIHTVbj01NdzxcnXSN+O74ZIVA==}
-    peerDependencies:
-      zod: ^3.25 || ^4
 
   zod@3.25.76:
     resolution: {integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==}
@@ -15376,11 +15273,8 @@ snapshots:
 
   yocto-queue@0.1.0: {}
 
-  zod-to-json-schema@3.25.1(zod@3.25.76):
-    dependencies:
-      zod: 3.25.76
-
-  zod@3.25.76: {}
+  zod@3.25.76:
+    optional: true
 
   zod@4.3.6: {}
 

@@ -22,8 +22,6 @@ export interface CairnEvents {
   "goals:updated": (goals: any[]) => void;
   "tasks:updated": (tasks: any[]) => void;
   "cold:promoted": (info: { documentId: string; title: string; chunkCount: number; tokenCount: number }) => void;
-  "p2p:message:sync": (message: any) => void;
-  "p2p:message:request_sync": (message: any) => void;
   "note:create": (data: { content: string }) => void;
 }
 
@@ -47,6 +45,10 @@ class TypedEventBus {
 
   off<K extends keyof CairnEvents>(event: K, handler: CairnEvents[K]): void {
     this.emitter.off(event, handler as (...args: unknown[]) => void);
+  }
+
+  removeAllListeners(): void {
+    this.emitter.removeAllListeners();
   }
 }
 

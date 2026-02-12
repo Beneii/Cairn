@@ -56,14 +56,15 @@ export default function App() {
             onResurface={cairn.resurfaceNote}
             onCreateNote={cairn.createNote}
             className="h-full min-h-0"
+            darkMode={darkMode}
           />
         );
       case "kanban":
-        return <Kanban cards={cairn.kanbanCards} className="h-full min-h-0" onArchive={cairn.archiveCard} />;
+        return <Kanban cards={cairn.kanbanCards} className="h-full min-h-0" onArchive={cairn.archiveCard} darkMode={darkMode} />;
       case "logs":
-        return <Logs logs={cairn.logs} className="h-full min-h-0" />;
+        return <Logs logs={cairn.logs} className="h-full min-h-0" darkMode={darkMode} />;
     }
-  }, [cairn.notes, cairn.resurfaceNote, cairn.createNote, cairn.kanbanCards, cairn.archiveCard, cairn.logs]);
+  }, [cairn.notes, cairn.resurfaceNote, cairn.createNote, cairn.kanbanCards, cairn.archiveCard, cairn.logs, darkMode]);
 
   return (
     <div

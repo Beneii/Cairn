@@ -1,11 +1,13 @@
 import { KanbanCard, KanbanStatus } from "./types";
 import { clsx } from "clsx";
 import { Plus, Archive } from "lucide-react";
+import { useTheme } from "../../theme";
 
 interface KanbanProps {
   cards: KanbanCard[];
   className?: string;
   onArchive?: (id: string) => void;
+  darkMode?: boolean;
 }
 
 const COLUMNS: { id: KanbanStatus; label: string }[] = [
@@ -15,12 +17,14 @@ const COLUMNS: { id: KanbanStatus; label: string }[] = [
   { id: "done", label: "Done" },
 ];
 
-export function Kanban({ cards, className, onArchive }: KanbanProps) {
+export function Kanban({ cards, className, onArchive, darkMode = false }: KanbanProps) {
+  const theme = useTheme(darkMode);
+
   // Filter out archived cards from main view
   const activeCards = cards.filter(c => !c.archived);
 
   return (
-    <div className={clsx("flex flex-col h-full p-4 border-r border-[#1A1D21]/10", className)}>
+    <div className={clsx("flex flex-col h-full p-4", className)} style={{ borderRight: `1px solid ${theme.border}` }}>
       <h3 className="text-xs uppercase tracking-widest font-bold mb-4 opacity-40">Kanban</h3>
 
       <div className="flex-1 grid grid-cols-4 gap-2 min-w-[400px]">
@@ -36,7 +40,7 @@ export function Kanban({ cards, className, onArchive }: KanbanProps) {
 
               <div className="flex-1 min-h-0 space-y-2 overflow-y-auto">
                 {colCards.map(card => (
-                  <div key={card.id} className="group p-2 border border-[#1A1D21]/10 bg-white/40 text-xs shadow-sm">
+                  <div key={card.id} className="group p-2 text-xs shadow-sm" style={{ border: `1px solid ${theme.border}`, backgroundColor: theme.cardBg }}>
                     <div className="flex justify-between items-start gap-1">
                       <span className="flex-1">{card.title}</span>
                       {col.id === 'done' && onArchive && (
@@ -55,7 +59,10 @@ export function Kanban({ cards, className, onArchive }: KanbanProps) {
                   </div>
                 ))}
                 {col.id === 'backlog' && (
-                  <button className="w-full py-2 border border-dashed border-[#1A1D21]/20 opacity-30 hover:opacity-100 flex justify-center items-center">
+                  <button
+                    className="w-full py-2 opacity-30 hover:opacity-100 flex justify-center items-center"
+                    style={{ border: `1px dashed ${theme.border}` }}
+                  >
                     <Plus size={12} />
                   </button>
                 )}

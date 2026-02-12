@@ -99,7 +99,14 @@ export function IntegrationsSettings({
 
                         <div className="flex items-center gap-3">
                             {item.connected && (
-                                <div className="flex items-center gap-1.5 text-xs font-bold text-green-600 bg-green-50 px-2.5 py-1 rounded-full border border-green-200 uppercase tracking-tighter">
+                                <div
+                                    className="flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full uppercase tracking-tighter"
+                                    style={{
+                                        color: darkMode ? '#4ade80' : '#16a34a',
+                                        backgroundColor: darkMode ? 'rgba(74,222,128,0.1)' : 'rgba(22,163,74,0.08)',
+                                        border: `1px solid ${darkMode ? 'rgba(74,222,128,0.2)' : 'rgba(22,163,74,0.2)'}`,
+                                    }}
+                                >
                                     <Check size={12} />
                                     Connected
                                 </div>
@@ -286,7 +293,7 @@ export function IntegrationsSettings({
                                             </div>
                                         </div>
 
-                                        <div className="p-3 bg-white rounded-lg">
+                                        <div className="p-3 rounded-lg" style={{ backgroundColor: '#ffffff' }}>
                                             {mobilePairingSecret ? (
                                                 <img
                                                     src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(JSON.stringify({ secret: mobilePairingSecret, url: gatewayUrl }))}`}

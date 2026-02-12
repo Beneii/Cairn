@@ -254,7 +254,7 @@ export async function runExecutorNode(job: Job): Promise<Job> {
   const costs = [...job.costs_so_far, response.cost];
 
   // Handle tool calls
-  if (parsed.action === "tool" && "tools" in parsed && Array.from(parsed.tools as any[]).length > 0) {
+  if (parsed.action === "tool" && "tools" in parsed && Array.isArray(parsed.tools) && parsed.tools.length > 0) {
     const tools = parsed.tools as { name: string; args?: Record<string, unknown> }[];
     const toolResults = await executeTools(
       tools.map(t => ({ name: t.name, args: t.args || {} })),
@@ -301,7 +301,7 @@ export async function runExecutorNode(job: Job): Promise<Job> {
             '{ "result": "formatted response text", "summary": "brief summary" }\n\n' +
             'If the task COULD NOT be completed, respond with:\n' +
             '{ "action": "blocked", "reason": "why it failed", "result": "explanation for user" }',
-          userMessage: `Original task: ${job.input}\nTools used: ${tools.map(t => t.name).join(', ')}\nOutputs: ${toolResults.map((r: any) => r.output).join('\n---\n')}`,
+          userMessage: `Original task: ${job.input}\nTools used: ${tools.map(t => t.name).join(', ')}\nOutputs: ${toolResults.map((r) => r.output).join('\n---\n')}`,
           maxTokens: 2000,
           responseFormat: "json_object",
         },

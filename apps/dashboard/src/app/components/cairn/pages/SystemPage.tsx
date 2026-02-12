@@ -126,15 +126,20 @@ export function SystemSettings({ connected, diagnostics, localModeEnabled, nodes
                                 Cloud fallback is disabled when active.
                             </div>
                         </div>
-                        <label className="relative inline-flex items-center cursor-pointer">
-                            <input
-                                type="checkbox"
-                                className="sr-only peer"
-                                checked={localMode}
-                                onChange={handleToggleLocalMode}
+                        <button
+                            onClick={handleToggleLocalMode}
+                            className="w-8 h-5 rounded-full transition-all relative shrink-0"
+                            style={{ backgroundColor: localMode ? (darkMode ? '#E5E5E5' : '#1A1D21') : subtleBg }}
+                        >
+                            <div
+                                className="w-4 h-4 rounded-full absolute top-0.5 transition-all"
+                                style={{
+                                    backgroundColor: localMode ? (darkMode ? '#1c1c1c' : '#F3F2EE') : 'currentColor',
+                                    opacity: localMode ? 1 : 0.3,
+                                    left: localMode ? '14px' : '2px'
+                                }}
                             />
-                            <div className="w-11 h-6 bg-zinc-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-zinc-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
-                        </label>
+                        </button>
                     </div>
 
                     {localMode && (

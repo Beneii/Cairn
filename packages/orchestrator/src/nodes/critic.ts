@@ -40,7 +40,7 @@ const CriticResponseSchema = z.object({
     reasoning: z.string().max(1000).optional(),
 });
 
-type CriticResult = z.infer<typeof CriticResponseSchema>;
+export type CriticResult = z.infer<typeof CriticResponseSchema>;
 
 export async function runCriticNode(job: Job): Promise<Job & { _criticResult?: CriticResult }> {
     const config = getNodeConfig("critic");
