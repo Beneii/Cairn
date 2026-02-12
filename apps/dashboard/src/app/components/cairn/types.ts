@@ -91,11 +91,17 @@ export interface ProactiveConfig {
   quietHoursEnd: number;   // 0-23
   minHoursBetweenNudges: number;
   nudgeTypes: {
-    goal_reminder: boolean;
-    calendar_aware: boolean;
-    anomaly_alert: boolean;
-    pattern_suggestion: boolean;
+    goal_progress: boolean;
+    task_uncorking: boolean;
+    reflection: boolean;
   };
+  // New fields
+  briefingEnabled?: boolean;
+  briefingWindowStart?: number;
+  briefingWindowEnd?: number;
+  checkInsEnabled?: boolean;
+  librarianEnabled?: boolean;
+  librarianHour?: number;
 }
 
 // ---- Goals ----

@@ -11,10 +11,12 @@ import {
   AlertTriangle,
   Filter
 } from "lucide-react";
+import { useTheme } from "../../theme";
 
 interface LogsProps {
   logs: LogEntry[];
   className?: string;
+  darkMode?: boolean;
 }
 
 const ICON_MAP = {
@@ -26,9 +28,10 @@ const ICON_MAP = {
   error: AlertTriangle
 };
 
-export function Logs({ logs, className }: LogsProps) {
+export function Logs({ logs, className, darkMode = false }: LogsProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [filter, setFilter] = useState<LogType | 'all'>('all');
+  const theme = useTheme(darkMode);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -52,7 +55,7 @@ export function Logs({ logs, className }: LogsProps) {
         <div className="flex items-center gap-2">
           <h3 className="text-xs uppercase tracking-widest font-bold opacity-40">System Logs</h3>
           {filter !== 'all' && (
-            <span className="text-[10px] px-1 bg-[#1A1D21]/5 rounded opacity-50 uppercase tracking-tighter">{filter}</span>
+            <span className="text-[10px] px-1 rounded opacity-50 uppercase tracking-tighter" style={{ backgroundColor: theme.subtleBg }}>{filter}</span>
           )}
         </div>
         <button onClick={cycleFilter} className={clsx("transition-opacity", filter === 'all' ? "opacity-30 hover:opacity-100" : "opacity-100")}>
@@ -71,7 +74,9 @@ export function Logs({ logs, className }: LogsProps) {
                 animate={{ opacity: 1, x: 0, scale: 1 }}
                 className={clsx(
                   "flex gap-3 items-start",
-                  log.type === 'error' ? "text-red-900" : "opacity-70"
+                  log.type === 'error'
+                    ? (darkMode ? "text-red-400" : "text-red-900")
+                    : "opacity-70"
                 )}
               >
                 <span className="opacity-30 min-w-[50px]">{log.timestamp}</span>

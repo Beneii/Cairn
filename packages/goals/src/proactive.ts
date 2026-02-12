@@ -134,12 +134,13 @@ export async function checkGoalNudges(): Promise<NudgeDecision | null> {
     const mostUrgent = goalsDue[0];
 
     // Check if we've already nudged about this goal recently
+    const config = getProactiveConfig();
     const lastNudge = warmGet<Record<string, string>>("goal_nudge_times") ?? {};
     const lastNudgeTime = lastNudge[mostUrgent.id];
 
     if (lastNudgeTime) {
         const hoursSinceNudge = (Date.now() - new Date(lastNudgeTime).getTime()) / (1000 * 60 * 60);
-        if (hoursSinceNudge < 4) {
+        if (hoursSinceNudge < config.minHoursBetweenNudges) {
             return null; // Don't nag
         }
     }
@@ -318,6 +319,12 @@ const DEFAULT_CONFIG: ProactiveConfig = {
         anomaly_alert: true,
         pattern_suggestion: true,
     },
+    checkInsEnabled: true,
+    briefingEnabled: true,
+    briefingWindowStart: 7,
+    briefingWindowEnd: 9,
+    librarianEnabled: true,
+    librarianHour: 17,
 };
 
 export function getProactiveConfig(): ProactiveConfig {

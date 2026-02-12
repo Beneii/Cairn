@@ -14,9 +14,9 @@ import { bus, newId, shortTime } from "@cairn/shared";
 import { appendEntry } from "@cairn/ledger";
 import { isLLMAvailable, callLLM } from "@cairn/orchestrator";
 import { getCards, archiveCard, updateCardProject } from "./kanban.js";
+import { getProactiveConfig } from "@cairn/goals";
 
 const LIBRARIAN_CHECK_INTERVAL_MS = 5 * 60 * 1000; // Check every 5 minutes
-const END_OF_DAY_HOUR = 17; // 5 PM - configurable
 
 interface LibrarianState {
   last_run_date: string; // YYYY-MM-DD format
@@ -27,11 +27,16 @@ interface LibrarianState {
 export function startLibrarianProcessor(): void {
   setInterval(async () => {
     try {
+      const config = getProactiveConfig();
+
+      // Respect master toggle and librarian toggle
+      if (!config.enabled || !config.librarianEnabled) return;
+
       const now = new Date();
       const currentHour = now.getHours();
 
-      // Only run at end of day hour
-      if (currentHour !== END_OF_DAY_HOUR) {
+      // Only run at configured end-of-day hour (default: 17 / 5 PM)
+      if (currentHour !== config.librarianHour) {
         return;
       }
 
@@ -207,7 +212,8 @@ Format: Markdown.`,
     }
   }, LIBRARIAN_CHECK_INTERVAL_MS);
 
+  const config = getProactiveConfig();
   console.log(
-    `[librarian] Librarian processor started (runs at ${END_OF_DAY_HOUR}:00)`
+    `[librarian] Librarian processor started (runs at ${config.librarianHour}:00)`
   );
 }

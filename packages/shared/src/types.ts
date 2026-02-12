@@ -176,6 +176,13 @@ export interface ProactiveConfig {
     anomaly_alert: boolean;
     pattern_suggestion: boolean;
   };
+  // Schedules
+  checkInsEnabled: boolean;
+  briefingEnabled: boolean;
+  briefingWindowStart: number; // 0-23, default 7
+  briefingWindowEnd: number;   // 0-23, default 9
+  librarianEnabled: boolean;
+  librarianHour: number;       // 0-23, default 17
 }
 
 // ---- Goals ----

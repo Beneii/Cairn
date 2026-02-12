@@ -1,7 +1,6 @@
 import { checkTool, PolicyViolation } from "@cairn/policy";
 import { appendEntry } from "@cairn/ledger";
 import { newId, now, bus, FailureCode, withFailureCode } from "@cairn/shared";
-import { metrics } from "@cairn/telemetry";
 import type { ToolInput, ToolResult, ToolContext } from "./tools.js";
 import { getTool } from "./tools.js";
 import { executeTool as executeManifestTool } from "./manifest.js";
@@ -148,53 +147,18 @@ export async function executeTool(
   const mappedManifestTool = MANIFEST_TOOL_ALIAS[input.name];
 
   if (mappedManifestTool && (manifestMode === "prefer" || manifestMode === "strict")) {
-    metrics.record("executor_manifest_attempt", 1, {
-      tool: input.name,
-      manifest_tool: mappedManifestTool,
-      mode: manifestMode,
-      path: "prefer_or_strict",
-    });
     const manifestResult = await runManifestMappedTool(input, context);
     if (manifestResult?.success || manifestMode === "strict") {
-      metrics.record("executor_manifest_success", 1, {
-        tool: input.name,
-        manifest_tool: mappedManifestTool,
-        mode: manifestMode,
-      });
       return manifestResult as ToolResult;
     }
-    metrics.record("executor_manifest_failure", 1, {
-      tool: input.name,
-      manifest_tool: mappedManifestTool,
-      mode: manifestMode,
-      fallback: "legacy",
-    });
   }
 
   const toolFn = getTool(input.name);
   if (!toolFn) {
     if (mappedManifestTool) {
-      metrics.record("executor_manifest_attempt", 1, {
-        tool: input.name,
-        manifest_tool: mappedManifestTool,
-        mode: manifestMode,
-        path: "fallback_missing_legacy",
-      });
       const manifestResult = await runManifestMappedTool(input, context);
-      if (manifestResult) {
-        metrics.record(manifestResult.success ? "executor_manifest_success" : "executor_manifest_failure", 1, {
-          tool: input.name,
-          manifest_tool: mappedManifestTool,
-          mode: manifestMode,
-          fallback: "none",
-        });
-        return manifestResult;
-      }
+      if (manifestResult) return manifestResult;
     }
-    metrics.record("executor_capability_missing", 1, {
-      tool: input.name,
-      mode: manifestMode,
-    });
     return {
       success: false,
       output: withFailureCode(FailureCode.CAPABILITY_MISSING, `Tool "${input.name}" does not exist`),
@@ -203,10 +167,6 @@ export async function executeTool(
 
   // 3. Execute
   try {
-    metrics.record("executor_legacy_attempt", 1, {
-      tool: input.name,
-      mode: manifestMode,
-    });
     bus.emit("log:entry", {
       id: newId(),
       timestamp: now(),
@@ -215,10 +175,6 @@ export async function executeTool(
     });
 
     const result = await toolFn(input.args, context);
-    metrics.record(result.success ? "executor_legacy_success" : "executor_legacy_failure", 1, {
-      tool: input.name,
-      mode: manifestMode,
-    });
 
     bus.emit("log:entry", {
       id: newId(),
@@ -230,11 +186,6 @@ export async function executeTool(
     return result;
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : String(err);
-    metrics.record("executor_legacy_failure", 1, {
-      tool: input.name,
-      mode: manifestMode,
-      reason: "exception",
-    });
     return { success: false, output: withFailureCode(FailureCode.TOOL_EXECUTION_FAILED, `Tool error: ${errorMsg}`) };
   }
 }

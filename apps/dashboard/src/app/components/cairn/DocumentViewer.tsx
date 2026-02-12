@@ -2,6 +2,7 @@ import React from "react";
 import { X, Copy, Check, Download } from "lucide-react";
 import { useState } from "react";
 import ReactMarkdown from "react-markdown";
+import { useTheme } from "../../theme";
 
 interface DocumentViewerProps {
     title: string;
@@ -12,6 +13,7 @@ interface DocumentViewerProps {
 
 export function DocumentViewer({ title, content, onClose, darkMode = false }: DocumentViewerProps) {
     const [copied, setCopied] = useState(false);
+    const theme = useTheme(darkMode);
 
     const handleCopy = () => {
         navigator.clipboard.writeText(content);
@@ -36,9 +38,12 @@ export function DocumentViewer({ title, content, onClose, darkMode = false }: Do
                 onClick={onClose}
             />
 
-            <div className={`relative w-full max-w-4xl max-h-full flex flex-col rounded-3xl overflow-hidden border border-white/10 shadow-2xl ${darkMode ? 'bg-[#0A0C10]' : 'bg-white'}`}>
+            <div
+                className="relative w-full max-w-4xl max-h-full flex flex-col rounded-3xl overflow-hidden shadow-2xl"
+                style={{ backgroundColor: theme.bg, border: `1px solid ${theme.border}` }}
+            >
                 {/* Header */}
-                <div className="flex items-center justify-between p-6 border-b border-white/5 bg-white/5">
+                <div className="flex items-center justify-between p-6" style={{ borderBottom: `1px solid ${theme.border}`, backgroundColor: theme.subtleBg }}>
                     <div className="flex-1 min-w-0 mr-4">
                         <h2 className="text-xl font-bold tracking-tight truncate">{title}</h2>
                     </div>
@@ -46,22 +51,31 @@ export function DocumentViewer({ title, content, onClose, darkMode = false }: Do
                     <div className="flex items-center gap-2">
                         <button
                             onClick={handleCopy}
-                            className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 transition-colors"
+                            className="p-2.5 rounded-xl transition-colors"
+                            style={{ backgroundColor: theme.subtleBg }}
+                            onMouseEnter={e => (e.currentTarget.style.backgroundColor = theme.activeBg)}
+                            onMouseLeave={e => (e.currentTarget.style.backgroundColor = theme.subtleBg)}
                             title="Copy to clipboard"
                         >
                             {copied ? <Check size={18} className="text-green-500" /> : <Copy size={18} className="opacity-60" />}
                         </button>
                         <button
                             onClick={handleDownload}
-                            className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 transition-colors"
+                            className="p-2.5 rounded-xl transition-colors"
+                            style={{ backgroundColor: theme.subtleBg }}
+                            onMouseEnter={e => (e.currentTarget.style.backgroundColor = theme.activeBg)}
+                            onMouseLeave={e => (e.currentTarget.style.backgroundColor = theme.subtleBg)}
                             title="Download as Markdown"
                         >
                             <Download size={18} className="opacity-60" />
                         </button>
-                        <div className="w-[1px] h-6 bg-white/10 mx-1" />
+                        <div className="w-[1px] h-6 mx-1" style={{ backgroundColor: theme.border }} />
                         <button
                             onClick={onClose}
-                            className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 transition-colors"
+                            className="p-2.5 rounded-xl transition-colors"
+                            style={{ backgroundColor: theme.subtleBg }}
+                            onMouseEnter={e => (e.currentTarget.style.backgroundColor = theme.activeBg)}
+                            onMouseLeave={e => (e.currentTarget.style.backgroundColor = theme.subtleBg)}
                         >
                             <X size={18} className="opacity-60" />
                         </button>
@@ -70,23 +84,26 @@ export function DocumentViewer({ title, content, onClose, darkMode = false }: Do
 
                 {/* Content */}
                 <div className="flex-1 overflow-y-auto p-8 md:p-12">
-                    <article className="prose prose-invert max-w-none 
-            prose-headings:font-bold prose-headings:tracking-tight 
-            prose-p:text-white/60 prose-p:leading-relaxed
-            prose-strong:text-white prose-strong:font-bold
-            prose-code:text-blue-400 prose-code:bg-blue-400/10 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:before:content-none prose-code:after:content-none
-            prose-pre:bg-black/40 prose-pre:border prose-pre:border-white/5 prose-pre:rounded-2xl
-            prose-li:text-white/60
-            prose-img:rounded-2xl">
+                    <article className={`prose max-w-none
+            ${darkMode ? 'prose-invert' : ''}
+            prose-headings:font-bold prose-headings:tracking-tight
+            prose-p:leading-relaxed prose-p:opacity-70
+            prose-strong:font-bold
+            prose-code:text-blue-500 prose-code:bg-blue-500/10 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:before:content-none prose-code:after:content-none
+            prose-li:opacity-70
+            prose-img:rounded-2xl`}
+                        style={{ '--tw-prose-pre-bg': theme.subtleBg } as React.CSSProperties}
+                    >
                         <ReactMarkdown>{content}</ReactMarkdown>
                     </article>
                 </div>
 
                 {/* Footer */}
-                <div className="p-6 border-t border-white/5 bg-white/5 flex justify-end">
+                <div className="p-6 flex justify-end" style={{ borderTop: `1px solid ${theme.border}`, backgroundColor: theme.subtleBg }}>
                     <button
                         onClick={onClose}
-                        className="px-6 py-2.5 rounded-xl bg-white text-black font-bold text-sm tracking-tight hover:bg-white/90 transition-all"
+                        className="px-6 py-2.5 rounded-xl font-bold text-sm tracking-tight transition-all hover:opacity-90"
+                        style={{ backgroundColor: theme.fg, color: theme.bg }}
                     >
                         Done
                     </button>

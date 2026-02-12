@@ -17,7 +17,11 @@ export function setupBroadcast(
     // Actually, let's just broadcast to all connected WS clients.
     for (const client of wss.clients) {
       if (client.readyState === 1) {
-        client.send(data);
+        try {
+          client.send(data);
+        } catch {
+          // Socket closed between readyState check and send — ignore
+        }
       }
     }
 

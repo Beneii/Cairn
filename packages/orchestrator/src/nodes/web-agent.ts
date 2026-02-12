@@ -120,6 +120,7 @@ export async function runWebAgent(job: Job): Promise<Job> {
 
                 return updateJob(currentJob.id, {
                     status: "done",
+                    nodes_traversed: [...currentJob.nodes_traversed, "web_agent"],
                     artifacts: [...currentJob.artifacts, resultArtifact],
                     costs_so_far: [...currentJob.costs_so_far, response.cost]
                 });
@@ -128,7 +129,8 @@ export async function runWebAgent(job: Job): Promise<Job> {
             if (parsed.action === "fail") {
                 return updateJob(currentJob.id, {
                     status: "failed",
-                    artifacts: [...currentJob.artifacts, { id: newId(), type: "error" as any, content: parsed.reasoning, metadata: {}, origin_node: "web_agent", created_at: now() }],
+                    nodes_traversed: [...currentJob.nodes_traversed, "web_agent"],
+                    artifacts: [...currentJob.artifacts, { id: newId(), type: "error", content: parsed.reasoning, metadata: {}, origin_node: "web_agent", created_at: now() }],
                     costs_so_far: [...currentJob.costs_so_far, response.cost]
                 });
             }

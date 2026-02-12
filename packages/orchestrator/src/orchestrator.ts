@@ -1,11 +1,11 @@
 import { bus, newId, now, shortTime, redactError } from "@cairn/shared";
-import type { Job } from "@cairn/shared";
+import type { Job, Artifact } from "@cairn/shared";
 import { appendEntry } from "@cairn/ledger";
 import { warmGet, warmSet } from "@cairn/memory";
 import { runGatekeeper } from "./nodes/gatekeeper.js";
 import { runPlanner } from "./nodes/planner.js";
 import { runExecutorNode } from "./nodes/executor-node.js";
-import { runCriticNode } from "./nodes/critic.js";
+import { runCriticNode, type CriticResult } from "./nodes/critic.js";
 import { runWebAgent } from "./nodes/web-agent.js";
 
 // Auto-capture recent conversations to warm memory
@@ -80,7 +80,7 @@ export async function processMessage(userInput: string, attachments?: ChatAttach
       captureRecentTask(webJob);
       appendHistory(withUser, webJob);
 
-      const totalCost = webJob.costs_so_far.reduce((sum: number, c: any) => sum + c.cost_usd, 0);
+      const totalCost = webJob.costs_so_far.reduce((sum, c) => sum + c.cost_usd, 0);
       await appendEntry("agent", "orchestrator", webJob.id, `Job completed by web_agent. Total cost: $${totalCost.toFixed(4)}`);
       return;
     }
@@ -106,7 +106,7 @@ export async function processMessage(userInput: string, attachments?: ChatAttach
         });
       }
 
-      const totalCost = visionJob.costs_so_far.reduce((sum: number, c: any) => sum + c.cost_usd, 0);
+      const totalCost = visionJob.costs_so_far.reduce((sum, c) => sum + c.cost_usd, 0);
       await appendEntry("agent", "orchestrator", visionJob.id, `Job completed by vision_worker. Total cost: $${totalCost.toFixed(4)}`);
       return;
     }
@@ -135,7 +135,7 @@ export async function processMessage(userInput: string, attachments?: ChatAttach
 
       // Run Critic to evaluate the executor's work
       const criticJob = await runCriticNode(completedJob);
-      const criticism = (criticJob as any)._criticResult;
+      const criticism: CriticResult | undefined = criticJob._criticResult;
 
       if (!criticism || criticism.action === "accept") {
         completedJob = criticJob;
@@ -147,18 +147,18 @@ export async function processMessage(userInput: string, attachments?: ChatAttach
       await appendEntry("agent", "orchestrator", job.id, `Critic requested refinement (loop ${refinementCount}/${MAX_REFINEMENTS}): ${criticism.feedback}`);
 
       // Inject feedback as a task for the next executor run
-      const feedbackArtifact = {
+      const feedbackArtifact: Artifact = {
         id: newId(),
-        type: "critic_feedback" as any,
+        type: "critic_feedback",
         content: criticism.feedback || "Improve the previous result based on context.",
         metadata: {},
-        origin_node: "critic" as any,
+        origin_node: "critic",
         created_at: now()
       };
 
       completedJob = {
         ...criticJob,
-        status: "running" as any,
+        status: "running",
         artifacts: [...criticJob.artifacts, feedbackArtifact]
       };
     }

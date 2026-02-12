@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import type { ChatMessage, ChatAttachment } from "./types";
 import { clsx } from "clsx";
 import { ChevronDown, ChevronRight, Paperclip, X } from "lucide-react";
+import { useTheme } from "../../theme";
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const ACCEPTED_TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp"];
@@ -14,7 +15,7 @@ interface ChatProps {
 }
 
 export function Chat({ messages, onSend, className, darkMode = false }: ChatProps) {
-  const border = darkMode ? 'rgba(255,255,255,0.1)' : 'rgba(26,29,33,0.1)';
+  const theme = useTheme(darkMode);
   const [input, setInput] = useState("");
   const [attachments, setAttachments] = useState<ChatAttachment[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -83,7 +84,7 @@ export function Chat({ messages, onSend, className, darkMode = false }: ChatProp
                     src={att.dataUrl}
                     alt={att.name}
                     className="max-w-xs max-h-48 rounded object-contain cursor-pointer hover:opacity-90 transition-opacity"
-                    style={{ border: `1px solid ${border}` }}
+                    style={{ border: `1px solid ${theme.border}` }}
                     onClick={() => window.open(att.dataUrl, '_blank')}
                   />
                 ))}
@@ -98,7 +99,7 @@ export function Chat({ messages, onSend, className, darkMode = false }: ChatProp
       </div>
 
       {/* Input area */}
-      <div className="mt-4 pt-4" style={{ borderTop: `1px solid ${border}` }}>
+      <div className="mt-4 pt-4" style={{ borderTop: `1px solid ${theme.border}` }}>
         {/* Attachment preview strip */}
         {attachments.length > 0 && (
           <div className="flex gap-2 mb-3 flex-wrap">
@@ -108,12 +109,12 @@ export function Chat({ messages, onSend, className, darkMode = false }: ChatProp
                   src={att.dataUrl}
                   alt={att.name}
                   className="h-16 w-16 object-cover rounded"
-                  style={{ border: `1px solid ${border}` }}
+                  style={{ border: `1px solid ${theme.border}` }}
                 />
                 <button
                   onClick={() => removeAttachment(att.id)}
                   className="absolute -top-1.5 -right-1.5 rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
-                  style={{ backgroundColor: darkMode ? '#333' : '#ddd' }}
+                  style={{ backgroundColor: theme.subtleBg }}
                 >
                   <X size={10} />
                 </button>
@@ -165,7 +166,7 @@ function ToolOutputs({ tools }: { tools: string[] }) {
         <span>{tools.length} tool output{tools.length > 1 ? 's' : ''}</span>
       </button>
       {isOpen && (
-        <div className="mt-1 pl-4 border-l border-[#1A1D21]/20 space-y-1">
+        <div className="mt-1 pl-4 border-l border-current/20 space-y-1">
           {tools.map((output, i) => (
             <div key={i} className="text-xs opacity-60 font-mono">
               {output}

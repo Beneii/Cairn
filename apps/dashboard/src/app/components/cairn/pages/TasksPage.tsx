@@ -4,6 +4,7 @@ import { Plus, X, ArrowRight, CheckCircle, Circle, Archive, Calendar, RefreshCw,
 import { Task } from "../types";
 import { PageLayout } from "../PageLayout";
 import { PageContent } from "../PageContent";
+import { useTheme } from "../../../theme";
 
 interface TasksPageProps {
     nav: React.ReactNode;
@@ -20,9 +21,8 @@ export function TasksPage({ nav, tasks, createTask, updateTask, deleteTask, dark
     const [newTitle, setNewTitle] = useState("");
     const [scheduledDate, setScheduledDate] = useState("");
     const [recurrence, setRecurrence] = useState("daily");
+    const theme = useTheme(darkMode);
 
-    const cardBg = darkMode ? '#2A2A2A' : '#FFFFFF';
-    const border = darkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)';
     const accent = '#10B981'; // Green accent as requested
 
     // Filter tasks
@@ -90,7 +90,7 @@ export function TasksPage({ nav, tasks, createTask, updateTask, deleteTask, dark
                                         onChange={e => setNewTitle(e.target.value)}
                                         placeholder="What needs doing?"
                                         className="w-full bg-transparent border-b p-1 focus:outline-none transition-colors"
-                                        style={{ borderColor: border, '--tw-ring-color': accent } as any}
+                                        style={{ borderColor: theme.border, '--tw-ring-color': accent } as any}
                                         autoFocus
                                     />
 
@@ -105,7 +105,7 @@ export function TasksPage({ nav, tasks, createTask, updateTask, deleteTask, dark
                                                 value={recurrence}
                                                 onChange={e => setRecurrence(e.target.value)}
                                                 className="bg-transparent border rounded p-1"
-                                                style={{ borderColor: border }}
+                                                style={{ borderColor: theme.border }}
                                             >
                                                 <option value="daily">Daily</option>
                                                 <option value="weekly">Weekly</option>
@@ -118,7 +118,7 @@ export function TasksPage({ nav, tasks, createTask, updateTask, deleteTask, dark
                                             value={scheduledDate}
                                             onChange={e => setScheduledDate(e.target.value)}
                                             className="bg-transparent border rounded p-1 opacity-50 hover:opacity-100"
-                                            style={{ borderColor: border }}
+                                            style={{ borderColor: theme.border }}
                                         />
                                     </div>
 
@@ -139,7 +139,7 @@ export function TasksPage({ nav, tasks, createTask, updateTask, deleteTask, dark
 
                         <div className="space-y-2">
                             {todayTasks.length === 0 && !isCreating && (
-                                <div className="text-center py-8 opacity-30 text-sm border-2 border-dashed rounded-xl" style={{ borderColor: border }}>
+                                <div className="text-center py-8 opacity-30 text-sm border-2 border-dashed rounded-xl" style={{ borderColor: theme.border }}>
                                     Nothing scheduled for today.
                                 </div>
                             )}
@@ -150,8 +150,8 @@ export function TasksPage({ nav, tasks, createTask, updateTask, deleteTask, dark
                                     onToggle={() => updateTask(task.id, { status: 'done' })}
                                     onDelete={() => deleteTask(task.id)}
                                     accent={accent}
-                                    cardBg={cardBg}
-                                    border={border}
+                                    cardBg={theme.cardBg}
+                                    border={theme.border}
                                 />
                             ))}
                         </div>
@@ -168,8 +168,8 @@ export function TasksPage({ nav, tasks, createTask, updateTask, deleteTask, dark
                                     onToggle={() => updateTask(task.id, { status: 'done' })}
                                     onDelete={() => deleteTask(task.id)}
                                     accent={accent}
-                                    cardBg={cardBg}
-                                    border={border}
+                                    cardBg={theme.cardBg}
+                                    border={theme.border}
                                 />
                             ))}
                             {unscheduledTasks.length === 0 && (
@@ -190,8 +190,8 @@ export function TasksPage({ nav, tasks, createTask, updateTask, deleteTask, dark
                                         onToggle={() => updateTask(task.id, { status: 'done' })}
                                         onDelete={() => deleteTask(task.id)}
                                         accent={accent}
-                                        cardBg={cardBg}
-                                        border={border}
+                                        cardBg={theme.cardBg}
+                                        border={theme.border}
                                     />
                                 ))}
                             </div>

@@ -4,6 +4,7 @@ import { bus, newId, now, shortTime } from "@cairn/shared";
 import type { Job, Artifact } from "@cairn/shared";
 import { isEmbeddingAvailable, createEmbedding, vectorSearch, getColdMemoryStats, warmGet } from "@cairn/memory";
 import { callLLM } from "../llm.js";
+import { extractPlannerJson } from "../utils.js";
 import { updateJob } from "../jobs.js";
 import { z } from "zod";
 import { getCalendarProvider } from "@cairn/executor";
@@ -11,6 +12,7 @@ import { getActiveGoals } from "@cairn/goals";
 import { getTasks } from "@cairn/tasks";
 
 const SYSTEM_PROMPT = `You are Cairn's planner. You decide how to handle the user's request and create execution plans. You must output valid JSON.
+IMPORTANT: Output raw JSON only. Do NOT wrap the JSON in markdown code fences (e.g. \`\`\`json). Do NOT include commentary outside the JSON object.
 
 You are a personal assistant — warm, direct, helpful. You know the user's active goals and tasks and should always consider them.
 
@@ -224,7 +226,7 @@ User request: ${job.input}`;
   let parsed: PlannerResult;
 
   try {
-    const jsonParsed = JSON.parse(response.content);
+    const jsonParsed = extractPlannerJson(response.content);
     const validationResult = PlannerResponseSchema.safeParse(jsonParsed);
 
     if (!validationResult.success) {
@@ -235,11 +237,12 @@ User request: ${job.input}`;
         job.id,
         `LLM response validation failed: ${validationResult.error.message}`,
       );
-      // Fall back to safe defaults - treat raw content as direct response
+      // Fall back to safe defaults - treat raw content as direct response if it's not JSON
+      // But purely text response is safer than trying to guess
       parsed = {
-        plan: "Direct response",
+        plan: "Response validation failed",
         steps: [],
-        response: response.content.substring(0, 2000), // Truncate for safety
+        response: "I had a thought, but it wasn't structured correctly. Please try again.", // SAFE FALLBACK
         needs_executor: false,
         tools_needed: [],
       };
@@ -254,10 +257,11 @@ User request: ${job.input}`;
       job.id,
       `JSON parse failed: ${err instanceof Error ? err.message : String(err)}`,
     );
+    // SAFE FALLBACK - Do NOT leak raw content
     parsed = {
-      plan: "Direct response",
+      plan: "Failed to parse plan",
       steps: [],
-      response: response.content.substring(0, 2000), // Truncate for safety
+      response: "I encountered an error trying to plan this task. Please try again or rephrase.",
       needs_executor: false,
       tools_needed: [],
     };

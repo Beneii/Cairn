@@ -4,6 +4,7 @@ import { Plus, X, ArrowRight, Flag, Calendar, Activity, CheckCircle, Circle, Arc
 import { Goal } from "../types";
 import { PageLayout } from "../PageLayout";
 import { PageContent } from "../PageContent";
+import { useTheme } from "../../../theme";
 
 interface GoalsPageProps {
     nav: React.ReactNode;
@@ -19,13 +20,11 @@ export function GoalsPage({ nav, goals, createGoal, updateGoal, deleteGoal, dark
     const [newTitle, setNewTitle] = useState("");
     const [newDef, setNewDef] = useState("");
     const [error, setError] = useState<string | null>(null);
+    const theme = useTheme(darkMode);
 
     const activeGoals = goals.filter(g => g.status === "active");
     const otherGoals = goals.filter(g => g.status !== "active");
     const canCreate = activeGoals.length < 3;
-
-    const cardBg = darkMode ? '#2A2A2A' : '#FFFFFF';
-    const border = darkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)';
 
     const handleCreate = () => {
         if (!newTitle.trim() || !newDef.trim()) return;
@@ -79,7 +78,7 @@ export function GoalsPage({ nav, goals, createGoal, updateGoal, deleteGoal, dark
                                             onChange={e => setNewTitle(e.target.value)}
                                             placeholder="e.g., Launch MVP"
                                             className="w-full bg-transparent border-b p-1 focus:outline-none focus:border-green-500 transition-colors"
-                                            style={{ borderColor: border }}
+                                            style={{ borderColor: theme.border }}
                                         />
                                     </div>
                                     <div>
@@ -89,7 +88,7 @@ export function GoalsPage({ nav, goals, createGoal, updateGoal, deleteGoal, dark
                                             onChange={e => setNewDef(e.target.value)}
                                             placeholder="What does success look like?"
                                             className="w-full bg-transparent border p-2 rounded text-sm focus:outline-none focus:border-green-500 transition-colors"
-                                            style={{ borderColor: border }}
+                                            style={{ borderColor: theme.border }}
                                             rows={3}
                                         />
                                     </div>
@@ -110,7 +109,7 @@ export function GoalsPage({ nav, goals, createGoal, updateGoal, deleteGoal, dark
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             {activeGoals.map(goal => (
-                                <div key={goal.id} className="p-5 rounded-xl border relative group" style={{ backgroundColor: cardBg, borderColor: border }}>
+                                <div key={goal.id} className="p-5 rounded-xl border relative group" style={{ backgroundColor: theme.cardBg, borderColor: theme.border }}>
                                     <div className="flex justify-between items-start mb-2">
                                         <div className="font-bold text-lg">{goal.title}</div>
                                         <div className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold tracking-widest ${goal.status === 'active' ? 'bg-green-500/20 text-green-500' : 'bg-gray-500/20 text-gray-500'
@@ -137,7 +136,7 @@ export function GoalsPage({ nav, goals, createGoal, updateGoal, deleteGoal, dark
 
                                     {/* Timeline Preview */}
                                     {goal.timeline && goal.timeline.length > 0 && (
-                                        <div className="mb-4 pl-3 border-l-2 border-dashed opacity-70" style={{ borderColor: border }}>
+                                        <div className="mb-4 pl-3 border-l-2 border-dashed opacity-70" style={{ borderColor: theme.border }}>
                                             {goal.timeline.slice(-2).map(event => (
                                                 <div key={event.id} className="text-[10px] mb-1">
                                                     <span className="opacity-50">{event.timestamp}</span> <span className="font-medium">{event.message}</span>
@@ -146,7 +145,7 @@ export function GoalsPage({ nav, goals, createGoal, updateGoal, deleteGoal, dark
                                         </div>
                                     )}
 
-                                    <div className="pt-3 border-t flex justify-between items-center" style={{ borderColor: border }}>
+                                    <div className="pt-3 border-t flex justify-between items-center" style={{ borderColor: theme.border }}>
                                         <div className="text-[10px] opacity-40">
                                             Created {new Date(goal.created_at).toLocaleDateString()}
                                         </div>
@@ -154,7 +153,7 @@ export function GoalsPage({ nav, goals, createGoal, updateGoal, deleteGoal, dark
                                             <button
                                                 onClick={() => updateGoal(goal.id, { status: 'paused' })}
                                                 title="Pause Goal"
-                                                className="p-1 hover:bg-white/10 rounded"
+                                                className="p-1 rounded opacity-60 hover:opacity-100"
                                             >
                                                 <Circle size={14} />
                                             </button>
@@ -171,7 +170,7 @@ export function GoalsPage({ nav, goals, createGoal, updateGoal, deleteGoal, dark
                             ))}
 
                             {activeGoals.length === 0 && !isCreating && (
-                                <div className="col-span-full py-12 text-center opacity-30 border-2 border-dashed rounded-xl" style={{ borderColor: border }}>
+                                <div className="col-span-full py-12 text-center opacity-30 border-2 border-dashed rounded-xl" style={{ borderColor: theme.border }}>
                                     No active goals. Create one to guide Cairn.
                                 </div>
                             )}
@@ -186,7 +185,7 @@ export function GoalsPage({ nav, goals, createGoal, updateGoal, deleteGoal, dark
                             </h2>
                             <div className="space-y-2">
                                 {otherGoals.map(goal => (
-                                    <div key={goal.id} className="p-3 rounded-lg border flex items-center justify-between" style={{ backgroundColor: cardBg, borderColor: border }}>
+                                    <div key={goal.id} className="p-3 rounded-lg border flex items-center justify-between" style={{ backgroundColor: theme.cardBg, borderColor: theme.border }}>
                                         <div className="flex items-center gap-3">
                                             <div className={`w-2 h-2 rounded-full ${goal.status === 'completed' ? 'bg-green-500' :
                                                 goal.status === 'paused' ? 'bg-yellow-500' :

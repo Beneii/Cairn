@@ -2,6 +2,7 @@ import express from "express";
 import { createServer } from "http";
 import { WebSocketServer } from "ws";
 import fs from "fs";
+import { readFile, writeFile } from "fs/promises";
 import path from "path";
 import dotenv from "dotenv";
 import { getProjectRoot } from "@cairn/shared";
@@ -242,14 +243,14 @@ async function main() {
     // Save refresh token to .env
     const envPath = path.join(PROJECT_ROOT, ".env");
     let envContent = "";
-    try { envContent = fs.readFileSync(envPath, "utf-8"); } catch { }
+    try { envContent = await readFile(envPath, "utf-8"); } catch { }
 
     if (envContent.includes("GOOGLE_REFRESH_TOKEN=")) {
       envContent = envContent.replace(/GOOGLE_REFRESH_TOKEN=.*/, `GOOGLE_REFRESH_TOKEN=${refreshToken}`);
     } else {
       envContent += `\nGOOGLE_REFRESH_TOKEN=${refreshToken}\n`;
     }
-    fs.writeFileSync(envPath, envContent);
+    await writeFile(envPath, envContent);
     process.env.GOOGLE_REFRESH_TOKEN = refreshToken;
 
     // Re-init calendar provider with real Google data
@@ -343,16 +344,15 @@ async function main() {
     socket.on("message", async (raw) => {
       try {
         const msg: ClientMessage = JSON.parse(raw.toString());
-        const authz = authorizeMessage(session, (msg as any).type);
+        const authz = authorizeMessage(session, msg.type);
         if (!authz.allowed) {
           socket.send(JSON.stringify({ type: "error", message: authz.reason || "Denied" }));
           return;
         }
 
-        if ((msg as any).type === "auth:mobile") {
+        if (msg.type === "auth:mobile") {
           const expectedToken = getMobileAuthToken();
-          const token = (msg as any).token as string | undefined;
-          if (!expectedToken || token !== expectedToken) {
+          if (!expectedToken || msg.token !== expectedToken) {
             socket.send(JSON.stringify({ type: "error", message: "Invalid mobile auth token" }));
             return;
           }
@@ -373,6 +373,10 @@ async function main() {
             break;
           }
           case "chat:send": {
+            if (!msg.text || msg.text.length > 10000) {
+              socket.send(JSON.stringify({ type: "error", message: "Message too long (max 10000 chars)" }));
+              break;
+            }
             // Record that user is messaging from dashboard
             recordMessageSource("dashboard");
             console.log(`[gateway] chat:send received. Text: "${msg.text.substring(0, 20)}...", Attachments: ${msg.attachments?.length || 0}`);
@@ -560,7 +564,10 @@ async function main() {
             break;
           }
           case "goal:create": {
-            const goal = createGoalFactory(msg.title, { success_definition: msg.success_definition });
+            const title = (msg.title || "").slice(0, 200);
+            const successDef = (msg.success_definition || "").slice(0, 1000);
+            if (!title) { socket.send(JSON.stringify({ type: "error", message: "Goal title required" })); break; }
+            const goal = createGoalFactory(title, { success_definition: successDef });
 
             // Add initial timeline event
             goal.timeline = [{
@@ -602,8 +609,10 @@ async function main() {
             break;
           }
           case "task:create": {
+            const taskTitle = (msg.title || "").slice(0, 200);
+            if (!taskTitle) { socket.send(JSON.stringify({ type: "error", message: "Task title required" })); break; }
             createTask({
-              title: msg.title,
+              title: taskTitle,
               type: msg.taskType,
               // Map schedule to fields
               due_date: msg.schedule?.due,
@@ -702,3 +711,12 @@ main().catch((err) => {
   console.error("[gateway] fatal error:", err);
   process.exit(1);
 });
+
+// Graceful shutdown
+function shutdown(signal: string) {
+  console.log(`[gateway] ${signal} received, shutting down...`);
+  bus.removeAllListeners();
+  process.exit(0);
+}
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("SIGINT", () => shutdown("SIGINT"));

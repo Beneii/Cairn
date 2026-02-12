@@ -7,6 +7,7 @@ import { PageContent } from "../PageContent";
 import { DocumentViewer } from "../DocumentViewer";
 import { JobTrace } from "../JobTrace";
 import type { Job } from "../types";
+import { useTheme } from "../../../theme";
 
 interface ArchivePageProps {
   nav: ReactNode;
@@ -55,16 +56,12 @@ export function ArchivePage({
   const [selectedDoc, setSelectedDoc] = useState<{ title: string, content: string } | null>(null);
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const theme = useTheme(darkMode);
 
   useEffect(() => {
     onRefreshLogs();
     onRefreshSystemDocs();
   }, [onRefreshLogs, onRefreshSystemDocs]);
-
-  const border = darkMode ? 'rgba(255,255,255,0.1)' : 'rgba(26,29,33,0.1)';
-  const cardBg = darkMode ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.4)';
-  const subtleBg = darkMode ? 'rgba(255,255,255,0.05)' : 'rgba(26,29,33,0.05)';
-  const toggleActiveBg = darkMode ? 'rgba(255,255,255,0.15)' : '#ffffff';
 
   const archivedCards = useMemo(() => {
     return cards.filter(c => c.archived).sort((a, b) => {
@@ -95,7 +92,7 @@ export function ArchivePage({
     <button
       onClick={() => setActiveTab(id)}
       className="px-4 py-2 rounded-md text-xs font-bold uppercase tracking-widest transition-all flex items-center gap-2"
-      style={activeTab === id ? { backgroundColor: toggleActiveBg, color: darkMode ? '#fff' : '#000' } : { opacity: 0.4 }}
+      style={activeTab === id ? { backgroundColor: theme.activeBg, color: theme.fg } : { opacity: 0.4 }}
     >
       {icon}
       {label}
@@ -114,7 +111,7 @@ export function ArchivePage({
         darkMode={darkMode}
       >
         {/* Main Tab Switcher */}
-        <div className="flex items-center gap-2 mb-8 p-1 rounded-xl" style={{ backgroundColor: subtleBg }}>
+        <div className="flex items-center gap-2 mb-8 p-1 rounded-xl" style={{ backgroundColor: theme.subtleBg }}>
           {renderTabButton("tasks", "Tasks", <Folder size={14} />)}
           {renderTabButton("logs", "Daily Logs", <Clock size={14} />)}
           {renderTabButton("system", "System", <BookOpen size={14} />)}
@@ -125,11 +122,13 @@ export function ArchivePage({
             <div className="flex gap-2 mb-4">
               <button
                 onClick={() => setTaskViewMode("recent")}
-                className={`px-3 py-1 rounded text-[10px] font-bold uppercase tracking-tighter ${taskViewMode === 'recent' ? 'bg-white text-black' : 'opacity-40'}`}
+                className="px-3 py-1 rounded text-[10px] font-bold uppercase tracking-tighter transition-all"
+                style={taskViewMode === 'recent' ? { backgroundColor: theme.activeBg, opacity: 1 } : { opacity: 0.4 }}
               >Timeline</button>
               <button
                 onClick={() => setTaskViewMode("byProject")}
-                className={`px-3 py-1 rounded text-[10px] font-bold uppercase tracking-tighter ${taskViewMode === 'byProject' ? 'bg-white text-black' : 'opacity-40'}`}
+                className="px-3 py-1 rounded text-[10px] font-bold uppercase tracking-tighter transition-all"
+                style={taskViewMode === 'byProject' ? { backgroundColor: theme.activeBg, opacity: 1 } : { opacity: 0.4 }}
               >Projects</button>
             </div>
 
@@ -138,7 +137,7 @@ export function ArchivePage({
             ) : taskViewMode === "recent" ? (
               <div className="space-y-2">
                 {archivedCards.map(card => (
-                  <div key={card.id} className="group flex items-center justify-between p-4 rounded-xl border border-white/5 bg-white/5">
+                  <div key={card.id} className="group flex items-center justify-between p-4 rounded-xl border" style={{ borderColor: theme.border, backgroundColor: theme.cardBg }}>
                     <div
                       className={card.jobId ? "cursor-pointer hover:opacity-100 opacity-80" : ""}
                       onClick={() => {
@@ -156,7 +155,7 @@ export function ArchivePage({
                         {card.project || 'General'} • {formatDate(card.archivedAt)}
                       </div>
                     </div>
-                    <button onClick={() => onRestore(card.id)} className="p-2 opacity-0 group-hover:opacity-100 hover:bg-white/10 rounded-lg transition-all">
+                    <button onClick={() => onRestore(card.id)} className="p-2 opacity-0 group-hover:opacity-100 rounded-lg transition-all hover:bg-current/10">
                       <RotateCcw size={14} />
                     </button>
                   </div>
@@ -173,7 +172,7 @@ export function ArchivePage({
                     </div>
                     <div className="space-y-2">
                       {projectCards.map(card => (
-                        <div key={card.id} className="p-4 rounded-xl border border-white/5 bg-white/5 flex items-center justify-between">
+                        <div key={card.id} className="p-4 rounded-xl border flex items-center justify-between" style={{ borderColor: theme.border }}>
                           <div className="text-sm">{card.title}</div>
                           <button onClick={() => onRestore(card.id)} className="p-2 opacity-40 hover:opacity-100"><RotateCcw size={14} /></button>
                         </div>
@@ -193,7 +192,8 @@ export function ArchivePage({
               <input
                 type="text"
                 placeholder="Search logs..."
-                className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-10 pr-4 text-sm"
+                className="w-full rounded-xl py-3 pl-10 pr-4 text-sm outline-none"
+                style={{ backgroundColor: theme.subtleBg, border: `1px solid ${theme.border}`, color: 'inherit' }}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
@@ -203,11 +203,12 @@ export function ArchivePage({
                 <button
                   key={log.id}
                   onClick={() => setSelectedDoc(log)}
-                  className="p-6 rounded-2xl border border-white/5 bg-white/5 text-left hover:border-white/20 transition-all group"
+                  className="p-6 rounded-2xl text-left transition-all group"
+                  style={{ border: `1px solid ${theme.border}`, backgroundColor: theme.cardBg }}
                 >
                   <div className="flex items-center justify-between mb-3">
-                    <div className="p-2 rounded-lg bg-white/5 group-hover:bg-white/10 transition-colors">
-                      <Clock size={18} className="text-white/60" />
+                    <div className="p-2 rounded-lg transition-colors" style={{ backgroundColor: theme.subtleBg }}>
+                      <Clock size={18} className="opacity-60" />
                     </div>
                     <div className="text-[10px] font-bold uppercase tracking-widest opacity-30">
                       {formatDate(log.promoted_at)}
@@ -230,10 +231,11 @@ export function ArchivePage({
               <button
                 key={doc.id}
                 onClick={() => setSelectedDoc(doc)}
-                className="p-6 rounded-2xl border border-white/5 bg-white/5 text-left hover:border-white/20 transition-all group"
+                className="p-6 rounded-2xl text-left transition-all group"
+                style={{ border: `1px solid ${theme.border}`, backgroundColor: theme.cardBg }}
               >
-                <div className="p-2 w-fit rounded-lg bg-white/5 mb-4 group-hover:bg-white/10 transition-colors">
-                  <FileText size={20} className="text-white/60" />
+                <div className="p-2 w-fit rounded-lg mb-4 transition-colors" style={{ backgroundColor: theme.subtleBg }}>
+                  <FileText size={20} className="opacity-60" />
                 </div>
                 <h3 className="text-sm font-black uppercase tracking-widest mb-1">{doc.title}</h3>
                 <div className="text-[10px] opacity-30 uppercase font-bold tracking-tighter">System Blueprint</div>

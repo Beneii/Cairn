@@ -101,6 +101,16 @@ export async function callLLM(
       };
     } catch (err) {
       console.error(`[llm] Local mode call failed for ${nodeName}:`, err);
+
+      // Enhance error message for common Ollama issues
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes("404")) {
+        throw new Error(`Local model '${localModel}' not found. logical name: ${nodeName}. Run 'ollama pull ${localModel}' to fix.`);
+      }
+      if (msg.includes("fetch failed") || msg.includes("ECONNREFUSED")) {
+        throw new Error(`Ollama is not running. Start it with 'ollama serve'.`);
+      }
+
       throw err;
     }
   }
