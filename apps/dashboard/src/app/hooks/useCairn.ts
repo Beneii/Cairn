@@ -117,9 +117,11 @@ export function useCairn() {
 
       socket.onopen = () => {
         if (!mountedRef.current) { socket.close(); return; }
-        if (dashboardAuthToken) {
-          socket.send(JSON.stringify({ type: "auth:dashboard", token: dashboardAuthToken }));
-        }
+
+        // Always send auth:dashboard (with token if available) to upgrade session capabilities
+        console.log("[cairn] sending auth:dashboard", { hasToken: !!dashboardAuthToken });
+        socket.send(JSON.stringify({ type: "auth:dashboard", token: dashboardAuthToken }));
+
         setState((s) => ({
           ...s,
           connected: true,
@@ -205,6 +207,7 @@ export function useCairn() {
               }));
               break;
             case "dashboard:authenticated":
+              console.log("[cairn] session authenticated by server");
               break;
           }
         } catch {
