@@ -123,8 +123,15 @@ export function Chat({ messages, onSend, className, darkMode = false }: ChatProp
           </div>
         )}
         {/* Input row */}
-        <div className="flex items-center gap-2">
+        <form
+          className="flex items-center gap-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            handleSubmit();
+          }}
+        >
           <button
+            type="button"
             onClick={() => fileInputRef.current?.click()}
             className="opacity-30 hover:opacity-70 transition-opacity shrink-0"
             title="Attach image"
@@ -135,10 +142,11 @@ export function Chat({ messages, onSend, className, darkMode = false }: ChatProp
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
+            // onKeyDown removed - handled by form submission
             placeholder="Type to Cairn..."
             className="flex-1 bg-transparent outline-none placeholder:opacity-30"
           />
+          <button type="submit" className="hidden" /> {/* Implicit submission on Enter */}
           <input
             ref={fileInputRef}
             type="file"
@@ -147,7 +155,7 @@ export function Chat({ messages, onSend, className, darkMode = false }: ChatProp
             onChange={handleFileSelect}
             className="hidden"
           />
-        </div>
+        </form>
       </div>
     </div>
   );

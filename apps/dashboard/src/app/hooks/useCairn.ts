@@ -228,11 +228,22 @@ export function useCairn() {
   }, [wsUrl, dashboardAuthToken]);
 
   const sendChat = useCallback((text: string, attachments?: ChatAttachment[]) => {
+    console.log("sendMessage called with:", text);
     const payload: Record<string, unknown> = { type: "chat:send", text };
     if (attachments && attachments.length > 0) {
       payload.attachments = attachments;
     }
-    wsRef.current?.send(JSON.stringify(payload));
+
+    const ws = wsRef.current;
+    console.log("WS state:", ws?.readyState);
+
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      console.log("Sending payload:", payload);
+      ws.send(JSON.stringify(payload));
+    } else {
+      console.warn("WebSocket not open, cannot send message. State:", ws?.readyState);
+      // Optionally queue message or show error toast
+    }
   }, []);
 
   const createNote = useCallback((content: string) => {
