@@ -238,7 +238,8 @@ export function useCairn() {
     console.log("WS state:", ws?.readyState);
 
     if (ws && ws.readyState === WebSocket.OPEN) {
-      console.log("Sending payload:", payload);
+      console.log("Raw payload:", payload);
+      console.log("Serialized:", JSON.stringify(payload));
       ws.send(JSON.stringify(payload));
     } else {
       console.warn("WebSocket not open, cannot send message. State:", ws?.readyState);
