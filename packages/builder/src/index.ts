@@ -25,14 +25,17 @@ export async function runNightlyBuilder(manualIssues?: any[]): Promise<void> {
         let issues = manualIssues || await getIssueBacklog("open");
         if (issues.length === 0) {
             console.log("[builder] No open issues to process.");
+            bus.emit("builder:progress", "No open issues found.");
+            bus.emit("builder:status", "completed");
             return;
         }
 
         // 2. Generate Spec
-        bus.emit("builder:progress", "Generating design spec...");
+        bus.emit("builder:progress", `Found ${issues.length} issues. Generating design spec...`);
         const spec = await generateSpec(issues);
 
         // 3. Run Worker
+        bus.emit("builder:progress", "Starting build process...");
         const worker = new BranchWorker(spec);
         await worker.run();
 
@@ -46,10 +49,12 @@ export async function runNightlyBuilder(manualIssues?: any[]): Promise<void> {
 
         bus.emit("builder:report", report);
         bus.emit("builder:status", "completed");
+        bus.emit("builder:progress", "Build completed successfully.");
 
     } catch (err) {
         console.error("[builder] Nightly run failed:", err);
         bus.emit("builder:status", "failed");
+        bus.emit("builder:progress", `Error: ${err}`);
     } finally {
         isRunning = false;
     }

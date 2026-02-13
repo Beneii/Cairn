@@ -19,14 +19,11 @@ interface AgentModel {
  * 7 unique models — some shared across roles.
  */
 const REQUIRED_MODELS: AgentModel[] = [
-    { id: "phi3.5:latest",              roles: "Gatekeeper, Orchestrator, Web Agent",  size_gb: 2.2 },
-    { id: "gemma3:12b",                 roles: "Planner (reasoning)",                  size_gb: 8.1 },
-    { id: "phi3:mini",                  roles: "Executor (tool runner)",               size_gb: 2.2 },
-    { id: "gemma3:4b",                  roles: "Verifier, Personal Worker",            size_gb: 3.3 },
-    { id: "mistral:7b-instruct",        roles: "Responder, Ops Worker, Product Worker",size_gb: 4.1 },
-    { id: "deepseek-coder-v2:6.7b",     roles: "Build Worker (code)",                  size_gb: 3.8 },
-    { id: "qwen2.5:7b",                 roles: "Knowledge Worker (research)",          size_gb: 4.7 },
-    { id: "llava-llama3:8b",             roles: "Vision Worker (image/OCR/UI)",         size_gb: 4.7 },
+    { id: "phi3.5:latest", roles: "Gatekeeper, Orchestrator, Web Agent", size_gb: 2.2 },
+    { id: "qwen2.5-coder:7b", roles: "Planner, Builder, Critic", size_gb: 4.7 },
+    { id: "phi3:mini", roles: "Executor (tool runner)", size_gb: 2.2 },
+    { id: "mistral:7b-instruct", roles: "Responder, Ops Worker", size_gb: 4.1 },
+    { id: "llava-llama3:8b", roles: "Vision Worker (image/OCR/UI)", size_gb: 4.7 },
 ];
 
 interface DownloadProgress {
