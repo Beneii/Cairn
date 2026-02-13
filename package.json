@@ -14,10 +14,10 @@
     "login:google": "npx tsx scripts/browser-login.ts"
   },
   "devDependencies": {
-    "turbo": "^2.0.0",
-    "typescript": "^5.5.0",
     "ts-node": "^10.9.2",
-    "tsx": "^4.7.1"
+    "tsx": "^4.7.1",
+    "turbo": "^2.0.0",
+    "typescript": "^5.5.0"
   },
   "engines": {
     "node": ">=20.0.0",
@@ -27,6 +27,16 @@
     "overrides": {
       "react": "18.3.1",
       "react-dom": "18.3.1"
-    }
+    },
+    "allowedBuildDependencies": [
+      "better-sqlite3",
+      "esbuild",
+      "@tailwindcss/oxide"
+    ],
+    "onlyBuiltDependencies": [
+      "@tailwindcss/oxide",
+      "better-sqlite3",
+      "esbuild"
+    ]
   }
 }
