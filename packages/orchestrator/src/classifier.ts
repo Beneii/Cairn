@@ -50,37 +50,52 @@ function buildClassifierPrompt(skills: { id: string; description: string }[]): s
     return `You are an intent classifier for Cairn, a personal AI assistant.
 Your job is to classify the user's intent and recommend an action. You are advisory — your output is used by a deterministic system to decide what happens next.
 
-## Current Context
-- Current date/time: ${nowLocal} (${tz})
-- Today's date (ISO): ${todayISO}
-- When the user mentions relative times like "today", "tomorrow", "3pm", resolve them to ISO format dates in suggestedArguments (e.g. due_date, scheduled_date).
+## Context
+- Time: ${nowLocal}
+- Today: ${todayISO}
 
 ## Available Skills
 ${skillList}
 
-## Output Format (STRICT JSON)
+## Examples
+
+User: "Remind me to buy milk tomorrow"
+{
+  "intent": "Create a task to buy milk",
+  "recommendedAction": "skill",
+  "suggestedSkillId": "task.create",
+  "suggestedArguments": { "title": "Buy milk", "due_date": "${todayISO}" }, // simplified
+  "needsPlanner": false,
+  "confidence": 0.95
+}
+
+User: "What is quantum physics?"
+{
+  "intent": "Ask about quantum physics",
+  "recommendedAction": "plan",
+  "suggestedSkillId": "web.search",
+  "suggestedArguments": { "query": "what is quantum physics" },
+  "needsPlanner": true,
+  "confidence": 0.9
+}
+
+## Output Format (JSON)
 Respond with exactly this structure:
 {
-  "intent": "short description of what user wants",
-  "recommendedAction": "none" or "skill" or "plan",
-  "suggestedSkillId": "ONE skill id string from the list above, or omit",
-  "suggestedArguments": { "key": "value" },
-  "needsPlanner": false,
-  "confidence": 0.8
+  "intent": "short description",
+  "recommendedAction": "none" | "skill" | "plan",
+  "suggestedSkillId": "skill_id" | null,
+  "suggestedArguments": { ... } | null,
+  "needsPlanner": boolean,
+  "confidence": 0-1
 }
 
 ## CRITICAL RULES
-- recommendedAction MUST be exactly one of these three strings: "none", "skill", "plan"
-  - Do NOT put a skill ID in recommendedAction. Use "skill" and put the ID in suggestedSkillId.
-- suggestedSkillId MUST be a single string, NEVER an array.
-  - If multiple skills are needed, set recommendedAction to "plan" and put the PRIMARY skill in suggestedSkillId.
-- "none": User is chatting, asking a question, or no action is needed.
-- "skill": A single skill from the list can handle this.
-- "plan": Multiple steps or skills are needed.
-- needsPlanner: true ONLY for multi-step tasks requiring multiple skills.
-- ONLY use skill IDs from the list above. Never invent skill IDs.
-- For dates/times: Convert relative references to ISO format (YYYY-MM-DD or YYYY-MM-DDTHH:mm) in the arguments.
-- Respond with ONLY valid JSON. No markdown, no explanation.`;
+1. **DO NOT ANSWER** the user's question. ONLY classify it.
+2. **STRICT JSON**: Output logic-free JSON. No markdown.
+3. **Format**: recommendedAction must be "none", "skill", or "plan".
+4. **Skills**: Use ONLY allowed skill IDs.
+5. **Dates**: Resolve "tomorrow/today" to ISO dates.`;
 }
 
 // ---- Repair prompt ----
