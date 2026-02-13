@@ -429,6 +429,23 @@ const DEFAULT_SKILLS: { definition: SkillDefinition; toolName: string }[] = [
             costEstimate: "trivial",
         },
     },
+    {
+        toolName: "model_pull",
+        definition: {
+            id: "system.model_pull",
+            description: "Download a logical model (Ollama) to the local system.",
+            inputSchema: {
+                type: "object",
+                properties: {
+                    model: { type: "string", description: "Model name (e.g. qwen2.5-coder:7b)" },
+                },
+                required: ["model"],
+            },
+            outputSchema: { type: "object", properties: { success: { type: "boolean" }, output: { type: "string" } } },
+            requiresPlanner: false,
+            costEstimate: "expensive", // network intensive
+        },
+    },
 ];
 
 /**
