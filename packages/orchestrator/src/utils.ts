@@ -1,26 +1,76 @@
+const CODE_FENCE_RE = /^```(?:json)?\s*|\s*```$/gi;
 
-export function extractPlannerJson(text: string): any {
-    // 1. Remove markdown code fences
-    const cleaned = text
-        .trim()
-        .replace(/^```json/i, "")
-        .replace(/^```/, "")
-        .replace(/```$/, "")
-        .trim();
+function stripCodeFences(text: string): string {
+  return text.trim().replace(CODE_FENCE_RE, "").trim();
+}
 
-    // 2. Find the first valid JSON object block
-    // This regex looks for the first '{' and the last '}' that might form a valid object
-    // It's a heuristic but works for standard LLM outputs
-    const match = cleaned.match(/\{[\s\S]*\}/);
+function extractJsonObject(text: string): string | null {
+  const cleaned = stripCodeFences(text);
+  const start = cleaned.indexOf("{");
+  if (start === -1) return null;
 
-    if (!match) {
-        throw new Error("No JSON object found in planner output");
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+
+  for (let i = start; i < cleaned.length; i++) {
+    const ch = cleaned[i];
+
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+
+      if (ch === "\\") {
+        escaped = true;
+        continue;
+      }
+
+      if (ch === '"') {
+        inString = false;
+      }
+      continue;
     }
 
-    // 3. Parse safely
-    try {
-        return JSON.parse(match[0]);
-    } catch (err) {
-        throw new Error(`Failed to parse extracted JSON: ${err instanceof Error ? err.message : String(err)}`);
+    if (ch === '"') {
+      inString = true;
+      continue;
     }
+
+    if (ch === "{") depth++;
+    if (ch === "}") {
+      depth--;
+      if (depth === 0) {
+        return cleaned.slice(start, i + 1);
+      }
+    }
+  }
+
+  return null;
+}
+
+export function parseJsonObjectFromLLM(text: string): Record<string, unknown> {
+  const extracted = extractJsonObject(text);
+  if (!extracted) {
+    throw new Error("No JSON object found in LLM output");
+  }
+
+  return JSON.parse(extracted) as Record<string, unknown>;
+}
+
+export async function repairJsonViaLLM(
+  raw: string,
+  callRepairModel: (input: string) => Promise<string>,
+): Promise<Record<string, unknown> | null> {
+  try {
+    const repaired = await callRepairModel(raw);
+    return parseJsonObjectFromLLM(repaired);
+  } catch {
+    return null;
+  }
+}
+
+export function sanitizeLogSnippet(text: string, maxLen = 300): string {
+  return text.replace(/\s+/g, " ").slice(0, maxLen);
 }
