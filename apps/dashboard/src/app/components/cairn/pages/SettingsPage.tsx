@@ -51,6 +51,11 @@ interface SettingsPageProps {
     };
     setLocalMode: (enabled: boolean) => void;
     nodes: Record<string, any>;
+    triggerUpdate?: () => void;
+    updateProgress?: {
+        stage: "idle" | "pulling" | "building" | "restarting" | "error";
+        message: string;
+    } | null;
 }
 
 /** Reusable toggle switch. */
@@ -382,6 +387,8 @@ export function SettingsPage(props: SettingsPageProps) {
                                     localModeEnabled={props.config.local_mode_enabled}
                                     nodes={props.nodes}
                                     setLocalMode={props.setLocalMode}
+                                    triggerUpdate={props.triggerUpdate}
+                                    updateProgress={props.updateProgress}
                                 />
                             </div>
                         )}

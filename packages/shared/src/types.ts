@@ -318,7 +318,8 @@ export type ClientMessage =
   | { type: "task:delete"; id: string }
   | { type: "job:get"; id: string }
   | { type: "archive:get_logs" }
-  | { type: "archive:get_system_docs" };
+  | { type: "archive:get_system_docs" }
+  | { type: "system:update" };
 
 export type ServerMessage =
   | { type: "pong" }
@@ -337,7 +338,8 @@ export type ServerMessage =
   | { type: "archive:system_docs"; docs: any[] }
   | { type: "job:details"; job: Job }
   | { type: "dashboard:authenticated"; success: boolean; capabilities?: string[] }
-  | { type: "mobile:authenticated"; success: boolean; capabilities?: string[] };
+  | { type: "mobile:authenticated"; success: boolean; capabilities?: string[] }
+  | { type: "system:update_progress"; stage: "pulling" | "building" | "restarting" | "error"; message: string };
 
 // ---- Cairn V2 Pipeline Types ----
 

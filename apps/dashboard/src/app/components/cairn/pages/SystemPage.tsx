@@ -1,4 +1,4 @@
-import { Wifi, WifiOff, ChevronDown, ChevronRight, Shield, Zap, Cpu } from "lucide-react";
+import { Wifi, WifiOff, ChevronDown, ChevronRight, Shield, Zap, Cpu, RefreshCw, Download } from "lucide-react";
 import { useState, useEffect } from "react";
 import type { ReactNode } from "react";
 import { getApiBase } from "../../../../config/runtime";
@@ -20,6 +20,11 @@ interface SystemSettingsProps {
     nodes: Record<string, any>;
     darkMode?: boolean;
     setLocalMode: (enabled: boolean) => void;
+    triggerUpdate?: () => void;
+    updateProgress?: {
+        stage: "idle" | "pulling" | "building" | "restarting" | "error";
+        message: string;
+    } | null;
 }
 
 function StatusDot({ ok }: { ok: boolean }) {
@@ -28,7 +33,7 @@ function StatusDot({ ok }: { ok: boolean }) {
     );
 }
 
-export function SystemSettings({ connected, diagnostics, localModeEnabled, nodes, darkMode = false, setLocalMode }: SystemSettingsProps) {
+export function SystemSettings({ connected, diagnostics, localModeEnabled, nodes, darkMode = false, setLocalMode, triggerUpdate, updateProgress }: SystemSettingsProps) {
     const [healthStatus, setHealthStatus] = useState<"checking" | "ok" | "error">("checking");
     const [healthDetail, setHealthDetail] = useState("");
     const [showNodes, setShowNodes] = useState(false);
@@ -110,6 +115,69 @@ export function SystemSettings({ connected, diagnostics, localModeEnabled, nodes
                     </div>
                 </div>
             </section>
+
+            {/* Self Update */}
+            {triggerUpdate && (
+                <section className="mb-8">
+                    <h3 className="text-xs uppercase tracking-widest opacity-50 mb-4 pb-2" style={{ borderBottom: `1px solid ${border}` }}>
+                        Updates
+                    </h3>
+                    <div className="p-4 rounded-lg border" style={{ backgroundColor: subtleBg, borderColor: border }}>
+                        <div className="flex items-center justify-between mb-2">
+                            <div>
+                                <div className="text-sm font-medium">Pull & Restart</div>
+                                <div className="text-xs opacity-60 max-w-md">
+                                    Pull latest changes from git, rebuild, and restart the gateway.
+                                </div>
+                            </div>
+                            <button
+                                onClick={triggerUpdate}
+                                disabled={!!updateProgress && updateProgress.stage !== "error" && updateProgress.stage !== "idle"}
+                                className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all"
+                                style={{
+                                    backgroundColor: updateProgress && updateProgress.stage !== "error" && updateProgress.stage !== "idle"
+                                        ? (darkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)')
+                                        : (darkMode ? '#E5E5E5' : '#1A1D21'),
+                                    color: updateProgress && updateProgress.stage !== "error" && updateProgress.stage !== "idle"
+                                        ? 'inherit'
+                                        : (darkMode ? '#1c1c1c' : '#F3F2EE'),
+                                    opacity: updateProgress && updateProgress.stage !== "error" && updateProgress.stage !== "idle" ? 0.5 : 1,
+                                    cursor: updateProgress && updateProgress.stage !== "error" && updateProgress.stage !== "idle" ? 'not-allowed' : 'pointer',
+                                }}
+                            >
+                                {updateProgress && updateProgress.stage !== "error" && updateProgress.stage !== "idle"
+                                    ? <RefreshCw size={14} className="animate-spin" />
+                                    : <Download size={14} />
+                                }
+                                {updateProgress && updateProgress.stage !== "error" && updateProgress.stage !== "idle"
+                                    ? "Updating..."
+                                    : "Update & Restart"
+                                }
+                            </button>
+                        </div>
+
+                        {updateProgress && (
+                            <div className="mt-3 pt-3 border-t" style={{ borderColor: border }}>
+                                <div className="flex items-center gap-2 text-xs">
+                                    <span
+                                        className="inline-block w-2 h-2 rounded-full"
+                                        style={{
+                                            backgroundColor:
+                                                updateProgress.stage === "error" ? "#ef4444" :
+                                                    updateProgress.stage === "restarting" ? "#f59e0b" :
+                                                        "#22c55e"
+                                        }}
+                                    />
+                                    <span className="uppercase tracking-wider opacity-60">{updateProgress.stage}</span>
+                                </div>
+                                <div className="text-xs opacity-70 mt-1 font-mono">
+                                    {updateProgress.message}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </section>
+            )}
 
             {/* Local Mode (Ollama) */}
             <section className="mb-8">

@@ -42,6 +42,10 @@ interface CairnState {
   archiveLogs: any[];
   archiveSystemDocs: any[];
   lastJobDetails: any | null;
+  updateProgress: {
+    stage: "idle" | "pulling" | "building" | "restarting" | "error";
+    message: string;
+  } | null;
   // Diagnostics
   diagnostics: {
     wsUrl: string;
@@ -72,6 +76,7 @@ export function useCairn() {
     archiveLogs: [],
     archiveSystemDocs: [],
     lastJobDetails: null,
+    updateProgress: null,
     config: {
       heartbeat_interval_ms: 60000,
       monthly_spend_limit_usd: 50,
@@ -208,6 +213,12 @@ export function useCairn() {
               break;
             case "dashboard:authenticated":
               console.log("[cairn] session authenticated by server");
+              break;
+            case "system:update_progress":
+              setState((s) => ({
+                ...s,
+                updateProgress: { stage: msg.stage, message: msg.message },
+              }));
               break;
           }
         } catch {
@@ -350,6 +361,11 @@ export function useCairn() {
     wsRef.current?.send(JSON.stringify({ type: "config:set_local_mode", enabled }));
   }, []);
 
+  const triggerUpdate = useCallback(() => {
+    setState((s) => ({ ...s, updateProgress: { stage: "pulling" as const, message: "Starting update..." } }));
+    wsRef.current?.send(JSON.stringify({ type: "system:update" }));
+  }, []);
+
   return {
     ...state,
     sendChat,
@@ -378,5 +394,6 @@ export function useCairn() {
     refreshSystemDocs,
     getJobDetails,
     setLocalMode,
+    triggerUpdate,
   };
 }
