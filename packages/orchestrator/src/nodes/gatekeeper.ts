@@ -8,6 +8,7 @@ import { z } from "zod";
 import { getActiveGoals } from "@cairn/goals";
 import { getTasks } from "@cairn/tasks";
 import { warmGet } from "@cairn/memory";
+import { parseJsonObjectFromLLM, repairJsonViaLLM, sanitizeLogSnippet } from "../utils.js";
 
 const SYSTEM_PROMPT = `You are the Cairn gatekeeper. You receive user messages and decide whether to handle them directly or route to the planner.
 
@@ -40,17 +41,65 @@ You know the user's active goals and tasks. Use this context to give better ackn
 - Keep acknowledgements brief (1 sentence)
 - When routing to planner, your acknowledgement is NOT shown — the planner/executor will respond`;
 
-// Zod schema for LLM response validation (security hardening)
+const JSON_REPAIR_PROMPT = `Return ONLY one valid JSON object. No prose, no markdown, no code fences.`;
+
 const GatekeeperResponseSchema = z.object({
   intent: z.enum(["greeting", "question", "task", "note"]),
   complexity: z.enum(["small", "medium", "large"]),
-  acknowledgement: z.string().max(500), // Limit output size
+  acknowledgement: z.string().min(1).max(500),
   needs_planner: z.boolean(),
   needs_web_agent: z.boolean(),
   is_task: z.boolean(),
 });
 
 import type { ChatAttachment } from "@cairn/shared";
+
+type GatekeeperParsed = z.infer<typeof GatekeeperResponseSchema>;
+
+
+const GREETING_RE = /^(hi|hello|hey|yo|sup|good\s+(morning|afternoon|evening)|thanks|thank you|ok|okay|cool|nice|great)\b[!.?\s]*$/i;
+const WEB_ACTION_RE = /\b(open|go to|navigate to|visit|search|click|login|sign in|browse|youtube|website|web page|google)\b/i;
+
+function normalizeGatekeeperSafeDefault(): GatekeeperParsed {
+  return {
+    intent: "greeting",
+    complexity: "small",
+    acknowledgement: "Sorry — routing failed. Please try again.",
+    needs_planner: false,
+    needs_web_agent: false,
+    is_task: false,
+  };
+}
+
+async function parseGatekeeperResponse(responseContent: string, configModel: string): Promise<GatekeeperParsed> {
+  try {
+    const parsed = GatekeeperResponseSchema.parse(parseJsonObjectFromLLM(responseContent));
+    return parsed;
+  } catch (parseErr) {
+    const repaired = await repairJsonViaLLM(responseContent, async (input) => {
+      const repair = await callLLM(
+        {
+          model: configModel,
+          systemPrompt: JSON_REPAIR_PROMPT,
+          userMessage: input,
+          maxTokens: 180,
+          responseFormat: "json_object",
+          temperature: 0,
+        },
+        "gatekeeper",
+        "pending",
+      );
+      return repair.content;
+    });
+
+    if (repaired) {
+      const validation = GatekeeperResponseSchema.safeParse(repaired);
+      if (validation.success) return validation.data;
+    }
+
+    throw parseErr;
+  }
+}
 
 export async function runGatekeeper(userInput: string, attachments?: ChatAttachment[]): Promise<Job> {
   const config = getNodeConfig("gatekeeper");
@@ -64,18 +113,15 @@ export async function runGatekeeper(userInput: string, attachments?: ChatAttachm
     "pending",
     `Gatekeeper processing: "${userInput.substring(0, 100)}"`,
   );
-  console.log(`[gatekeeper] Attachments received: ${attachments?.length || 0}`);
 
-  // IMMEDIATE ROUTING: If images are present, route directly to vision_worker
   if (attachments && attachments.length > 0) {
-    console.log(`[gatekeeper] Image detected, routing to vision_worker`);
     const job = createJob(userInput, attachments);
 
     updateJob(job.id, {
       intent: "task",
       complexity: "medium",
       nodes_traversed: ["gatekeeper"],
-      status: "running", // It's running because it needs to go to vision_worker
+      status: "running",
       metadata: { needs_vision: true }
     });
 
@@ -89,16 +135,74 @@ export async function runGatekeeper(userInput: string, attachments?: ChatAttachm
     };
   }
 
+  const trimmedInput = userInput.trim();
 
-  // Fetch context for better gating
+  if (GREETING_RE.test(trimmedInput)) {
+    const job = createJob(userInput);
+    const direct = {
+      intent: "greeting",
+      complexity: "small",
+      acknowledgement: "Hey — I’m here. What can I help with?",
+      needs_planner: false,
+      needs_web_agent: false,
+      is_task: false,
+    } satisfies GatekeeperParsed;
+
+    updateJob(job.id, {
+      intent: direct.intent,
+      complexity: direct.complexity,
+      nodes_traversed: ["gatekeeper"],
+      status: "done",
+      metadata: { is_task: direct.is_task, needs_web_agent: direct.needs_web_agent }
+    });
+
+    bus.emit("chat:message", {
+      id: newId(),
+      role: "cairn",
+      text: direct.acknowledgement,
+      timestamp: shortTime(),
+    });
+
+    return {
+      ...job,
+      intent: direct.intent,
+      complexity: direct.complexity,
+      nodes_traversed: ["gatekeeper"],
+      status: "done",
+      metadata: { is_task: direct.is_task, needs_web_agent: direct.needs_web_agent }
+    };
+  }
+
+  if (WEB_ACTION_RE.test(trimmedInput)) {
+    const job = createJob(userInput);
+
+    updateJob(job.id, {
+      intent: "task",
+      complexity: "medium",
+      nodes_traversed: ["gatekeeper"],
+      status: "running",
+      metadata: { is_task: true, needs_web_agent: true }
+    });
+
+    await appendEntry("agent", "gatekeeper", job.id, "Direct web-action routing: needs_web_agent=true");
+
+    return {
+      ...job,
+      intent: "task",
+      complexity: "medium",
+      nodes_traversed: ["gatekeeper"],
+      status: "running",
+      metadata: { is_task: true, needs_web_agent: true }
+    };
+  }
+
   const activeGoals = getActiveGoals();
   const history = warmGet<{ role: string; content: string }[]>("chat_history") || [];
+  const activeTasks = getTasks({ status: "todo" });
 
   const historyBlock = history.length > 0
     ? `\nRecent Chat History:\n${history.map(m => `${m.role}: ${m.content}`).join("\n")}`
     : "";
-
-  const activeTasks = getTasks({ status: "todo" });
 
   const goalsBlock = activeGoals.length > 0
     ? `\nActive Goals:\n${activeGoals.map(g => `- ${g.title}`).join("\n")}`
@@ -113,71 +217,30 @@ export async function runGatekeeper(userInput: string, attachments?: ChatAttachm
       model: config.assigned_model,
       systemPrompt: SYSTEM_PROMPT + goalsBlock + tasksBlock + historyBlock,
       userMessage: userInput,
-      maxTokens: config.max_tokens_per_call,
+      maxTokens: Math.min(config.max_tokens_per_call, 220),
       responseFormat: "json_object",
+      temperature: 0,
     },
     "gatekeeper",
     "pending",
   );
 
-  // Parse and validate LLM response with Zod
-  let parsed: {
-    intent: string;
-    complexity: string;
-    acknowledgement: string;
-    needs_planner: boolean;
-    needs_web_agent: boolean;
-    is_task: boolean;
-  };
+  let parsed: GatekeeperParsed;
 
   try {
-    const jsonParsed = JSON.parse(response.content);
-    const validationResult = GatekeeperResponseSchema.safeParse(jsonParsed);
-
-    if (!validationResult.success) {
-      console.error("[gatekeeper] Validation failed:", validationResult.error);
-      await appendEntry(
-        "agent",
-        "gatekeeper",
-        "error",
-        `LLM response validation failed: ${validationResult.error.message}`,
-      );
-      // Fall back to safe defaults
-      parsed = {
-        intent: "task",
-        complexity: "small",
-        acknowledgement: "Let me look into that.",
-        needs_planner: true,
-        needs_web_agent: false,
-        is_task: true,
-      };
-    } else {
-      parsed = validationResult.data;
-    }
+    parsed = await parseGatekeeperResponse(response.content, config.assigned_model);
   } catch (err) {
-    console.error("[gatekeeper] JSON parse error:", err);
+    console.error("[gatekeeper] parse/validation failed:", err);
     await appendEntry(
       "agent",
       "gatekeeper",
       "error",
-      `JSON parse failed: ${err instanceof Error ? err.message : String(err)}`,
+      `Gatekeeper parse failed. Raw snippet: ${sanitizeLogSnippet(response.content)}`,
     );
-    parsed = {
-      intent: "task",
-      complexity: "small",
-      acknowledgement: "Let me look into that.",
-      needs_planner: true,
-      needs_web_agent: false,
-      is_task: true,
-    };
+    parsed = normalizeGatekeeperSafeDefault();
   }
 
-  // Create and update job
   const job = createJob(userInput);
-  // Attach attachments to job immediately
-  if (attachments && attachments.length > 0) {
-    job.attachments = attachments;
-  }
 
   updateJob(job.id, {
     intent: parsed.intent,
@@ -188,8 +251,6 @@ export async function runGatekeeper(userInput: string, attachments?: ChatAttachm
     metadata: { is_task: parsed.is_task, needs_web_agent: parsed.needs_web_agent }
   });
 
-  // Send acknowledgement to UI ONLY if we're handling it directly
-  // If routing to planner, let planner/executor send the final response
   if (!parsed.needs_planner && !parsed.needs_web_agent) {
     bus.emit("chat:message", {
       id: newId(),
@@ -206,7 +267,6 @@ export async function runGatekeeper(userInput: string, attachments?: ChatAttachm
     `Intent: ${parsed.intent}, Complexity: ${parsed.complexity}, Needs planner: ${parsed.needs_planner}, Needs web_agent: ${parsed.needs_web_agent}`,
   );
 
-  // Return the latest state
   return {
     ...job,
     intent: parsed.intent,

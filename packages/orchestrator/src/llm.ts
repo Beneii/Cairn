@@ -37,6 +37,7 @@ export interface LLMRequest {
   userMessage: string;
   maxTokens: number;
   responseFormat?: "text" | "json_object";
+  temperature?: number;
   messages?: OpenAI.Chat.Completions.ChatCompletionMessageParam[];
   attachments?: ChatAttachment[];
 }
@@ -81,7 +82,9 @@ export async function callLLM(
             images
           }
         ],
-        stream: false
+        stream: false,
+        ...(req.responseFormat === "json_object" ? { format: "json" as const } : {}),
+        options: { temperature: req.temperature ?? 0 }
       });
 
       // 0 cost for local
@@ -162,6 +165,7 @@ export async function callLLM(
     model: req.model,
     messages: validMessages(messages),
     max_tokens: req.maxTokens,
+    temperature: req.temperature ?? 0,
     ...(req.responseFormat === "json_object"
       ? { response_format: { type: "json_object" } }
       : {}),
