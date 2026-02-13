@@ -338,3 +338,83 @@ export type ServerMessage =
   | { type: "job:details"; job: Job }
   | { type: "dashboard:authenticated"; success: boolean; capabilities?: string[] }
   | { type: "mobile:authenticated"; success: boolean; capabilities?: string[] };
+
+// ---- Cairn V2 Pipeline Types ----
+
+export interface CairnMessage {
+  messageId: string;
+  userText: string;
+  timestamp: string;
+  sessionId: string;
+  workingState?: Record<string, any>;
+  attachments?: ChatAttachment[];
+}
+
+export interface PreRouteDecision {
+  route: "DIRECT" | "LLM_CLASSIFY";
+  lockedIntent?: string;
+  directResponse?: string;
+  reason: string;
+}
+
+export interface IntentClassification {
+  intent: string;
+  recommendedAction: "none" | "skill" | "plan";
+  suggestedSkillId?: string;
+  suggestedArguments?: Record<string, any>;
+  needsPlanner: boolean;
+  confidence: number;
+}
+
+export interface ActionContract {
+  actionType: "none" | "skill" | "plan";
+  skillId?: string;
+  arguments?: Record<string, any>;
+  requiresConfirmation: boolean;
+  justification: string;
+  confidence: number;
+}
+
+export interface SkillDefinition {
+  id: string;
+  description: string;
+  inputSchema: Record<string, any>;
+  outputSchema: Record<string, any>;
+  requiresPlanner: boolean;
+  costEstimate?: "trivial" | "cheap" | "medium" | "expensive";
+  localOnly?: boolean;
+  maxInvocations?: number;
+  confirmationRequired?: boolean;
+}
+
+export interface Plan {
+  steps: PlanStep[];
+  maxToolCalls: number;
+  riskLevel: "low" | "medium" | "high";
+}
+
+export interface PlanStep {
+  skillId: string;
+  arguments: Record<string, any>;
+}
+
+export type FailureStatus =
+  | "SUCCESS"
+  | "PARSE_ERROR_CLASSIFIER"
+  | "CONTRACT_VALIDATION_FAIL"
+  | "SKILL_NOT_FOUND"
+  | "MODEL_NOT_AVAILABLE"
+  | "TOOL_TIMEOUT"
+  | "INFRASTRUCTURE_FAIL";
+
+export interface PipelineTrace {
+  messageId: string;
+  preRouteDecision: PreRouteDecision;
+  classifierOutput?: IntentClassification;
+  actionContract?: ActionContract;
+  plannerOutput?: Plan;
+  executionTrace?: { skillId: string; durationMs: number; success: boolean }[];
+  finalStatus: FailureStatus;
+  totalLatencyMs: number;
+  totalCostUsd: number;
+}
