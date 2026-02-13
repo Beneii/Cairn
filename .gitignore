@@ -11,6 +11,10 @@ build/
 .out/
 **/dist/
 **/build/
+src/**/*.js
+src/**/*.js.map
+src/**/*.d.ts
+src/**/*.d.ts.map
 
 # ---- cache / tooling ----
 *.tsbuildinfo
