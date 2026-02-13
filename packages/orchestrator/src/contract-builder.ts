@@ -58,8 +58,8 @@ export function buildContract(classification: IntentClassification): ContractRes
         return {
             contract: {
                 actionType: "plan",
-                skillId: skillId,
-                arguments: classification.suggestedArguments,
+                skillId: skillId ?? undefined,
+                arguments: classification.suggestedArguments ?? undefined,
                 requiresConfirmation: false,
                 justification: `Multi-step plan needed for: ${classification.intent}`,
                 confidence: classification.confidence,
