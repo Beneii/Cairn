@@ -2,6 +2,9 @@
 
 This tracks migration from legacy executor tools (`packages/executor/src/tools.ts`) to manifest tools (`packages/executor/src/manifest.ts` + `packages/executor/src/tools/*`).
 
+> [!NOTE]
+> The V2 pipeline uses a separate **Skill Registry** (`packages/orchestrator/src/skill-registry.ts`) that wraps legacy tools with typed schemas. This is a higher-level bridge, not part of the manifest migration. All 14 legacy tools are accessible as V2 skills regardless of manifest migration status.
+
 ## Runtime Gate
 
 `EXECUTOR_MANIFEST_MODE` controls behavior in `packages/executor/src/executor.ts`:
@@ -20,16 +23,15 @@ This tracks migration from legacy executor tools (`packages/executor/src/tools.t
 | `vector_search` | `vector_search` | mapped | Normalized score/source output |
 | `calendar_read` | `calendar.list_events` | mapped | Output adapted to `event_count/events` |
 
-## Not Yet Migrated (Legacy Only)
+## Not Yet Migrated to Manifest (Legacy Only)
+
+These remain as legacy implementations. They are accessible via V2 skills but not yet ported to the manifest tool format.
 
 - `web_search`
 - `gmail_read`
 - `ledger_write`
-- `goals_read`
-- `goals_update`
-- `tasks_read`
-- `tasks_create`
-- `tasks_complete`
+- `goals_read` / `goals_update`
+- `tasks_read` / `tasks_create` / `tasks_complete`
 - `research_ingest`
 - `note_create`
 - browser tools (`browser_*`)

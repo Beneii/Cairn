@@ -217,6 +217,9 @@ importers:
 
   apps/gateway:
     dependencies:
+      '@cairn/builder':
+        specifier: workspace:^
+        version: link:../../packages/builder
       '@cairn/executor':
         specifier: workspace:*
         version: link:../../packages/executor
@@ -399,6 +402,28 @@ importers:
         version: 25.2.0
       typescript:
         specifier: ^5.6.0
+        version: 5.9.3
+
+  packages/builder:
+    dependencies:
+      '@cairn/ledger':
+        specifier: workspace:*
+        version: link:../ledger
+      '@cairn/orchestrator':
+        specifier: workspace:*
+        version: link:../orchestrator
+      '@cairn/policy':
+        specifier: workspace:*
+        version: link:../policy
+      '@cairn/shared':
+        specifier: workspace:*
+        version: link:../shared
+      zod:
+        specifier: ^3.22.4
+        version: 3.25.76
+    devDependencies:
+      typescript:
+        specifier: ^5.3.3
         version: 5.9.3
 
   packages/executor:
@@ -591,6 +616,9 @@ importers:
 
   packages/scheduler:
     dependencies:
+      '@cairn/builder':
+        specifier: workspace:*
+        version: link:../builder
       '@cairn/goals':
         specifier: workspace:*
         version: link:../goals
@@ -4523,7 +4551,7 @@ packages:
 
   glob@7.1.6:
     resolution: {integrity: sha512-LwaxwyZ72Lk7vZINtNNrywX0ZuLyStrdDtabefZKAY5ZGJhVtgdznluResxNmPitE0SAO+O26sWTHeKSI2wMBA==}
-    deprecated: Glob versions prior to v9 are no longer supported
+    deprecated: Old versions of glob are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
 
   glob@7.2.3:
     resolution: {integrity: sha512-nFR0zLpU2YCaRxwoCJvL6UvCH2JFyFVIvwTLsIf21AuHlMskA1hhTdk+LlYJtOlYt9v6dvszD2BGRqBL+iQK9Q==}
@@ -15273,8 +15301,7 @@ snapshots:
 
   yocto-queue@0.1.0: {}
 
-  zod@3.25.76:
-    optional: true
+  zod@3.25.76: {}
 
   zod@4.3.6: {}
 

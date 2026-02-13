@@ -318,9 +318,10 @@ async function main() {
   bus.on("goals:updated", (goals) => {
     broadcast({ type: "goal:update", goals });
   });
-  bus.on("tasks:updated", (tasks) => {
-    broadcast({ type: "task:update", tasks });
-  });
+  bus.on("system:update_progress", (msg) => broadcast({ type: "system:update_progress", ...msg }));
+  bus.on("builder:status", (status) => broadcast({ type: "builder:status", status }));
+  bus.on("builder:progress", (message) => broadcast({ type: "builder:progress", message }));
+  bus.on("builder:report", (report) => broadcast({ type: "builder:report", report }));
 
   // 5. Handle WebSocket connections
   wss.on("connection", (socket, req) => {
@@ -345,6 +346,12 @@ async function main() {
     socket.send(JSON.stringify({ type: "goal:update", goals: getGoals() }));
     socket.send(JSON.stringify({ type: "task:update", tasks: getTasks() }));
 
+    // Send initial builder status (if running)
+    import("@cairn/builder").then(({ getBuilderStatus, getLatestReport }) => {
+      socket.send(JSON.stringify({ type: "builder:status", status: getBuilderStatus() }));
+      // Optionally send latest report? 
+    });
+
     socket.on("message", async (raw) => {
       try {
         const msg: ClientMessage = JSON.parse(raw.toString());
@@ -353,6 +360,13 @@ async function main() {
           socket.send(JSON.stringify({ type: "error", message: authz.reason || "Denied" }));
           return;
         }
+
+        if (msg.type === "builder:trigger") {
+          const { runNightlyBuilder } = await import("@cairn/builder");
+          runNightlyBuilder().catch(err => console.error("[gateway] Manual builder failed:", err));
+          return;
+        }
+
 
         if (msg.type === "auth:mobile") {
           const expectedToken = getMobileAuthToken();

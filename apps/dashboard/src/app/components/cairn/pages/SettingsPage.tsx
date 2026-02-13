@@ -56,6 +56,9 @@ interface SettingsPageProps {
         stage: "idle" | "pulling" | "building" | "restarting" | "error";
         message: string;
     } | null;
+    builderStatus?: "idle" | "running" | "failed" | "completed";
+    builderProgress?: string;
+    triggerBuilder?: () => void;
 }
 
 /** Reusable toggle switch. */
@@ -389,6 +392,9 @@ export function SettingsPage(props: SettingsPageProps) {
                                     setLocalMode={props.setLocalMode}
                                     triggerUpdate={props.triggerUpdate}
                                     updateProgress={props.updateProgress}
+                                    builderStatus={props.builderStatus}
+                                    builderProgress={props.builderProgress}
+                                    triggerBuilder={props.triggerBuilder}
                                 />
                             </div>
                         )}

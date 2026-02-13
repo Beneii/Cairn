@@ -192,6 +192,9 @@ export default function App() {
           setLocalMode={cairn.setLocalMode}
           triggerUpdate={cairn.triggerUpdate}
           updateProgress={cairn.updateProgress}
+          builderStatus={cairn.builder.status}
+          builderProgress={cairn.builder.progress}
+          triggerBuilder={cairn.triggerBuilder}
         />
       )}
       {currentView === 'goals' && (

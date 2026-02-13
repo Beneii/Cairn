@@ -55,6 +55,12 @@ interface CairnState {
     lastError: string | null;
     reconnectCount: number;
   };
+  // Builder
+  builder: {
+    status: "idle" | "running" | "failed" | "completed";
+    progress?: string;
+    lastReport?: any;
+  };
 }
 
 export function useCairn() {
@@ -101,6 +107,9 @@ export function useCairn() {
       lastPong: null,
       lastError: null,
       reconnectCount: 0,
+    },
+    builder: {
+      status: "idle",
     },
   });
 
@@ -219,6 +228,15 @@ export function useCairn() {
                 ...s,
                 updateProgress: { stage: msg.stage, message: msg.message },
               }));
+              break;
+            case "builder:status":
+              setState((s) => ({ ...s, builder: { ...s.builder, status: msg.status } }));
+              break;
+            case "builder:progress":
+              setState((s) => ({ ...s, builder: { ...s.builder, progress: msg.message } }));
+              break;
+            case "builder:report":
+              setState((s) => ({ ...s, builder: { ...s.builder, lastReport: msg.report } }));
               break;
           }
         } catch {
@@ -366,6 +384,10 @@ export function useCairn() {
     wsRef.current?.send(JSON.stringify({ type: "system:update" }));
   }, []);
 
+  const triggerBuilder = useCallback(() => {
+    wsRef.current?.send(JSON.stringify({ type: "builder:trigger" }));
+  }, []);
+
   return {
     ...state,
     sendChat,
@@ -395,5 +417,7 @@ export function useCairn() {
     getJobDetails,
     setLocalMode,
     triggerUpdate,
+    builder: state.builder,
+    triggerBuilder,
   };
 }

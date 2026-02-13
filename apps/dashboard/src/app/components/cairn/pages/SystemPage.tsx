@@ -25,6 +25,9 @@ interface SystemSettingsProps {
         stage: "idle" | "pulling" | "building" | "restarting" | "error";
         message: string;
     } | null;
+    builderStatus?: "idle" | "running" | "failed" | "completed";
+    builderProgress?: string;
+    triggerBuilder?: () => void;
 }
 
 function StatusDot({ ok }: { ok: boolean }) {
@@ -33,7 +36,7 @@ function StatusDot({ ok }: { ok: boolean }) {
     );
 }
 
-export function SystemSettings({ connected, diagnostics, localModeEnabled, nodes, darkMode = false, setLocalMode, triggerUpdate, updateProgress }: SystemSettingsProps) {
+export function SystemSettings({ connected, diagnostics, localModeEnabled, nodes, darkMode = false, setLocalMode, triggerUpdate, updateProgress, builderStatus, builderProgress, triggerBuilder }: SystemSettingsProps) {
     const [healthStatus, setHealthStatus] = useState<"checking" | "ok" | "error">("checking");
     const [healthDetail, setHealthDetail] = useState("");
     const [showNodes, setShowNodes] = useState(false);
@@ -173,6 +176,68 @@ export function SystemSettings({ connected, diagnostics, localModeEnabled, nodes
                                 <div className="text-xs opacity-70 mt-1 font-mono">
                                     {updateProgress.message}
                                 </div>
+                            </div>
+                        )}
+                    </div>
+                </section>
+            )}
+
+            {/* Branch Builder */}
+            {triggerBuilder && (
+                <section className="mb-8">
+                    <h3 className="text-xs uppercase tracking-widest opacity-50 mb-4 pb-2" style={{ borderBottom: `1px solid ${border}` }}>
+                        Local Branch Builder
+                    </h3>
+                    <div className="p-4 rounded-lg border" style={{ backgroundColor: subtleBg, borderColor: border }}>
+                        <div className="flex items-center justify-between mb-2">
+                            <div>
+                                <div className="text-sm font-medium">Nightly Builder</div>
+                                <div className="text-xs opacity-60 max-w-md">
+                                    Autonomous agent that fixes issues on a new branch.
+                                </div>
+                            </div>
+                            <button
+                                onClick={triggerBuilder}
+                                disabled={builderStatus === "running"}
+                                className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all"
+                                style={{
+                                    backgroundColor: builderStatus === "running"
+                                        ? (darkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)')
+                                        : (darkMode ? '#E5E5E5' : '#1A1D21'),
+                                    color: builderStatus === "running"
+                                        ? 'inherit'
+                                        : (darkMode ? '#1c1c1c' : '#F3F2EE'),
+                                    opacity: builderStatus === "running" ? 0.5 : 1,
+                                    cursor: builderStatus === "running" ? 'not-allowed' : 'pointer',
+                                }}
+                            >
+                                {builderStatus === "running"
+                                    ? <RefreshCw size={14} className="animate-spin" />
+                                    : <Zap size={14} />
+                                }
+                                {builderStatus === "running" ? "Building..." : "Run Now"}
+                            </button>
+                        </div>
+
+                        {builderStatus && builderStatus !== "idle" && (
+                            <div className="mt-3 pt-3 border-t" style={{ borderColor: border }}>
+                                <div className="flex items-center gap-2 text-xs">
+                                    <span
+                                        className="inline-block w-2 h-2 rounded-full"
+                                        style={{
+                                            backgroundColor:
+                                                builderStatus === "failed" ? "#ef4444" :
+                                                    builderStatus === "running" ? "#f59e0b" :
+                                                        "#22c55e"
+                                        }}
+                                    />
+                                    <span className="uppercase tracking-wider opacity-60">{builderStatus}</span>
+                                </div>
+                                {builderProgress && (
+                                    <div className="text-xs opacity-70 mt-1 font-mono">
+                                        {builderProgress}
+                                    </div>
+                                )}
                             </div>
                         )}
                     </div>

@@ -341,14 +341,14 @@ async function composeConversationalResponse(userInput: string, intent: string):
     const response = await callLLM(
       {
         model: "gpt-4o-mini",
-        systemPrompt: `You are Cairn, a personal AI assistant. Be conversational, concise, and helpful. 
-You don't have tools available for this response — just have a natural conversation.
+        systemPrompt: `You are Cairn, a personal AI assistant. Your name is Cairn — never refer to yourself by your model name or architecture (e.g. Phi, GPT, LLaMA). If asked what you are, say you are Cairn. Only discuss your model architecture if the user explicitly asks about it.
+Be conversational, concise, and helpful. You don't have tools available for this response — just have a natural conversation.
 Keep responses under 200 words unless the user asks for detail.`,
         userMessage: userInput,
         maxTokens: 500,
         temperature: 0.7,
         messages: [
-          { role: "system", content: "You are Cairn, a personal AI assistant. Be conversational, concise, and helpful." },
+          { role: "system", content: "You are Cairn, a personal AI assistant. Never identify yourself by your model name. Be conversational, concise, and helpful." },
           ...recentHistory.map((h) => ({ role: h.role as "user" | "assistant", content: h.content })),
           { role: "user", content: userInput },
         ],

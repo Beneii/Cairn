@@ -13,7 +13,8 @@
     "@cairn/memory": "workspace:*",
     "@cairn/goals": "workspace:*",
     "@cairn/orchestrator": "workspace:*",
-    "@cairn/shared": "workspace:*"
+    "@cairn/shared": "workspace:*",
+    "@cairn/builder": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^25.2.0",

@@ -27,5 +27,5 @@ If any document conflicts with this one, this document wins.
 
 - Not a multi-tenant SaaS platform.
 - Not an unbounded autonomous agent.
-- Not a browser-automation platform today.
+- Not a full browser-automation platform (web agent exists for search and basic page interaction).
 - Not a system where undocumented behavior is acceptable.

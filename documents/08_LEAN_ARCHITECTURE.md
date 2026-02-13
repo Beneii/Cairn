@@ -1,5 +1,11 @@
 # 08 — Lean Agent Infrastructure (Local / Home Lab)
 
+> [!IMPORTANT]
+> **This is a TARGET ARCHITECTURE, not current implementation.**
+> The team-based multi-agent model, memory proposals, and verifier gate described below are design goals.
+> Current reality: Cairn uses a single-agent model with V1/V2 pipelines (see `02_ARCHITECTURE.md`).
+> Local mode (Ollama) is partially implemented with a dashboard toggle (see `07_HOME_LAB_PORTABILITY.md`).
+
 This document defines the architecture for the **Local / Home Lab** configuration of Cairn. It is optimized for 16GB VRAM / 32GB RAM systems using specific quantized models via Ollama.
 
 ## Core Principles

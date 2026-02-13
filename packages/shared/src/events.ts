@@ -23,6 +23,12 @@ export interface CairnEvents {
   "tasks:updated": (tasks: any[]) => void;
   "cold:promoted": (info: { documentId: string; title: string; chunkCount: number; tokenCount: number }) => void;
   "note:create": (data: { content: string }) => void;
+  "builder:issue": (issue: any) => void;
+  "builder:status": (status: "idle" | "running" | "failed" | "completed") => void;
+  "builder:progress": (message: string) => void;
+  "builder:report": (report: any) => void;
+  "builder:log": (data: { specId: string; msg: string }) => void;
+  "system:update_progress": (data: { stage: string; message: string }) => void; // also needed by gateway
 }
 
 class TypedEventBus {
