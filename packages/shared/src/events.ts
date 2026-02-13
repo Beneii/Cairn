@@ -28,7 +28,7 @@ export interface CairnEvents {
   "builder:progress": (message: string) => void;
   "builder:report": (report: any) => void;
   "builder:log": (data: { specId: string; msg: string }) => void;
-  "system:update_progress": (data: { stage: string; message: string }) => void; // also needed by gateway
+  "system:update_progress": (data: { stage: "error" | "pulling" | "building" | "restarting"; message: string }) => void; // also needed by gateway
 }
 
 class TypedEventBus {

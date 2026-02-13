@@ -6,7 +6,8 @@ export * from "./report.js";
 import { collectIssue, getIssueBacklog, updateIssueStatus } from "./collector.js";
 import { generateSpec } from "./spec-generator.js";
 import { BranchWorker } from "./worker.js";
-import { saveReport } from "./report.js";
+import { saveReport, getLatestReport } from "./report.js";
+export { getLatestReport };
 import { bus } from "@cairn/shared";
 
 let isRunning = false;
