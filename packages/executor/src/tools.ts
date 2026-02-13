@@ -1,4 +1,5 @@
 import { appendEntry } from "@cairn/ledger";
+import { request } from "https";
 import type { Artifact, LedgerEntryType } from "@cairn/shared";
 import { bus, newId, now } from "@cairn/shared";
 
@@ -797,6 +798,76 @@ toolRegistry.set("note_create", async (args) => {
     };
   } catch (err) {
     return { success: false, output: `Note creation failed: ${err instanceof Error ? err.message : String(err)}` };
+  }
+});
+
+// Helper for Open-Meteo which requires IPv4 force in some environments
+function fetchJson(url: string): Promise<any> {
+  return new Promise((resolve, reject) => {
+    const req = request(url, {
+      headers: { "User-Agent": "Cairn/1.0", "Accept": "application/json" },
+      family: 4,
+      timeout: 10000
+    }, (res) => {
+      let data = "";
+      res.on("data", (chunk) => data += chunk);
+      res.on("end", () => {
+        try {
+          if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
+            resolve(JSON.parse(data));
+          } else {
+            resolve(null); // Treat non-200 as null to handle graceful failures
+          }
+        } catch (e) {
+          reject(e);
+        }
+      });
+    });
+    req.on("error", (err) => reject(err));
+    req.on("timeout", () => { req.destroy(); reject(new Error("Timeout")); });
+    req.end();
+  });
+}
+
+// ---- weather_get ----
+// Get weather forecast from Open-Meteo (free, no API key)
+toolRegistry.set("weather_get", async (args) => {
+  const location = args.location as string;
+  if (!location) return { success: false, output: "Location required" };
+
+  try {
+    // 1. Geocode
+    const geoUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(location)}&count=1&language=en&format=json`;
+    const geoData = await fetchJson(geoUrl);
+
+    if (!geoData || !geoData.results || geoData.results.length === 0) {
+      return { success: false, output: `Location "${location}" not found.` };
+    }
+
+    const { latitude, longitude, name, country } = geoData.results[0];
+
+    // 2. Weather
+    const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset&timezone=auto`;
+    const weatherData = await fetchJson(weatherUrl);
+
+    if (!weatherData) {
+      return { success: false, output: "Failed to fetch weather data." };
+    }
+
+    return {
+      success: true,
+      output: JSON.stringify({
+        location: `${name}, ${country}`,
+        coordinates: { lat: latitude, lon: longitude },
+        current: weatherData.current,
+        daily: weatherData.daily
+      })
+    };
+  } catch (err) {
+    return {
+      success: false,
+      output: `Weather fetch failed: ${err instanceof Error ? err.message : String(err)}`
+    };
   }
 });
 
