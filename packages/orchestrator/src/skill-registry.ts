@@ -412,6 +412,23 @@ const DEFAULT_SKILLS: { definition: SkillDefinition; toolName: string }[] = [
             costEstimate: "expensive",
         },
     },
+    {
+        toolName: "weather_get",
+        definition: {
+            id: "weather.get",
+            description: "Get current weather and forecast.",
+            inputSchema: {
+                type: "object",
+                properties: {
+                    location: { type: "string", description: "City or location name" },
+                },
+                required: ["location"],
+            },
+            outputSchema: { type: "object", properties: { success: { type: "boolean" }, output: { type: "string" } } },
+            requiresPlanner: false,
+            costEstimate: "trivial",
+        },
+    },
 ];
 
 /**
