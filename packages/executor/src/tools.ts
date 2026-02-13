@@ -801,6 +801,97 @@ toolRegistry.set("note_create", async (args) => {
   }
 });
 
+
+// ---- model_pull ----
+// Pull a local model via Ollama
+toolRegistry.set("model_pull", async (args) => {
+  const model = args.model as string;
+  if (!model) return { success: false, output: "Model name required" };
+
+  try {
+    const OLLAMA_URL = process.env.OLLAMA_BASE_URL || "http://localhost:11434";
+
+    // Start the pull
+    const res = await fetch(`${OLLAMA_URL}/api/pull`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: model, stream: true }),
+    });
+
+    if (!res.ok) {
+      return { success: false, output: `Ollama pull failed: ${res.statusText}` };
+    }
+
+    if (!res.body) {
+      return { success: false, output: "Ollama returned no body" };
+    }
+
+    // Process stream in background to avoid blocking the tool
+    // We use the system:update_progress event which the UI listens to
+    (async () => {
+      const reader = res.body!.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      try {
+        bus.emit("system:update_progress", { stage: "pulling", message: `Starting pull of ${model}...` });
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() || "";
+
+          for (const line of lines) {
+            if (!line.trim()) continue;
+            try {
+              const data = JSON.parse(line);
+              // data format: { status: "pulling ...", digest: "...", total: 123, completed: 45 }
+              if (data.status) {
+                let msg = data.status;
+                if (data.total && data.completed) {
+                  const pct = Math.round((data.completed / data.total) * 100);
+                  msg += ` (${pct}%)`;
+                }
+                bus.emit("system:update_progress", { stage: "pulling", message: `${model}: ${msg}` });
+              }
+            } catch (e) {
+              // ignore parse errors
+            }
+          }
+        }
+
+        bus.emit("system:update_progress", { stage: "pulling", message: `Pull of ${model} complete.` });
+
+        // Also emit a chat message so the user sees it in history
+        bus.emit("chat:message", {
+          id: newId(),
+          role: "cairn",
+          text: `✅ Model download complete: ${model}`,
+          timestamp: now()
+        });
+
+      } catch (err) {
+        console.error("Pull stream error:", err);
+        bus.emit("system:update_progress", { stage: "error", message: `Pull failed: ${err}` });
+      }
+    })();
+
+    return {
+      success: true,
+      output: `Download started for '${model}'. You will see progress updates in the notification area.`,
+    };
+
+  } catch (err) {
+    return {
+      success: false,
+      output: `Failed to initiate pull: ${err instanceof Error ? err.message : String(err)}`
+    };
+  }
+});
+
 // Helper for Open-Meteo which requires IPv4 force in some environments
 function fetchJson(url: string): Promise<any> {
   return new Promise((resolve, reject) => {
