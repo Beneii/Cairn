@@ -21,7 +21,7 @@ export const NODES: Record<string, NodeConfig> = {
     max_runtime_seconds: 120,
     max_tokens_per_call: 10000,
     assigned_model: "gpt-4o",
-    local_model: "gemma3:12b",
+    local_model: "qwen2.5-coder:7b",
   },
   executor: {
     name: "executor",
@@ -43,7 +43,7 @@ export const NODES: Record<string, NodeConfig> = {
     max_runtime_seconds: 60,
     max_tokens_per_call: 4000,
     assigned_model: "gpt-4o-mini",
-    local_model: "gemma3:4b",
+    local_model: "qwen2.5-coder:7b",
   },
   web_locked: {
     name: "web_locked",
@@ -112,7 +112,7 @@ export const NODES: Record<string, NodeConfig> = {
     max_runtime_seconds: 7200, // 2 hours
     max_tokens_per_call: 4096,
     assigned_model: "gpt-4o",
-    local_model: "gemma3:12b",
+    local_model: "qwen2.5-coder:7b",
   },
   responder: {
     name: "responder",

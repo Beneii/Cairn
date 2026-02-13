@@ -36,6 +36,7 @@ export class BranchWorker {
         const entry = `[${now()}] ${msg}`;
         this.state.logs.push(entry);
         bus.emit("builder:log", { specId: this.spec.id, msg });
+        bus.emit("builder:progress", msg); // Send progress update to UI
         console.log(`[builder] ${msg}`);
     }
 
