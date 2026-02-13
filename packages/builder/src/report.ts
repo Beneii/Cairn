@@ -45,7 +45,7 @@ export async function getLatestReport(): Promise<BuildReport | null> {
         // Task ID is random, so better to sort by mtime
         const { stat } = await import("fs/promises");
 
-        const filesWithStats = await Promise.all(files.map(async f => {
+        const filesWithStats = await Promise.all(files.map(async (f: string) => {
             const s = await stat(join(dir, f));
             return { name: f, time: s.mtime.getTime() };
         }));

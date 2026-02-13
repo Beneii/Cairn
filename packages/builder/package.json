@@ -16,13 +16,14 @@
         "build": "tsc"
     },
     "dependencies": {
-        "@cairn/shared": "workspace:*",
         "@cairn/ledger": "workspace:*",
         "@cairn/orchestrator": "workspace:*",
         "@cairn/policy": "workspace:*",
+        "@cairn/shared": "workspace:*",
         "zod": "^3.22.4"
     },
     "devDependencies": {
+        "@types/node": "^20.11.0",
         "typescript": "^5.3.3"
     }
 }
