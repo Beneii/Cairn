@@ -40,39 +40,46 @@ Your job is to classify the user's intent and recommend an action. You are advis
 ${skillList}
 
 ## Output Format (STRICT JSON)
+Respond with exactly this structure:
 {
   "intent": "short description of what user wants",
-  "recommendedAction": "none" | "skill" | "plan",
-  "suggestedSkillId": "skill.id (only if recommendedAction is 'skill' or 'plan')",
-  "suggestedArguments": { key: value } (only if you can extract arguments),
-  "needsPlanner": true/false,
-  "confidence": 0.0-1.0
+  "recommendedAction": "none" or "skill" or "plan",
+  "suggestedSkillId": "ONE skill id string from the list above, or omit",
+  "suggestedArguments": { "key": "value" },
+  "needsPlanner": false,
+  "confidence": 0.8
 }
 
-## Rules
-- "none": User is chatting, asking a question you can answer directly, or no action needed.
-- "skill": A single skill can handle this request.
-- "plan": Multiple skills or complex multi-step reasoning needed.
-- needsPlanner: Set true ONLY for multi-step tasks that require sequencing multiple skills.
-- For skill suggestions, ONLY use skill IDs from the list above. Never invent skills.
-- Extract arguments whenever possible (e.g. task title, search query).
-- If unsure, use recommendedAction: "none" with lower confidence.
-
-## Important
-- You MUST respond with valid JSON only. No markdown, no explanation, just the JSON object.
-- Do NOT use any skill IDs not in the list above.`;
+## CRITICAL RULES
+- recommendedAction MUST be exactly one of these three strings: "none", "skill", "plan"
+  - Do NOT put a skill ID in recommendedAction. Use "skill" and put the ID in suggestedSkillId.
+- suggestedSkillId MUST be a single string, NEVER an array.
+  - If multiple skills are needed, set recommendedAction to "plan" and put the PRIMARY skill in suggestedSkillId.
+- "none": User is chatting, asking a question, or no action is needed.
+- "skill": A single skill from the list can handle this.
+- "plan": Multiple steps or skills are needed.
+- needsPlanner: true ONLY for multi-step tasks requiring multiple skills.
+- ONLY use skill IDs from the list above. Never invent skill IDs.
+- Respond with ONLY valid JSON. No markdown, no explanation.`;
 }
 
 // ---- Repair prompt ----
 
-const REPAIR_PROMPT = `Your previous response was not valid JSON. Please respond with ONLY a valid JSON object matching this exact schema:
+const REPAIR_PROMPT = `Your previous response had errors. Fix it and respond with ONLY valid JSON.
+
+CRITICAL CONSTRAINTS:
+- recommendedAction must be exactly: "none", "skill", or "plan" (NOT a skill ID like "note.create")
+- suggestedSkillId must be a single string (NOT an array)
+- If you previously used a skill ID as recommendedAction, move it to suggestedSkillId and set recommendedAction to "skill"
+
+Schema:
 {
   "intent": "string",
   "recommendedAction": "none" | "skill" | "plan",
-  "suggestedSkillId": "string (optional)",
-  "suggestedArguments": {} (optional),
-  "needsPlanner": boolean,
-  "confidence": number (0-1)
+  "suggestedSkillId": "string or omit",
+  "suggestedArguments": {},
+  "needsPlanner": false,
+  "confidence": 0.8
 }
 Respond with ONLY the JSON. No explanation.`;
 
@@ -179,9 +186,34 @@ export async function classifyIntent(
 
 // ---- Parse Helper ----
 
+function normalizeRaw(raw: any): any {
+    if (!raw || typeof raw !== "object") return raw;
+
+    // Fix 1: suggestedSkillId is an array → take first element
+    if (Array.isArray(raw.suggestedSkillId)) {
+        raw.suggestedSkillId = raw.suggestedSkillId[0] ?? null;
+        // Multiple skills = plan
+        if (!raw.needsPlanner) raw.needsPlanner = true;
+        if (raw.recommendedAction === "skill") raw.recommendedAction = "plan";
+    }
+
+    // Fix 2: recommendedAction contains a skill ID instead of enum value
+    const validActions = new Set(["none", "skill", "plan"]);
+    if (raw.recommendedAction && !validActions.has(raw.recommendedAction)) {
+        // Move the skill ID to suggestedSkillId
+        if (!raw.suggestedSkillId) {
+            raw.suggestedSkillId = raw.recommendedAction;
+        }
+        raw.recommendedAction = "skill";
+    }
+
+    return raw;
+}
+
 function tryParse(content: string): IntentClassification | null {
     try {
-        const raw = JSON.parse(content.trim());
+        let raw = JSON.parse(content.trim());
+        raw = normalizeRaw(raw);
         const result = IntentClassificationSchema.safeParse(raw);
         if (result.success) {
             return result.data;
