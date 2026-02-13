@@ -89,18 +89,60 @@ export const NODES: Record<string, NodeConfig> = {
     assigned_model: "gpt-4o-mini",
     local_model: "phi3.5:latest",
   },
+
+  // ---- V2 Pipeline Nodes ----
+
+  classifier: {
+    name: "classifier",
+    allowed_callers: ["system", "orchestrator"],
+    allowed_tools: [],
+    memory_access: [],
+    memory_write: [],
+    max_runtime_seconds: 10,
+    max_tokens_per_call: 500,
+    assigned_model: "gpt-4o-mini",
+    local_model: "phi3.5:latest",
+  },
+  responder: {
+    name: "responder",
+    allowed_callers: ["system", "orchestrator"],
+    allowed_tools: [],
+    memory_access: ["hot", "warm"],
+    memory_write: [],
+    max_runtime_seconds: 15,
+    max_tokens_per_call: 1000,
+    assigned_model: "gpt-4o-mini",
+    local_model: "phi3.5:latest",
+  },
+  skill_executor: {
+    name: "skill_executor",
+    allowed_callers: ["system", "orchestrator"],
+    allowed_tools: ["memory_read", "memory_write", "ledger_write", "web_search", "fetch_url", "vector_search", "calendar_read", "gmail_read", "goals_read", "goals_update", "tasks_read", "tasks_create", "tasks_complete", "note_create", "research_ingest", "browser_navigate", "browser_click", "browser_screenshot"],
+    memory_access: ["hot", "warm"],
+    memory_write: ["hot", "warm"],
+    max_runtime_seconds: 300,
+    max_tokens_per_call: 0,
+    assigned_model: "none",
+    local_model: "none",
+  },
 };
 
 /** Allowed transitions: from -> to[] */
 export const GRAPH_EDGES: Record<string, string[]> = {
-  system: ["gatekeeper"],
+  // V1 legacy (kept for backward compatibility)
+  system: ["gatekeeper", "classifier"],
   gatekeeper: ["planner", "logger", "web_agent", "vision_worker"],
-  planner: ["executor", "web_locked", "vision_worker", "logger"],
+  planner: ["executor", "web_locked", "vision_worker", "logger", "skill_executor"],
   executor: ["critic", "web_locked", "vision_worker", "logger"],
   critic: ["executor", "logger"],
-  vision_worker: ["logger"], // Image in, text out, then done
+  vision_worker: ["logger"],
   web_locked: ["logger"],
   web_agent: ["logger"],
   logger: [],
+
+  // V2 pipeline
+  classifier: ["responder", "skill_executor", "planner", "logger"],
+  responder: ["logger"],
+  skill_executor: ["logger"],
 };
 
