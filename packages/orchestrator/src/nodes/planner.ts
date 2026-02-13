@@ -4,7 +4,7 @@ import { bus, newId, now, shortTime } from "@cairn/shared";
 import type { Job, Artifact } from "@cairn/shared";
 import { isEmbeddingAvailable, createEmbedding, vectorSearch, getColdMemoryStats, warmGet } from "@cairn/memory";
 import { callLLM } from "../llm.js";
-import { extractPlannerJson } from "../utils.js";
+import { parseJsonObjectFromLLM, repairJsonViaLLM, sanitizeLogSnippet } from "../utils.js";
 import { updateJob } from "../jobs.js";
 import { z } from "zod";
 import { getCalendarProvider } from "@cairn/executor";
@@ -16,7 +16,7 @@ IMPORTANT: Output raw JSON only. Do NOT wrap the JSON in markdown code fences (e
 
 You are a personal assistant — warm, direct, helpful. You know the user's active goals and tasks and should always consider them.
 
-Hard constraint: browser automation is not implemented. Do not claim page-clicking/browser-control actions; if required, return a blocked response.
+Browser automation is available through executor tools when needed.
 
 ## What the Executor Can Do
 
@@ -54,6 +54,8 @@ The executor has these tools:
 - Connect things to the user's goals when relevant — you're tracking their life, not just answering questions
 - If you can answer directly without tools, do so (needs_executor: false) — don't over-route`;
 
+const JSON_REPAIR_PROMPT = `Return ONLY one valid JSON object. No prose, no markdown, no code fences.`;
+
 // Whitelist of allowed tool names (security hardening)
 const ALLOWED_TOOLS = [
   "memory_read",
@@ -84,7 +86,7 @@ const ALLOWED_TOOLS = [
 const PlannerResponseSchema = z.object({
   plan: z.string().max(2000),
   steps: z.array(z.string().max(500)).max(20),
-  response: z.string().max(2000).optional().default(""), // Only used when needs_executor is false
+  response: z.string().min(1).max(2000),
   needs_executor: z.boolean(),
   tools_needed: z.array(z.enum(ALLOWED_TOOLS)),
 });
@@ -217,54 +219,68 @@ User request: ${job.input}`;
       userMessage: contextBlock,
       maxTokens: config.max_tokens_per_call,
       responseFormat: "json_object",
+      temperature: 0,
     },
     "planner",
     job.id,
   );
 
-  // Parse and validate LLM response with Zod
+  // Parse and validate LLM response with repair fallback
   let parsed: PlannerResult;
 
   try {
-    const jsonParsed = extractPlannerJson(response.content);
+    const jsonParsed = parseJsonObjectFromLLM(response.content);
     const validationResult = PlannerResponseSchema.safeParse(jsonParsed);
 
     if (!validationResult.success) {
-      console.error("[planner] Validation failed:", validationResult.error);
-      await appendEntry(
-        "agent",
-        "planner",
-        job.id,
-        `LLM response validation failed: ${validationResult.error.message}`,
-      );
-      // Fall back to safe defaults - treat raw content as direct response if it's not JSON
-      // But purely text response is safer than trying to guess
-      parsed = {
-        plan: "Response validation failed",
-        steps: [],
-        response: "I had a thought, but it wasn't structured correctly. Please try again.", // SAFE FALLBACK
-        needs_executor: false,
-        tools_needed: [],
-      };
+      const repaired = await repairJsonViaLLM(response.content, async (input) => {
+        const repair = await callLLM(
+          {
+            model: config.assigned_model,
+            systemPrompt: JSON_REPAIR_PROMPT,
+            userMessage: input,
+            maxTokens: 260,
+            responseFormat: "json_object",
+            temperature: 0,
+          },
+          "planner",
+          job.id,
+        );
+        return repair.content;
+      });
+
+      if (repaired) {
+        const repairedValidation = PlannerResponseSchema.safeParse(repaired);
+        if (repairedValidation.success) {
+          parsed = repairedValidation.data;
+        } else {
+          throw repairedValidation.error;
+        }
+      } else {
+        throw validationResult.error;
+      }
     } else {
       parsed = validationResult.data;
     }
   } catch (err) {
-    console.error("[planner] JSON parse error:", err);
+    console.error("[planner] JSON parse/validation error:", err);
     await appendEntry(
       "agent",
       "planner",
       job.id,
-      `JSON parse failed: ${err instanceof Error ? err.message : String(err)}`,
+      `Planner parse failed. Raw snippet: ${sanitizeLogSnippet(response.content)}`,
     );
-    // SAFE FALLBACK - Do NOT leak raw content
     parsed = {
-      plan: "Failed to parse plan",
+      plan: "Failed to create a valid plan",
       steps: [],
-      response: "I encountered an error trying to plan this task. Please try again or rephrase.",
+      response: "I couldn't generate a valid response. Please retry.",
       needs_executor: false,
       tools_needed: [],
     };
+  }
+
+  if (!parsed.response || !parsed.response.trim()) {
+    parsed.response = "I couldn't generate a valid response. Please retry.";
   }
 
   // Create plan artifact

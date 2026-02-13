@@ -71,6 +71,10 @@ export interface OllamaChatRequest {
         images?: string[]; // base64 encoded strings
     }[];
     stream?: boolean;
+    format?: "json";
+    options?: {
+        temperature?: number;
+    };
 }
 
 export interface OllamaChatResponse {
