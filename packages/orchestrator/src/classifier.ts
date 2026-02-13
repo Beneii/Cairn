@@ -22,8 +22,8 @@ import { listSkills } from "./skill-registry.js";
 const IntentClassificationSchema = z.object({
     intent: z.string().min(1).max(200),
     recommendedAction: z.enum(["none", "skill", "plan"]),
-    suggestedSkillId: z.string().optional(),
-    suggestedArguments: z.record(z.string(), z.any()).optional(),
+    suggestedSkillId: z.string().nullish(),
+    suggestedArguments: z.record(z.string(), z.any()).nullish(),
     needsPlanner: z.boolean().default(false),
     confidence: z.number().min(0).max(1),
 });

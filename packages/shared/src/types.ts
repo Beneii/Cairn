@@ -362,8 +362,8 @@ export interface PreRouteDecision {
 export interface IntentClassification {
   intent: string;
   recommendedAction: "none" | "skill" | "plan";
-  suggestedSkillId?: string;
-  suggestedArguments?: Record<string, any>;
+  suggestedSkillId?: string | null;
+  suggestedArguments?: Record<string, any> | null;
   needsPlanner: boolean;
   confidence: number;
 }
