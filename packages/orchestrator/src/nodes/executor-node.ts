@@ -22,6 +22,7 @@ const SYSTEM_PROMPT = `You are Cairn's executor — the part of the system that 
 - fetch_url(url): Fetch content from a URL
 - calendar_read(days): Read calendar events for next N days
 - gmail_read(max_results): Read recent emails
+- weather_get(location): Get current weather and forecast (Open-Meteo)
 
 ### Goals & Tasks
 - goals_read(): Read all goals with details (active goals guide your behavior)
@@ -103,6 +104,7 @@ const ALLOWED_EXECUTOR_TOOLS = [
   "web_search",
   "fetch_url",
   "gmail_read",
+  "weather_get",
   "calendar_read",
   "vector_search",
   "goals_read",

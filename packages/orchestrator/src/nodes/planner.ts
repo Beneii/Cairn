@@ -24,6 +24,7 @@ The executor has these tools:
 - memory_read/write: Read and store persistent information about the user
 - web_search, fetch_url: Search the web, fetch pages
 - calendar_read, gmail_read: Read calendar events and emails
+- weather_get: Get current weather and forecast
 - vector_search: Search long-term memory (documents, past conversations)
 - research_ingest: Securely ingest web content or PDF into cold memory
 - browser_navigate, browser_click, browser_type, browser_press, browser_screenshot: Securely interact with web pages (fill forms, press keys, capture visuals)
@@ -65,6 +66,7 @@ const ALLOWED_TOOLS = [
   "fetch_url",
   "gmail_read",
   "calendar_read",
+  "weather_get",
   "vector_search",
   "goals_read",
   "goals_update",
