@@ -17,12 +17,13 @@ This file tracks direction without claiming implementation.
 - Vision processing (image attachments via LLM).
 - Timezone-aware classifier (AEST default, resolves relative dates).
 - Cairn identity enforcement across all system prompts.
+- **Local Branch Builder**: Autonomous nightly coding agent (`packages/builder`).
 
 ## Active Priorities
 
 1. **Tool migration** — Move remaining legacy tools to manifest system (`09_TOOL_MIGRATION_MATRIX.md`).
 2. **Shell skills** — Implement skill-as-shell-script execution model (`10_SKILLS_AND_SHELL_INTEGRATION.md`).
-3. **Local Branch Builder** — Implement autonomous code worker (`06_LOCAL_BRANCH_BUILDER_SPEC.md`).
+3. **Lean multi-agent architecture** — Implement team-based agent model from `08_LEAN_ARCHITECTURE.md`.
 4. **Lean multi-agent architecture** — Implement team-based agent model from `08_LEAN_ARCHITECTURE.md`.
 5. **Memory compaction** — Context compaction via semantic summaries per doc 10.
 6. Keep docs synchronized with implemented behavior.

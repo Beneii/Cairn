@@ -59,6 +59,14 @@ See `09_TOOL_MIGRATION_MATRIX.md` for migration status to manifest tools.
 |---|---|---|
 | `config:set_*` | `config:write` | Update system configuration |
 | `system:update` | `config:write` | Trigger git pull + build + restart |
+| `builder:trigger` | `system:write` | Trigger autonomous branch builder |
+
+## Autonomous Agents (New)
+
+- **Local Branch Builder**: [`packages/builder`](../packages/builder)
+  - **Type**: Autonomous Developer
+  - **Trigger**: Schedule (2am) or Manual
+  - **Capabilities**: Issue collection, spec generation, code editing, git ops.
 
 ## Standard Failure Codes
 

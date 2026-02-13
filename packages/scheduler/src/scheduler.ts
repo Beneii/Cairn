@@ -88,7 +88,7 @@ async function heartbeat(): Promise<void> {
           `triggered: ${goalResult.actionsTriggered.join(", ")}`
         );
       }
-    } catch (err) {
+    } catch (err: unknown) {
       console.error("[scheduler] Goal heartbeat failed:", err);
       // Don't crash the main scheduler
     }
