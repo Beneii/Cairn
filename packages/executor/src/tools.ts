@@ -854,14 +854,32 @@ toolRegistry.set("weather_get", async (args) => {
       return { success: false, output: "Failed to fetch weather data." };
     }
 
+    // Format output as Markdown
+    const current = weatherData.current;
+
+    // Helper to get day name
+    const getDay = (dateStr: string) => new Date(dateStr).toLocaleDateString('en-US', { weekday: 'short' });
+
+    let forecast = "";
+    if (weatherData.daily && weatherData.daily.time) {
+      forecast = weatherData.daily.time.slice(0, 5).map((t: string, i: number) => {
+        const max = weatherData.daily.temperature_2m_max[i];
+        const min = weatherData.daily.temperature_2m_min[i];
+        // simple weather code mapping could go here, for now just code
+        return `- **${getDay(t)}**: ${min}°C - ${max}°C`;
+      }).join("\n");
+    }
+
+    const output = `### Weather in ${name}, ${country}
+**Current**: ${current.temperature_2m}°C, Wind: ${current.wind_speed_10m} km/h
+**Forecast**:
+${forecast}
+
+[Data from Open-Meteo]`;
+
     return {
       success: true,
-      output: JSON.stringify({
-        location: `${name}, ${country}`,
-        coordinates: { lat: latitude, lon: longitude },
-        current: weatherData.current,
-        daily: weatherData.daily
-      })
+      output
     };
   } catch (err) {
     return {
