@@ -33,8 +33,27 @@ const IntentClassificationSchema = z.object({
 function buildClassifierPrompt(skills: { id: string; description: string }[]): string {
     const skillList = skills.map((s) => `  - ${s.id}: ${s.description}`).join("\n");
 
+    // Current date/time context for resolving relative references
+    const tz = process.env.TIMEZONE || "Australia/Sydney";
+    const nowLocal = new Date().toLocaleString("en-AU", {
+        timeZone: tz,
+        weekday: "long",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true,
+    });
+    const todayISO = new Date().toLocaleDateString("en-CA", { timeZone: tz }); // YYYY-MM-DD
+
     return `You are an intent classifier for Cairn, a personal AI assistant.
 Your job is to classify the user's intent and recommend an action. You are advisory — your output is used by a deterministic system to decide what happens next.
+
+## Current Context
+- Current date/time: ${nowLocal} (${tz})
+- Today's date (ISO): ${todayISO}
+- When the user mentions relative times like "today", "tomorrow", "3pm", resolve them to ISO format dates in suggestedArguments (e.g. due_date, scheduled_date).
 
 ## Available Skills
 ${skillList}
@@ -60,6 +79,7 @@ Respond with exactly this structure:
 - "plan": Multiple steps or skills are needed.
 - needsPlanner: true ONLY for multi-step tasks requiring multiple skills.
 - ONLY use skill IDs from the list above. Never invent skill IDs.
+- For dates/times: Convert relative references to ISO format (YYYY-MM-DD or YYYY-MM-DDTHH:mm) in the arguments.
 - Respond with ONLY valid JSON. No markdown, no explanation.`;
 }
 
