@@ -103,6 +103,17 @@ export const NODES: Record<string, NodeConfig> = {
     assigned_model: "gpt-4o-mini",
     local_model: "phi3.5:latest",
   },
+  builder: {
+    name: "builder",
+    allowed_callers: ["system", "scheduler"],
+    allowed_tools: ["memory_read"],
+    memory_access: ["hot", "warm"],
+    memory_write: ["hot", "warm"],
+    max_runtime_seconds: 7200, // 2 hours
+    max_tokens_per_call: 4096,
+    assigned_model: "gpt-4o",
+    local_model: "gemma3:12b",
+  },
   responder: {
     name: "responder",
     allowed_callers: ["system", "orchestrator"],

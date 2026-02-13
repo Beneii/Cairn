@@ -1,9 +1,13 @@
 # 07 — Home Lab Portability (Ollama / Local AI)
 
-> **Status**: Not currently implemented.
-> **Difficulty**: Medium (requires code modifications).
+> **Status**: Partially implemented.
+> - Dashboard toggle for `LOCAL_MODE_ENABLED` exists in Settings → System.
+> - `callLLM` in `packages/orchestrator/src/llm.ts` supports Ollama via `baseURL` override.
+> - Model names are configurable per node in `packages/policy/src/nodes.ts`.
+> - Cost tracking handles local models (zero cost).
+> **Remaining**: Embeddings are still OpenAI-only. Context window management for smaller local models needs tuning.
 
-Cairn is currently built around the OpenAI API (`gpt-4o`, `gpt-4o-mini`) and `text-embedding-3-small`. However, the architecture is modular enough to support local LLMs (e.g., via Ollama) with targeted changes.
+Cairn is primarily built around the OpenAI API (`gpt-4o`, `gpt-4o-mini`) and `text-embedding-3-small`. However, the architecture supports local LLMs (e.g., via Ollama) with the changes below.
 
 ## 1. The Abstraction Layer
 

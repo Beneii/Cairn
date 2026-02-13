@@ -319,7 +319,9 @@ export type ClientMessage =
   | { type: "job:get"; id: string }
   | { type: "archive:get_logs" }
   | { type: "archive:get_system_docs" }
-  | { type: "system:update" };
+  | { type: "system:update" }
+  | { type: "builder:trigger" }
+  | { type: "builder:stop" };
 
 export type ServerMessage =
   | { type: "pong" }
@@ -339,7 +341,10 @@ export type ServerMessage =
   | { type: "job:details"; job: Job }
   | { type: "dashboard:authenticated"; success: boolean; capabilities?: string[] }
   | { type: "mobile:authenticated"; success: boolean; capabilities?: string[] }
-  | { type: "system:update_progress"; stage: "pulling" | "building" | "restarting" | "error"; message: string };
+  | { type: "system:update_progress"; stage: "pulling" | "building" | "restarting" | "error"; message: string }
+  | { type: "builder:status"; status: "idle" | "running" | "failed" | "completed" }
+  | { type: "builder:progress"; message: string }
+  | { type: "builder:report"; report: any };
 
 // ---- Cairn V2 Pipeline Types ----
 

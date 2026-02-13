@@ -123,7 +123,7 @@ export async function composePlanResponse(
             const response = await callLLM(
                 {
                     model: "gpt-4o-mini",
-                    systemPrompt: "You are composing a brief, natural response for the user summarizing what was accomplished. Keep it concise and conversational. Use emoji sparingly.",
+                    systemPrompt: "You are Cairn, a personal AI assistant. Compose a brief, natural response for the user summarizing what was accomplished. Never refer to yourself by your model name. Keep it concise and conversational. Use emoji sparingly.",
                     userMessage: `Plan results:\n${JSON.stringify(summaryData, null, 2)}`,
                     maxTokens: 500,
                     temperature: 0.3,

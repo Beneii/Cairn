@@ -3,43 +3,72 @@
 This is the contract between planning, execution, and runtime reality.
 If a capability is not listed here, Cairn must treat it as unavailable.
 
-## Runtime Agents / Owners
+## V2 Skill Registry (Active)
 
-- **Planner owner**: `packages/orchestrator/src/nodes/planner.ts`
-- **Executor owner**: `packages/orchestrator/src/nodes/executor-node.ts`
-- **Tool runtime owner**: `packages/executor/src/tools.ts`
+Skills are registered in `packages/orchestrator/src/skill-registry.ts` and invoked by the V2 pipeline.
+Each skill wraps a legacy executor tool with a typed schema.
 
-## Capability Table
+| Skill ID | Description | Required Args | Cost | Backing Tool |
+|----------|-------------|---------------|------|--------------|
+| `task.create` | Create a new task | `title` | trivial | `tasks_create` |
+| `task.read` | Read tasks by status | — | trivial | `tasks_read` |
+| `task.complete` | Mark task done | `task_id` | trivial | `tasks_complete` |
+| `note.create` | Create a dashboard note | `content` | trivial | `note_create` |
+| `web.search` | DuckDuckGo web search | `query` | cheap | `web_search` |
+| `web.fetch` | Fetch URL content | `url` | cheap | `fetch_url` |
+| `memory.read` | Read from memory tier | `tier`, `key` | trivial | `memory_read` |
+| `memory.write` | Write to memory tier | `tier`, `key`, `value` | trivial | `memory_write` |
+| `calendar.read` | Read calendar events | — | cheap | `calendar_read` |
+| `email.read` | Read Gmail messages | — | cheap | `gmail_read` |
+| `goal.read` | Read active goals | — | trivial | `goals_read` |
+| `goal.update` | Update a goal | `goal_id` | trivial | `goals_update` |
+| `vector.search` | Semantic memory search | `query` | medium | `vector_search` |
+| `research.ingest` | Ingest URL into cold memory | `url` | expensive | `research_ingest` |
 
-| Capability | Owner | Invocation Context | Lifecycle | Permissions / Constraints | Failure Surface |
-|---|---|---|---|---|---|
-| `memory_read` | Executor tools | Executor tool action | Stateless | Key access blocked for protected prefixes | Tool failure (blocked path) |
-| `memory_write` | Executor tools | Executor tool action | Stateful (memory mutation) | Protected key prefixes blocked | Tool failure (blocked path) |
-| `ledger_write` | Executor tools | Executor tool action | Stateful (append) | Policy-gated tool use | Tool failure (blocked path) |
-| `web_search` | Executor tools | Executor tool action | Stateless | External web only; network-dependent | Tool failure (blocked path) |
-| `fetch_url` | Executor tools | Executor tool action | Stateless | SSRF protections: private/metadata endpoints blocked | Tool failure (blocked path) |
-| `calendar_read` | Executor tools + integrations | Executor tool action | Stateless | Requires Google auth env setup | Tool failure (blocked path) |
-| `gmail_read` | Executor tools + integrations | Executor tool action | Stateless | Requires Google auth env setup | Tool failure (blocked path) |
-| `vector_search` | Executor tools + memory | Executor tool action | Stateless read over persistent index | Requires embeddings/OpenAI key for full behavior | Tool failure (blocked path) |
-| `goals_read` | Executor tools + goals pkg | Executor tool action | Stateless | Internal package access | Tool failure (blocked path) |
-| `goals_update` | Executor tools + goals pkg | Executor tool action | Stateful (goal mutation) | Goal must exist | Tool failure (blocked path) |
-| `tasks_read` | Executor tools + tasks pkg | Executor tool action | Stateless | Internal package access | Tool failure (blocked path) |
-| `tasks_create` | Executor tools + tasks pkg | Executor tool action | Stateful (task mutation) | Title required | Tool failure (blocked path) |
-| `tasks_complete` | Executor tools + tasks pkg | Executor tool action | Stateful (task mutation) | Task id required | Tool failure (blocked path) |
+## V1 Legacy Executor Tools
 
-| `local_branch_builder` | Future builder worker | Scheduled dev-worker context | Stateful (repo mutation in isolated branch) | Explicit user approval, scope allowlist, budget bounded | Must return blocked/not-implemented until landed |
+These are invoked by the V1 planner/executor pipeline via `packages/executor/src/tools.ts`.
+See `09_TOOL_MIGRATION_MATRIX.md` for migration status to manifest tools.
 
-## Explicitly Unsupported (Current)
+| Tool | Owner | Lifecycle | Constraints |
+|------|-------|-----------|-------------|
+| `memory_read` | executor | stateless | Protected key prefixes blocked |
+| `memory_write` | executor | stateful | Protected key prefixes blocked |
+| `ledger_write` | executor | stateful (append) | Policy-gated |
+| `web_search` | executor | stateless | External web only |
+| `fetch_url` | executor | stateless | SSRF protections enforced |
+| `calendar_read` | executor + integrations | stateless | Requires Google OAuth |
+| `gmail_read` | executor + integrations | stateless | Requires Google OAuth |
+| `vector_search` | executor + memory | stateless | Requires embeddings/API key |
+| `goals_read` | executor + goals | stateless | Internal |
+| `goals_update` | executor + goals | stateful | Goal must exist |
+| `tasks_read` | executor + tasks | stateless | Internal |
+| `tasks_create` | executor + tasks | stateful | Title required |
+| `tasks_complete` | executor + tasks | stateful | Task ID required |
+| `note_create` | executor | stateful | Content required |
 
-- Browser control / web automation agent workflows are **not implemented**.
-- Multi-step autonomous browsing is **not implemented**.
+## Web Agent
 
-Requests requiring these must produce an explicit blocked response, not optimistic planning.
+- Partially implemented browser automation via `packages/orchestrator/src/nodes/web-agent.ts`.
+- Routes through V1 gatekeeper when `needs_web_agent` is detected.
+- Supports web search, URL navigation, and basic page interaction.
+
+## Dashboard System Capabilities
+
+| Message Type | Required Capability | Description |
+|---|---|---|
+| `config:set_*` | `config:write` | Update system configuration |
+| `system:update` | `config:write` | Trigger git pull + build + restart |
 
 ## Standard Failure Codes
 
 - `CAPABILITY_MISSING`
 - `PERMISSION_DENIED`
 - `TOOL_EXECUTION_FAILED`
+- `SKILL_NOT_FOUND` (V2)
+- `PARSE_ERROR_CLASSIFIER` (V2)
+- `CONTRACT_VALIDATION_FAIL` (V2)
+- `MODEL_NOT_AVAILABLE`
+- `INFRASTRUCTURE_FAIL`
 
-These are emitted as part of tool failure strings and interpreted by executor orchestration.
+These are emitted as part of tool/skill failure responses and interpreted by orchestration.

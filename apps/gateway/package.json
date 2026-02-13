@@ -11,6 +11,7 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
+    "@cairn/builder": "workspace:^",
     "@cairn/executor": "workspace:*",
     "@cairn/goals": "workspace:*",
     "@cairn/integrations": "workspace:*",
