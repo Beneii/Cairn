@@ -47,55 +47,45 @@ function buildClassifierPrompt(skills: { id: string; description: string }[]): s
     });
     const todayISO = new Date().toLocaleDateString("en-CA", { timeZone: tz }); // YYYY-MM-DD
 
-    return `You are an intent classifier for Cairn, a personal AI assistant.
-Your job is to classify the user's intent and recommend an action. You are advisory — your output is used by a deterministic system to decide what happens next.
+    return `You are a JSON classification engine. You receive user text and output a JSON object classifying the intent.
 
-## Context
+## Input Context
+- Date: ${todayISO}
 - Time: ${nowLocal}
-- Today: ${todayISO}
+
+## Classification Rules
+1. Map the user's intent to exactly ONE of these actions:
+   - "none": Casual chat, greetings, or questions you can answer directly without tools.
+   - "skill": A specific single tool/skill can handle the request.
+   - "plan": Complex requests requiring multiple steps or tools.
+
+2. Resolve relative dates (tomorrow, next friday) to ISO format in arguments.
 
 ## Available Skills
 ${skillList}
 
+## Output Schema
+You must output a JSON object satisfying this TypeScript interface:
+
+interface Classification {
+  intent: string; // Brief description of what the user wants
+  recommendedAction: "none" | "skill" | "plan";
+  suggestedSkillId: string | null; // The exact ID of the skill to use
+  suggestedArguments: Record<string, any> | null;
+  needsPlanner: boolean; // True if multi-step
+  confidence: number; // 0.0 to 1.0
+}
+
 ## Examples
+Input: "Remind me to call Mom tomorrow"
+Output: { "intent": "Create reminder", "recommendedAction": "skill", "suggestedSkillId": "task.create", "suggestedArguments": { "title": "Call Mom", "due_date": "${todayISO}" }, "needsPlanner": false, "confidence": 0.95 }
 
-User: "Remind me to buy milk tomorrow"
-{
-  "intent": "Create a task to buy milk",
-  "recommendedAction": "skill",
-  "suggestedSkillId": "task.create",
-  "suggestedArguments": { "title": "Buy milk", "due_date": "${todayISO}" }, // simplified
-  "needsPlanner": false,
-  "confidence": 0.95
-}
+Input: "What's the weather in Paris?"
+Output: { "intent": "Get weather", "recommendedAction": "skill", "suggestedSkillId": "weather.get", "suggestedArguments": { "location": "Paris" }, "needsPlanner": false, "confidence": 0.95 }
 
-User: "What is quantum physics?"
-{
-  "intent": "Ask about quantum physics",
-  "recommendedAction": "plan",
-  "suggestedSkillId": "web.search",
-  "suggestedArguments": { "query": "what is quantum physics" },
-  "needsPlanner": true,
-  "confidence": 0.9
-}
-
-## Output Format (JSON)
-Respond with exactly this structure:
-{
-  "intent": "short description",
-  "recommendedAction": "none" | "skill" | "plan",
-  "suggestedSkillId": "skill_id" | null,
-  "suggestedArguments": { ... } | null,
-  "needsPlanner": boolean,
-  "confidence": 0-1
-}
-
-## CRITICAL RULES
-1. **DO NOT ANSWER** the user's question. ONLY classify it.
-2. **STRICT JSON**: Output logic-free JSON. No markdown.
-3. **Format**: recommendedAction must be "none", "skill", or "plan".
-4. **Skills**: Use ONLY allowed skill IDs.
-5. **Dates**: Resolve "tomorrow/today" to ISO dates.`;
+Input: "Research quantum physics and write a summary"
+Output: { "intent": "Research topic", "recommendedAction": "plan", "suggestedSkillId": "web.search", "suggestedArguments": { "query": "quantum physics" }, "needsPlanner": true, "confidence": 0.9 }
+`;
 }
 
 // ---- Repair prompt ----
