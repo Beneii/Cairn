@@ -189,42 +189,61 @@ toolRegistry.set("web_search", async (args) => {
     if (results.length > 0) {
       return {
         success: true,
-        output: JSON.stringify(results),
+        output: formatSearchResults(query, results),
       };
     }
 
     // Fallback: scrape DuckDuckGo lite HTML
     const liteUrl = `https://lite.duckduckgo.com/lite/?q=${encodedQuery}`;
-    const liteRes = await fetch(liteUrl);
+    const liteRes = await fetch(liteUrl, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9"
+      }
+    });
     const html = await liteRes.text();
 
     // Extract result snippets from HTML (basic parsing)
-    const snippetMatches = html.match(/<td class="result-snippet">([\s\S]*?)<\/td>/gi) || [];
-    const linkMatches = html.match(/<a rel="nofollow" href="([^"]+)" class='result-link'>([^<]+)<\/a>/gi) || [];
+    // Handle single or double quotes for class attributes
+    const snippetMatches = html.match(/<td class=['"]result-snippet['"]>([\s\S]*?)<\/td>/gi) || [];
+    const linkMatches = html.match(/<a rel="nofollow" href="([^"]+)" class=['"]result-link['"]>([^<]+)<\/a>/gi) || [];
 
     for (let i = 0; i < Math.min(5, linkMatches.length); i++) {
       const linkMatch = linkMatches[i]?.match(/href="([^"]+)"[^>]*>([^<]+)/);
-      const snippet = snippetMatches[i]?.replace(/<[^>]+>/g, "").trim() || "";
+      let snippet = snippetMatches[i]?.replace(/<[^>]+>/g, "").trim() || "";
+
+      // Decode HTML entities in snippet
+      snippet = snippet
+        .replace(/&nbsp;/g, " ")
+        .replace(/&amp;/g, "&")
+        .replace(/&lt;/g, "<")
+        .replace(/&gt;/g, ">")
+        .replace(/&quot;/g, '"')
+        .replace(/&#39;/g, "'");
 
       if (linkMatch) {
+        let url = linkMatch[1];
+        if (url.startsWith("//")) url = "https:" + url;
+
         results.push({
           title: linkMatch[2],
-          snippet: snippet.substring(0, 200),
-          url: linkMatch[1],
+          snippet: snippet.substring(0, 300),
+          url: url,
         });
       }
     }
 
     if (results.length === 0) {
-      results.push({
-        title: "No results found",
-        snippet: `No search results found for "${query}". Try rephrasing your query.`,
-      });
+      return {
+        success: true,
+        output: `No search results found for "${query}".`,
+      };
     }
 
     return {
       success: true,
-      output: JSON.stringify(results),
+      output: formatSearchResults(query, results),
     };
   } catch (err) {
     return {
@@ -233,6 +252,14 @@ toolRegistry.set("web_search", async (args) => {
     };
   }
 });
+
+function formatSearchResults(query: string, results: { title: string; snippet: string; url?: string }[]): string {
+  let output = `Found ${results.length} results for "${query}":\n\n`;
+  results.forEach((r, i) => {
+    output += `${i + 1}. **${r.title}**\n   ${r.snippet}\n   [Source](${r.url})\n\n`;
+  });
+  return output;
+}
 
 // ---- fetch_url ----
 toolRegistry.set("fetch_url", async (args) => {
