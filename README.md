@@ -15,6 +15,7 @@ The project's documentation is located in the `documents/` directory and serves 
 - **[05 — Roadmap](documents/05_ROADMAP.md)**: Intent vs. implemented reality.
 - **[06 — Local Branch Builder Spec](documents/06_LOCAL_BRANCH_BUILDER_SPEC.md)**: Specification for the developer worker capability.
 - **[09 — Tool Migration Matrix](documents/09_TOOL_MIGRATION_MATRIX.md)**: Legacy-to-manifest tool migration status and runtime gates.
+- **[10 — Skills and Shell Integration](documents/10_SKILLS_AND_SHELL_INTEGRATION.md)**: Skill manifests, scripts, and planner/executor shell integration contracts.
 
 ## Project Structure
 
