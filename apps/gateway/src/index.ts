@@ -655,6 +655,39 @@ async function main() {
           case "ping":
             socket.send(JSON.stringify({ type: "pong" }));
             break;
+          case "system:update": {
+            const { execSync } = await import("child_process");
+            const sendProgress = (stage: "pulling" | "building" | "restarting" | "error", message: string) => {
+              socket.send(JSON.stringify({ type: "system:update_progress", stage, message }));
+            };
+
+            try {
+              sendProgress("pulling", "Pulling latest changes from git...");
+              const pullOutput = execSync("git pull", { cwd: PROJECT_ROOT, timeout: 30000 }).toString().trim();
+              sendProgress("pulling", pullOutput);
+
+              if (pullOutput.includes("Already up to date")) {
+                sendProgress("building", "No changes to pull. Rebuilding anyway...");
+              }
+
+              sendProgress("building", "Running pnpm build...");
+              execSync("pnpm build", { cwd: PROJECT_ROOT, timeout: 120000 });
+              sendProgress("building", "Build successful.");
+
+              sendProgress("restarting", "Restarting gateway in 2 seconds...");
+
+              // Give the WS message time to flush before exit
+              setTimeout(() => {
+                console.log("[gateway] Self-update complete, exiting for restart...");
+                process.exit(0);
+              }, 2000);
+            } catch (err) {
+              const msg = err instanceof Error ? err.message : String(err);
+              console.error("[gateway] system:update failed:", msg);
+              sendProgress("error", `Update failed: ${msg.substring(0, 500)}`);
+            }
+            break;
+          }
         }
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : String(err);

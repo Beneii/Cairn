@@ -190,6 +190,8 @@ export default function App() {
           diagnostics={cairn.diagnostics}
           nodes={cairn.policy.nodes}
           setLocalMode={cairn.setLocalMode}
+          triggerUpdate={cairn.triggerUpdate}
+          updateProgress={cairn.updateProgress}
         />
       )}
       {currentView === 'goals' && (

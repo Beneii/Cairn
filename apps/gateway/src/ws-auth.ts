@@ -68,6 +68,7 @@ const MESSAGE_CAPABILITY: Partial<Record<string, WsCapability>> = {
   "config:set_proactive_config": "config:write",
   "config:set_mobile_config": "config:write",
   "config:set_local_mode": "config:write",
+  "system:update": "config:write",
 };
 
 export function createSession(isLocal: boolean): WsSession {

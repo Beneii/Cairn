@@ -24,7 +24,7 @@ const IntentClassificationSchema = z.object({
     recommendedAction: z.enum(["none", "skill", "plan"]),
     suggestedSkillId: z.string().optional(),
     suggestedArguments: z.record(z.string(), z.any()).optional(),
-    needsPlanner: z.boolean(),
+    needsPlanner: z.boolean().default(false),
     confidence: z.number().min(0).max(1),
 });
 
