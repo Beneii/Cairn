@@ -259,6 +259,17 @@ export interface GoalTimelineEvent {
 export type TaskStatus = "todo" | "done" | "archived";
 export type TaskType = "one-off" | "recurring";
 
+export interface SkillMetrics {
+  skill_id: string;
+  invocation_count: number;
+  success_count: number;
+  failure_count: number;
+  p50_latency_ms?: number;
+  p95_latency_ms?: number;
+  last_used_at?: number;
+  last_error_at?: number;
+}
+
 export interface Task {
   id: string;
   title: string;
@@ -320,8 +331,11 @@ export type ClientMessage =
   | { type: "archive:get_logs" }
   | { type: "archive:get_system_docs" }
   | { type: "system:update" }
-  | { type: "builder:trigger" }
-  | { type: "builder:stop" };
+  | { type: "builder:trigger"; skillRequestId?: string }
+  | { type: "builder:stop" }
+  | { type: "skillRequests:list"; status?: "pending" | "building" | "promoted" | "rejected" }
+  | { type: "skillMetrics:list" }
+  | { type: "skillMetrics:get"; skill_id: string };
 
 export type ServerMessage =
   | { type: "pong" }
@@ -344,7 +358,10 @@ export type ServerMessage =
   | { type: "system:update_progress"; stage: "pulling" | "building" | "restarting" | "error"; message: string }
   | { type: "builder:status"; status: "idle" | "running" | "failed" | "completed" }
   | { type: "builder:progress"; message: string }
-  | { type: "builder:report"; report: any };
+  | { type: "builder:report"; report: any }
+  | { type: "skillRequests:list:result"; requests: any[] }
+  | { type: "skillMetrics:list:result"; metrics: SkillMetrics[] }
+  | { type: "skillMetrics:get:result"; metric: SkillMetrics | null };
 
 // ---- Cairn V2 Pipeline Types ----
 

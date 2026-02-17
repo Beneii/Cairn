@@ -40,6 +40,20 @@ planner output and executed through shell scripts.
   manifest-registry.json
 ```
 
+
+## Manifest Registry Fields
+
+`skills/manifest-registry.json` now supports runtime-control metadata per entry:
+
+- `enabled` (boolean): If `false`, runtime skips this skill mapping.
+- `runtime_skill_id` (string): Optional mapping to a runtime skill ID (e.g. `task.create`).
+- `version` (number): Skill manifest version for promotion workflows.
+- `hash_sha256` (string): Optional folder hash used for tamper verification in RUN mode.
+- `tier` (number): Trust tier hint for promotion/audit.
+- `required_tools` (string[]): Required backing tools for runtime validation.
+
+If no runtime-enabled entries are present, runtime falls back to built-in `DEFAULT_SKILLS` for compatibility.
+
 ## Planner Contract
 
 Planner output must explicitly target a skill:
@@ -85,3 +99,4 @@ After each skill run, persist:
 3. Update planner to emit explicit `invoke_skill` payloads.
 4. Ensure executor executes shell scripts via policy-allowed path.
 5. Run integration tests and capture outputs.
+6. Promote workshop skill into production registry with `pnpm promote-skill <skill-name>`.
