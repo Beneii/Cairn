@@ -3,20 +3,76 @@ export * from "./spec-generator.js";
 export * from "./worker.js";
 export * from "./report.js";
 
-import { collectIssue, getIssueBacklog, updateIssueStatus } from "./collector.js";
+import { getIssueBacklog, updateIssueStatus, type BuilderIssue } from "./collector.js";
 import { generateSpec } from "./spec-generator.js";
 import { BranchWorker } from "./worker.js";
 import { saveReport, getLatestReport } from "./report.js";
 export { getLatestReport };
 import { bus } from "@cairn/shared";
+import {
+    getSkillRequestById,
+    initSkillRequestStore,
+    listSkillRequests,
+    updateSkillRequestStatus,
+    type SkillRequest,
+} from "@cairn/skills";
 
 let isRunning = false;
 
-export async function runNightlyBuilder(manualIssues?: any[]): Promise<void> {
+function isSelfGrowthEnabled(): boolean {
+    return process.env.CAIRN_MODE === "grow" || process.env.CAIRN_SELF_GROWTH === "enabled";
+}
+
+function toIssueFromSkillRequest(req: SkillRequest): BuilderIssue {
+    return {
+        id: req.id,
+        timestamp: new Date(req.created_at).toISOString(),
+        source: "manual",
+        category: "behaviour",
+        summary: `SkillRequest: ${req.goal}`,
+        rawContext: JSON.stringify({
+            required_tools: req.required_tools,
+            proposed_tier: req.proposed_tier,
+            source_context: req.source_context,
+        }),
+        severity: "high",
+        status: "open",
+    };
+}
+
+export async function runNightlyBuilder(manualIssues?: any[], skillRequestId?: string): Promise<void> {
+    if (!isSelfGrowthEnabled()) {
+        console.warn("[builder] Disabled unless CAIRN_MODE=grow or CAIRN_SELF_GROWTH=enabled");
+        return;
+    }
     if (isRunning) {
         console.warn("[builder] Already running, skipping trigger");
         return;
     }
+
+    initSkillRequestStore();
+    const pending = listSkillRequests("pending");
+    console.log(`[builder] Pending skill requests: ${pending.length}`);
+
+    let boundSkillRequestId: string | undefined;
+
+    if (skillRequestId) {
+        const req = getSkillRequestById(skillRequestId);
+        if (!req) {
+            console.warn(`[builder] SkillRequest not found: ${skillRequestId}`);
+            return;
+        }
+        if (req.status !== "pending") {
+            console.warn(`[builder] SkillRequest ${skillRequestId} is not pending (status=${req.status})`);
+            return;
+        }
+
+        updateSkillRequestStatus(skillRequestId, "building");
+        boundSkillRequestId = skillRequestId;
+        manualIssues = [toIssueFromSkillRequest(req)];
+        bus.emit("builder:progress", `Building explicit SkillRequest ${skillRequestId}`);
+    }
+
     isRunning = true;
     bus.emit("builder:status", "running");
 
@@ -37,10 +93,19 @@ export async function runNightlyBuilder(manualIssues?: any[]): Promise<void> {
         // 3. Run Worker
         bus.emit("builder:progress", "Starting build process...");
         const worker = new BranchWorker(spec);
-        await worker.run();
+        const success = await worker.run();
 
         // 4. Save Report
         const report = await saveReport(spec, worker.getReport().state);
+
+        if (boundSkillRequestId) {
+            if (success) {
+                bus.emit("builder:progress", `SkillRequest ${boundSkillRequestId} built; awaiting promotion.`);
+            } else {
+                updateSkillRequestStatus(boundSkillRequestId, "rejected");
+                bus.emit("builder:progress", `SkillRequest ${boundSkillRequestId} rejected after failed build.`);
+            }
+        }
 
         // 5. Update issues
         for (const issueId of spec.issues) {
@@ -48,10 +113,17 @@ export async function runNightlyBuilder(manualIssues?: any[]): Promise<void> {
         }
 
         bus.emit("builder:report", report);
-        bus.emit("builder:status", "completed");
-        bus.emit("builder:progress", "Build completed successfully.");
+        bus.emit("builder:status", success ? "completed" : "failed");
+        bus.emit("builder:progress", success ? "Build completed successfully." : "Build failed.");
 
     } catch (err) {
+        if (boundSkillRequestId) {
+            try {
+                updateSkillRequestStatus(boundSkillRequestId, "rejected");
+            } catch {
+                // Ignore transition errors in catch path
+            }
+        }
         console.error("[builder] Nightly run failed:", err);
         bus.emit("builder:status", "failed");
         bus.emit("builder:progress", `Error: ${err}`);

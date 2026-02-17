@@ -21,6 +21,7 @@ import { buildContract } from "./contract-builder.js";
 import { ensureSkillRegistry } from "./skill-registry.js";
 import { executeSingleSkill, executePlan } from "./nodes/executor-v2.js";
 import { createPlan } from "./nodes/planner-v2.js";
+import { evaluateExecutionOutcome } from "./evaluator.js";
 import {
   composeDirectResponse,
   composeSkillResponse,
@@ -103,10 +104,18 @@ export async function processMessage(userInput: string, attachments?: ChatAttach
         bus.emit("nucleus:state", "tooling");
 
         const stepResult = await executeSingleSkill(skillId, args, messageId);
-        const responseText = composeSkillResponse(skillId, {
+        const evaluation = await evaluateExecutionOutcome({
+          messageId,
+          userInput,
+          steps: [{ skillId, success: stepResult.success, output: stepResult.output }],
+        });
+        const responseTextBase = composeSkillResponse(skillId, {
           success: stepResult.success,
           output: stepResult.output,
         }, args);
+        const responseText = evaluation.note ? `${responseTextBase}
+
+${evaluation.note}` : responseTextBase;
 
         trace.executionTrace = [{ skillId, durationMs: stepResult.durationMs, success: stepResult.success }];
         trace.finalStatus = stepResult.success ? "SUCCESS" : "INFRASTRUCTURE_FAIL";
@@ -159,8 +168,21 @@ export async function processMessage(userInput: string, attachments?: ChatAttach
 
     // Handle contract failures
     if (contractResult.status !== "SUCCESS") {
-      const responseText = composeErrorResponse(contractResult.status);
+      let responseText = composeErrorResponse(contractResult.status);
       trace.finalStatus = contractResult.status;
+
+      if (contractResult.status === "SKILL_NOT_FOUND") {
+        const evaluation = await evaluateExecutionOutcome({
+          messageId,
+          userInput,
+          steps: [{ skillId: contractResult.contract.skillId || "unknown", success: false, output: "Skill not found" }],
+        });
+        if (evaluation.note) {
+          responseText = `${responseText}
+
+${evaluation.note}`;
+        }
+      }
 
       emitResponse(responseText);
       appendChatHistory(userInput, responseText);
@@ -202,10 +224,18 @@ export async function processMessage(userInput: string, attachments?: ChatAttach
       ]);
 
       const stepResult = await executeSingleSkill(skillId, args, messageId);
-      const responseText = composeSkillResponse(skillId, {
+      const evaluation = await evaluateExecutionOutcome({
+        messageId,
+        userInput,
+        steps: [{ skillId, success: stepResult.success, output: stepResult.output }],
+      });
+      const responseTextBase = composeSkillResponse(skillId, {
         success: stepResult.success,
         output: stepResult.output,
       }, args);
+      const responseText = evaluation.note ? `${responseTextBase}
+
+${evaluation.note}` : responseTextBase;
 
       trace.executionTrace = [{ skillId, durationMs: stepResult.durationMs, success: stepResult.success }];
       trace.finalStatus = stepResult.success ? "SUCCESS" : "INFRASTRUCTURE_FAIL";
@@ -254,13 +284,22 @@ export async function processMessage(userInput: string, attachments?: ChatAttach
         success: s.success,
       }));
 
-      const responseText = await composePlanResponse(
+      const responseTextBase = await composePlanResponse(
         planResult.plan,
         execResult.steps.map((s) => ({
           skillId: s.skillId,
           result: { success: s.success, output: s.output },
         })),
       );
+
+      const evaluation = await evaluateExecutionOutcome({
+        messageId,
+        userInput,
+        steps: execResult.steps.map((s) => ({ skillId: s.skillId, success: s.success, output: s.output })),
+      });
+      const responseText = evaluation.note ? `${responseTextBase}
+
+${evaluation.note}` : responseTextBase;
 
       trace.finalStatus = execResult.allSuccess ? "SUCCESS" : "INFRASTRUCTURE_FAIL";
 

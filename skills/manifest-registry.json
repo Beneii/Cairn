@@ -4,27 +4,62 @@
     {
       "name": "create-feature-branch",
       "path": "skills/create-feature-branch/SKILL.md",
-      "entry_script": "skills/create-feature-branch/scripts/create_branch.sh"
+      "entry_script": "skills/create-feature-branch/scripts/create_branch.sh",
+      "enabled": true,
+      "version": 1,
+      "tier": 1,
+      "required_tools": [
+        "shell"
+      ],
+      "runtime_skill_id": null
     },
     {
       "name": "investigate-bug",
       "path": "skills/investigate-bug/SKILL.md",
-      "entry_script": "skills/investigate-bug/scripts/reproduce_issue.sh"
+      "entry_script": "skills/investigate-bug/scripts/reproduce_issue.sh",
+      "enabled": true,
+      "version": 1,
+      "tier": 1,
+      "required_tools": [
+        "shell"
+      ],
+      "runtime_skill_id": null
     },
     {
       "name": "run-tests",
       "path": "skills/run-tests/SKILL.md",
-      "entry_script": "skills/run-tests/scripts/execute_tests.sh"
+      "entry_script": "skills/run-tests/scripts/execute_tests.sh",
+      "enabled": true,
+      "version": 1,
+      "tier": 1,
+      "required_tools": [
+        "shell"
+      ],
+      "runtime_skill_id": null
     },
     {
       "name": "refactor-file",
       "path": "skills/refactor-file/SKILL.md",
-      "entry_script": "skills/refactor-file/scripts/apply_refactor.sh"
+      "entry_script": "skills/refactor-file/scripts/apply_refactor.sh",
+      "enabled": true,
+      "version": 1,
+      "tier": 1,
+      "required_tools": [
+        "shell"
+      ],
+      "runtime_skill_id": null
     },
     {
       "name": "generate-design-doc",
       "path": "skills/generate-design-doc/SKILL.md",
-      "entry_script": "skills/generate-design-doc/scripts/generate_doc.sh"
+      "entry_script": "skills/generate-design-doc/scripts/generate_doc.sh",
+      "enabled": true,
+      "version": 1,
+      "tier": 1,
+      "required_tools": [
+        "shell"
+      ],
+      "runtime_skill_id": null
     }
   ]
 }
