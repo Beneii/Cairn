@@ -9,7 +9,7 @@ export interface BuildTask {
     description: string;
     targetFile: string;
     changeType: "modify" | "create" | "delete";
-    testCommand?: string;
+    testAction?: "skill-tests" | "lint" | "typecheck" | "workspace-test";
 }
 
 export interface BuildSpec {
@@ -46,7 +46,7 @@ Output JSON format:
 {
   "branch": "cairn/builder/YYYY-MM-DD-short-desc",
   "tasks": [
-    { "id": "t1", "description": "Update X to handle Y", "targetFile": "packages/pkg/src/file.ts", "changeType": "modify" }
+    { "id": "t1", "description": "Create skill scaffold", "targetFile": "skills_workshop/my-skill/handler.ts", "changeType": "create", "testAction": "skill-tests" }
   ],
   "successCriteria": ["string"],
   "scopeAllowlist": ["packages/pkg/src/file.ts"],

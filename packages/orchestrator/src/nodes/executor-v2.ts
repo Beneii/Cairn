@@ -15,6 +15,7 @@
 import type { Plan, PlanStep } from "@cairn/shared";
 import { newId, now, bus } from "@cairn/shared";
 import { appendEntry } from "@cairn/ledger";
+import { recordSkillInvocation } from "@cairn/skills";
 import {
     getSkillDefinition,
     validateSkillInput,
@@ -92,30 +93,54 @@ export async function executeSingleSkill(
         content: `Executing skill: ${skillId}(${JSON.stringify(args)})`,
     });
 
-    const result = await executeSkill(skillId, args, ctx);
-    const durationMs = Date.now() - start;
+    try {
+        const result = await executeSkill(skillId, args, ctx);
+        const durationMs = Date.now() - start;
 
-    // 5. Log
-    await appendEntry(
-        "tool",
-        "executor-v2",
-        messageId,
-        `Skill ${skillId}: ${result.success ? "OK" : "FAIL"} in ${durationMs}ms`,
-    );
+        try {
+            recordSkillInvocation({
+                skill_id: skillId,
+                latency_ms: durationMs,
+                success: result.success,
+            });
+        } catch (metricsErr) {
+            console.warn("[executor-v2] failed to record skill metrics:", metricsErr);
+        }
 
-    bus.emit("log:entry", {
-        id: newId(),
-        timestamp: now(),
-        type: "tool",
-        content: `Skill ${skillId} result (${durationMs}ms): ${result.output.substring(0, 200)}`,
-    });
+        // 5. Log
+        await appendEntry(
+            "tool",
+            "executor-v2",
+            messageId,
+            `Skill ${skillId}: ${result.success ? "OK" : "FAIL"} in ${durationMs}ms`,
+        );
 
-    return {
-        skillId,
-        success: result.success,
-        output: result.output,
-        durationMs,
-    };
+        bus.emit("log:entry", {
+            id: newId(),
+            timestamp: now(),
+            type: "tool",
+            content: `Skill ${skillId} result (${durationMs}ms): ${result.output.substring(0, 200)}`,
+        });
+
+        return {
+            skillId,
+            success: result.success,
+            output: result.output,
+            durationMs,
+        };
+    } catch (err) {
+        const durationMs = Date.now() - start;
+        try {
+            recordSkillInvocation({
+                skill_id: skillId,
+                latency_ms: durationMs,
+                success: false,
+            });
+        } catch (metricsErr) {
+            console.warn("[executor-v2] failed to record skill metrics:", metricsErr);
+        }
+        throw err;
+    }
 }
 
 /**
