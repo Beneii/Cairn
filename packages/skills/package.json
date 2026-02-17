@@ -1,5 +1,5 @@
 {
-  "name": "@cairn/orchestrator",
+  "name": "@cairn/skills",
   "version": "0.0.1",
   "private": true,
   "type": "module",
@@ -9,19 +9,12 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
-    "@cairn/executor": "workspace:*",
     "@cairn/ledger": "workspace:*",
-    "@cairn/memory": "workspace:*",
-    "@cairn/goals": "workspace:*",
-    "@cairn/tasks": "workspace:*",
-    "@cairn/policy": "workspace:*",
     "@cairn/shared": "workspace:*",
-    "openai": "^4",
-    "zod": "^4.3.6",
-    "undici": "^6.0.0",
-    "@cairn/skills": "workspace:*"
+    "better-sqlite3": "^11.0.0"
   },
   "devDependencies": {
+    "@types/better-sqlite3": "^7.6.11",
     "@types/node": "^25.2.0",
     "typescript": "^5.6.0"
   }

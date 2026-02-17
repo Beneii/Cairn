@@ -11,7 +11,8 @@
     "lint": "turbo run lint",
     "test": "turbo run test",
     "clean": "turbo run clean && rm -rf node_modules",
-    "login:google": "npx tsx scripts/browser-login.ts"
+    "login:google": "npx tsx scripts/browser-login.ts",
+    "promote-skill": "npx tsx scripts/promote-skill.ts"
   },
   "devDependencies": {
     "ts-node": "^10.9.2",

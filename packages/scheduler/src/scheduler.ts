@@ -9,6 +9,12 @@ const STALL_THRESHOLD_MS = 5 * 60 * 1000; // 5 minutes
 
 let intervalId: ReturnType<typeof setInterval> | null = null;
 
+
+function isSelfGrowthEnabled(): boolean {
+  return process.env.CAIRN_MODE === "grow" || process.env.CAIRN_SELF_GROWTH === "enabled";
+}
+
+
 export function startScheduler(): void {
   if (intervalId) return;
   console.log(`[scheduler] heartbeat started (interval: ${currentIntervalMs / 1000}s)`);
@@ -122,7 +128,7 @@ async function heartbeat(): Promise<void> {
     );
 
     // 6. Nightly Builder Trigger
-    if (process.env.BUILDER_ENABLED === "true") {
+    if (process.env.BUILDER_ENABLED === "true" && isSelfGrowthEnabled()) {
       const tz = process.env.TIMEZONE || "Australia/Sydney";
       // Get current hour in local time
       const hour = parseInt(new Date().toLocaleString("en-AU", { timeZone: tz, hour: "numeric", hour12: false }));

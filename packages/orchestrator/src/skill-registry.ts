@@ -11,7 +11,12 @@
  */
 
 import type { SkillDefinition } from "@cairn/shared";
-import { newId, now, bus } from "@cairn/shared";
+import { newId, now, bus, getProjectRoot } from "@cairn/shared";
+import { readFile } from "fs/promises";
+import { existsSync } from "fs";
+import { createHash } from "crypto";
+import path from "path";
+import { getSkillMetrics } from "@cairn/skills";
 
 // ---- Skill Handler Type ----
 
@@ -62,11 +67,42 @@ export function getSkillDefinition(id: string): SkillDefinition | undefined {
  * List all skills (for classifier context).
  * Returns ONLY id + short description to minimize token usage.
  */
+function metricSortKey(skillId: string): { successRate: number; p50: number } {
+    try {
+        const metrics = getSkillMetrics(skillId);
+        if (!metrics || metrics.invocation_count === 0) {
+            return { successRate: 0.5, p50: Number.MAX_SAFE_INTEGER };
+        }
+
+        return {
+            successRate: metrics.success_count / metrics.invocation_count,
+            p50: metrics.p50_latency_ms ?? Number.MAX_SAFE_INTEGER,
+        };
+    } catch {
+        return { successRate: 0.5, p50: Number.MAX_SAFE_INTEGER };
+    }
+}
+
 export function listSkills(): { id: string; description: string }[] {
-    return Array.from(skills.values()).map((s) => ({
-        id: s.definition.id,
-        description: s.definition.description,
-    }));
+    return Array.from(skills.values())
+        .map((s) => ({
+            id: s.definition.id,
+            description: s.definition.description,
+        }))
+        .sort((a, b) => {
+            const aKey = metricSortKey(a.id);
+            const bKey = metricSortKey(b.id);
+
+            if (bKey.successRate !== aKey.successRate) {
+                return bKey.successRate - aKey.successRate;
+            }
+
+            if (aKey.p50 !== bKey.p50) {
+                return aKey.p50 - bKey.p50;
+            }
+
+            return a.id.localeCompare(b.id);
+        });
 }
 
 /**
@@ -161,6 +197,146 @@ function wrapToolAsSkill(toolFn: (args: Record<string, unknown>, ctx: any) => Pr
             output: result.output,
         };
     };
+}
+
+
+interface ManifestSkillEntry {
+    name: string;
+    path: string;
+    entry_script: string;
+    enabled?: boolean;
+    version?: number;
+    hash_sha256?: string;
+    tier?: number;
+    required_tools?: string[];
+    runtime_skill_id?: string;
+}
+
+interface ManifestRegistryFile {
+    version: number;
+    skills: ManifestSkillEntry[];
+}
+
+const MANIFEST_REGISTRY_PATH = path.join(getProjectRoot(), "skills", "manifest-registry.json");
+
+function isSelfGrowthEnabled(): boolean {
+    return process.env.CAIRN_MODE === "grow" || process.env.CAIRN_SELF_GROWTH === "enabled";
+}
+
+const MANIFEST_NAME_TO_RUNTIME_SKILL_ID: Record<string, string> = {
+    "task-create": "task.create",
+    "task-read": "task.read",
+    "task-complete": "task.complete",
+    "calendar-read": "calendar.read",
+    "web-search": "web.search",
+    "web-fetch": "web.fetch",
+    "memory-read": "memory.read",
+    "memory-write": "memory.write",
+    "note-create": "note.create",
+    "goal-read": "goal.read",
+    "goal-update": "goal.update",
+    "vector-search": "vector.search",
+    "email-read": "email.read",
+    "research-ingest": "research.ingest",
+    "weather-get": "weather.get",
+    "system-model-pull": "system.model_pull",
+};
+
+async function computeSkillFolderHash(skillEntry: ManifestSkillEntry): Promise<string | null> {
+    const root = getProjectRoot();
+    const skillFileAbs = path.join(root, skillEntry.path);
+    const skillDir = path.dirname(skillFileAbs);
+
+    if (!existsSync(skillDir)) return null;
+
+    const hash = createHash("sha256");
+
+    async function walk(dir: string): Promise<string[]> {
+        const { readdir } = await import("fs/promises");
+        const entries = await readdir(dir, { withFileTypes: true });
+        let files: string[] = [];
+        for (const entry of entries) {
+            const full = path.join(dir, entry.name);
+            if (entry.isDirectory()) {
+                files = files.concat(await walk(full));
+            } else if (entry.isFile()) {
+                files.push(full);
+            }
+        }
+        return files;
+    }
+
+    const files = (await walk(skillDir)).sort();
+    for (const file of files) {
+        const rel = path.relative(skillDir, file);
+        const content = await readFile(file);
+        hash.update(rel);
+        hash.update("\0");
+        hash.update(content);
+        hash.update("\0");
+    }
+
+    return hash.digest("hex");
+}
+
+async function loadSkillManifestRegistry(): Promise<ManifestRegistryFile | null> {
+    try {
+        if (!existsSync(MANIFEST_REGISTRY_PATH)) {
+            console.warn("[skill-registry] manifest-registry.json missing, using default skills only");
+            return null;
+        }
+
+        const raw = await readFile(MANIFEST_REGISTRY_PATH, "utf-8");
+        const parsed = JSON.parse(raw) as ManifestRegistryFile;
+
+        if (!Array.isArray(parsed.skills)) {
+            console.warn("[skill-registry] manifest-registry.json invalid skills array, using defaults");
+            return null;
+        }
+
+        return parsed;
+    } catch (err) {
+        console.error("[skill-registry] Failed to read manifest-registry.json:", err);
+        return null;
+    }
+}
+
+async function resolveRuntimeEnabledSkillIds(): Promise<Set<string> | null> {
+    const manifest = await loadSkillManifestRegistry();
+    if (!manifest) return null;
+
+    const enabledIds = new Set<string>();
+
+    for (const entry of manifest.skills) {
+        if (entry.enabled === false) continue;
+
+        const runtimeSkillId = entry.runtime_skill_id || MANIFEST_NAME_TO_RUNTIME_SKILL_ID[entry.name] || (entry.name.includes(".") ? entry.name : undefined);
+        if (!runtimeSkillId) continue;
+
+        if (entry.hash_sha256) {
+            const currentHash = await computeSkillFolderHash(entry);
+            if (!currentHash || currentHash !== entry.hash_sha256) {
+                const msg = `[skill-registry] Hash mismatch for ${entry.name} (${runtimeSkillId})`;
+                if (isSelfGrowthEnabled()) {
+                    console.warn(msg + " - allowed in GROW mode");
+                } else {
+                    throw new Error(msg + " - blocked in RUN mode");
+                }
+            }
+        }
+
+        if (entry.required_tools && entry.required_tools.length > 0) {
+            const expectedTool = DEFAULT_SKILLS.find((s) => s.definition.id === runtimeSkillId)?.toolName;
+            if (expectedTool && !entry.required_tools.includes(expectedTool)) {
+                console.warn(`[skill-registry] required_tools missing expected tool ${expectedTool} for ${runtimeSkillId}; skipping`);
+                continue;
+            }
+        }
+
+        enabledIds.add(runtimeSkillId);
+    }
+
+    return enabledIds;
 }
 
 // ---- Default Skill Definitions ----
@@ -455,8 +631,19 @@ const DEFAULT_SKILLS: { definition: SkillDefinition; toolName: string }[] = [
 export async function initSkillRegistry(): Promise<void> {
     // Dynamic import of existing tool registry (ESM-compatible)
     const { getTool: getExistingTool } = await import("@cairn/executor");
+    const enabledSkillIds = await resolveRuntimeEnabledSkillIds();
+
+    if (enabledSkillIds && enabledSkillIds.size > 0) {
+        console.log(`[skill-registry] Manifest-authoritative runtime enabled skills: ${Array.from(enabledSkillIds).join(", ")}`);
+    } else if (enabledSkillIds && enabledSkillIds.size === 0) {
+        console.warn("[skill-registry] Manifest loaded with no runtime_skill_id entries. Falling back to DEFAULT_SKILLS.");
+    }
 
     for (const { definition, toolName } of DEFAULT_SKILLS) {
+        if (enabledSkillIds && enabledSkillIds.size > 0 && !enabledSkillIds.has(definition.id)) {
+            continue;
+        }
+
         const toolFn = getExistingTool(toolName);
         if (toolFn) {
             registerSkill(definition, wrapToolAsSkill(toolFn));

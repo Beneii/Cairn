@@ -45,12 +45,24 @@ import { initCalendarProvider, getCalendarProvider } from "@cairn/executor";
 import { setBriefingCalendarSource, getGoals, createGoal as createGoalFactory, updateGoal, saveGoal } from "@cairn/goals";
 import { deleteGoal, getGoal } from "@cairn/goals";
 import { getTasks, createTask, updateTask, deleteTask, completeTask, initDatabase as initTasks } from "@cairn/tasks";
+import {
+  initSkillRequestStore,
+  listSkillRequests,
+  type SkillRequestStatus,
+  initSkillMetricsStore,
+  listSkillMetrics,
+  getSkillMetrics,
+} from "@cairn/skills";
 import { loadSystemDocs } from "./system-docs.js";
 import { authorizeMessage, createSession, getCapabilities, grantDashboardSession, grantMobileSession } from "./ws-auth.js";
 
 const HOST = process.env.HOST || "0.0.0.0";
 const PORT = process.env.PORT ?? 3100;
 const NOTES_CHECK_INTERVAL_MS = 60000; // Check notes every 60 seconds
+
+function isSelfGrowthEnabled(): boolean {
+  return process.env.CAIRN_MODE === "grow" || process.env.CAIRN_SELF_GROWTH === "enabled";
+}
 
 // Notes processor - scans inbox and processes unread notes
 function startNotesProcessor(): void {
@@ -130,6 +142,8 @@ async function main() {
   await initNotes();
   await initKanban();
   initTasks();
+  initSkillRequestStore();
+  initSkillMetricsStore();
 
   // LLM is opt-in. System boots without it.
   initLLM();
@@ -362,8 +376,12 @@ async function main() {
         }
 
         if (msg.type === "builder:trigger") {
+          if (!isSelfGrowthEnabled()) {
+            socket.send(JSON.stringify({ type: "error", message: "Builder disabled unless CAIRN_MODE=grow or CAIRN_SELF_GROWTH=enabled" }));
+            return;
+          }
           const { runNightlyBuilder } = await import("@cairn/builder");
-          runNightlyBuilder().catch(err => console.error("[gateway] Manual builder failed:", err));
+          runNightlyBuilder(undefined, msg.skillRequestId).catch(err => console.error("[gateway] Manual builder failed:", err));
           return;
         }
 
@@ -666,10 +684,34 @@ async function main() {
             socket.send(JSON.stringify({ type: "archive:system_docs", docs }));
             break;
           }
+          case "skillRequests:list": {
+            const status = msg.status as SkillRequestStatus | undefined;
+            const requests = listSkillRequests(status);
+            socket.send(JSON.stringify({ type: "skillRequests:list:result", requests }));
+            break;
+          }
+          case "skillMetrics:list": {
+            const metrics = listSkillMetrics();
+            socket.send(JSON.stringify({ type: "skillMetrics:list:result", metrics }));
+            break;
+          }
+          case "skillMetrics:get": {
+            const metric = getSkillMetrics(msg.skill_id);
+            socket.send(JSON.stringify({
+              type: "skillMetrics:get:result",
+              metric,
+            }));
+            break;
+          }
           case "ping":
             socket.send(JSON.stringify({ type: "pong" }));
             break;
           case "system:update": {
+            if (!isSelfGrowthEnabled()) {
+              socket.send(JSON.stringify({ type: "error", message: "system:update disabled unless CAIRN_MODE=grow or CAIRN_SELF_GROWTH=enabled" }));
+              break;
+            }
+
             const { execSync } = await import("child_process");
             const sendProgress = (stage: "pulling" | "building" | "restarting" | "error", message: string) => {
               socket.send(JSON.stringify({ type: "system:update_progress", stage, message }));
