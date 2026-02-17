@@ -1,12 +1,12 @@
 /**
  * Action Contract Builder — Cairn V2
- * 
+ *
  * Deterministic gate that converts IntentClassification into a validated ActionContract.
  * Zero LLM involvement. Pure logic.
- * 
+ *
  * Rules:
  * 1. If recommendedAction === "none" → actionType: "none"
- * 2. If suggestedSkillId not in registry → SKILL_NOT_FOUND
+ * 2. If suggestedSkillId not in registry → fall back to "plan" (try to compose existing skills)
  * 3. If skill found but required args missing → actionType: "none" with clarification
  * 4. If skill found and valid → actionType: "skill", validated contract
  * 5. If needsPlanner === true → actionType: "plan"
@@ -39,18 +39,21 @@ export function buildContract(classification: IntentClassification): ContractRes
     if (classification.recommendedAction === "plan" || classification.needsPlanner) {
         const skillId = classification.suggestedSkillId;
 
-        // If a primary skill is suggested, validate it exists
+        // If a primary skill is suggested, validate it exists — but don't hard-fail
         if (skillId) {
             const skillDef = getSkillDefinition(skillId);
             if (!skillDef) {
+                // Skill hint was wrong, but still let the planner try with all available skills
                 return {
                     contract: {
-                        actionType: "none",
+                        actionType: "plan",
+                        // Don't pass the invalid skillId — let planner choose freely
+                        arguments: classification.suggestedArguments ?? undefined,
                         requiresConfirmation: false,
-                        justification: `Suggested skill "${skillId}" not found in registry.`,
-                        confidence: 0,
+                        justification: `Plan needed for: ${classification.intent} (hint skill "${skillId}" unavailable, planner will compose from available skills)`,
+                        confidence: classification.confidence * 0.8,
                     },
-                    status: "SKILL_NOT_FOUND",
+                    status: "SUCCESS",
                 };
             }
         }
@@ -72,29 +75,30 @@ export function buildContract(classification: IntentClassification): ContractRes
     const skillId = classification.suggestedSkillId;
 
     if (!skillId) {
-        // Classifier said "skill" but didn't suggest one
+        // Classifier said "skill" but didn't suggest one — escalate to planner
         return {
             contract: {
-                actionType: "none",
+                actionType: "plan",
                 requiresConfirmation: false,
-                justification: `Action type "skill" but no skill suggested for: ${classification.intent}`,
-                confidence: 0,
+                justification: `No specific skill matched for: ${classification.intent}. Planner will compose from available skills.`,
+                confidence: classification.confidence * 0.8,
             },
-            status: "CONTRACT_VALIDATION_FAIL",
+            status: "SUCCESS",
         };
     }
 
-    // Rule 2: Check skill exists
+    // Rule 2: Check skill exists — fall back to planner instead of hard-failing
     const skillDef = getSkillDefinition(skillId);
     if (!skillDef) {
         return {
             contract: {
-                actionType: "none",
+                actionType: "plan",
+                arguments: classification.suggestedArguments ?? undefined,
                 requiresConfirmation: false,
-                justification: `Skill "${skillId}" not found in registry.`,
-                confidence: 0,
+                justification: `Skill "${skillId}" not found — planner will attempt to compose a solution for: ${classification.intent}`,
+                confidence: classification.confidence * 0.7,
             },
-            status: "SKILL_NOT_FOUND",
+            status: "SUCCESS",
         };
     }
 

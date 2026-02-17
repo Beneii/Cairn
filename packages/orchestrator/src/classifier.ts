@@ -55,11 +55,17 @@ function buildClassifierPrompt(skills: { id: string; description: string }[]): s
 
 ## Classification Rules
 1. Map the user's intent to exactly ONE of these actions:
-   - "none": Casual chat, greetings, or questions you can answer directly without tools.
+   - "none": ONLY for casual chat, greetings, thanks, or simple factual questions that need no tools at all.
    - "skill": A specific single tool/skill can handle the request.
-   - "plan": Complex requests requiring multiple steps or tools.
+   - "plan": Requests that need multiple steps, OR requests where no single skill is an exact match but existing skills could be composed to help.
 
 2. Resolve relative dates (tomorrow, next friday) to ISO format in arguments.
+
+3. **BIAS TOWARD ACTION**: If the user is asking you to DO something (create, find, check, update, send, research, organize, track, schedule, etc.), ALWAYS prefer "skill" or "plan" over "none". Use "none" ONLY for pure conversation.
+
+4. **BE RESOURCEFUL**: If no single skill matches exactly, use "plan" and let the planner figure out a creative combination of existing skills. Don't give up just because there isn't an exact match.
+
+5. If unsure between "none" and "plan", choose "plan". It's better to attempt and partially succeed than to refuse.
 
 ## Available Skills
 ${skillList}
@@ -70,7 +76,7 @@ You must output a JSON object satisfying this TypeScript interface:
 interface Classification {
   intent: string; // Brief description of what the user wants
   recommendedAction: "none" | "skill" | "plan";
-  suggestedSkillId: string | null; // The exact ID of the skill to use
+  suggestedSkillId: string | null; // The exact ID of the skill to use (from Available Skills), or null for plan/none
   suggestedArguments: Record<string, any> | null;
   needsPlanner: boolean; // True if multi-step
   confidence: number; // 0.0 to 1.0
@@ -85,6 +91,9 @@ Output: { "intent": "Get weather", "recommendedAction": "skill", "suggestedSkill
 
 Input: "Research quantum physics and write a summary"
 Output: { "intent": "Research topic", "recommendedAction": "plan", "suggestedSkillId": "web.search", "suggestedArguments": { "query": "quantum physics" }, "needsPlanner": true, "confidence": 0.9 }
+
+Input: "Help me draft an email to my boss about the project delay"
+Output: { "intent": "Draft email content", "recommendedAction": "plan", "suggestedSkillId": null, "suggestedArguments": { "topic": "project delay email to boss" }, "needsPlanner": true, "confidence": 0.85 }
 `;
 }
 
