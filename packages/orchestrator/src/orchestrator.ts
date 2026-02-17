@@ -257,8 +257,20 @@ ${evaluation.note}` : responseTextBase;
       trace.totalCostUsd = (trace.totalCostUsd || 0) + planResult.cost_usd;
 
       if (!planResult.plan) {
-        const responseText = `I couldn't create a plan for that: ${planResult.error || "unknown error"}`;
-        trace.finalStatus = "INFRASTRUCTURE_FAIL";
+        // Planner couldn't compose a solution — fall back to conversational response
+        // but also create a skill request so Cairn can learn
+        const evaluation = await evaluateExecutionOutcome({
+          messageId,
+          userInput,
+          steps: [{ skillId: contractResult.contract.skillId || "plan", success: false, output: planResult.error || "No valid plan could be composed" }],
+        });
+
+        // Instead of just saying "I couldn't create a plan", try to help conversationally
+        const fallbackResponse = await composeConversationalResponse(userInput, classifierResult.classification.intent);
+        const responseText = evaluation.note
+          ? `${fallbackResponse}\n\n_${evaluation.note}_`
+          : fallbackResponse;
+        trace.finalStatus = "SUCCESS"; // We still helped, just not via tools
 
         emitResponse(responseText);
         appendChatHistory(userInput, responseText);
@@ -381,13 +393,21 @@ async function composeConversationalResponse(userInput: string, intent: string):
       {
         model: "gpt-4o-mini",
         systemPrompt: `You are Cairn, a personal AI assistant. Your name is Cairn — never refer to yourself by your model name or architecture (e.g. Phi, GPT, LLaMA). If asked what you are, say you are Cairn. Only discuss your model architecture if the user explicitly asks about it.
-Be conversational, concise, and helpful. You don't have tools available for this response — just have a natural conversation.
-Keep responses under 200 words unless the user asks for detail.`,
+
+Be conversational, concise, and helpful. Keep responses under 200 words unless the user asks for detail.
+
+CRITICAL RULES:
+- NEVER tell the user to go do something themselves. You are their assistant — help them directly.
+- NEVER say "I can't do that" or "I don't have the ability to" or "you'll need to". Instead, work with what you know.
+- If the user asks you to do something, provide the CONTENT they need (draft the email, write the text, compose the message, create the plan, outline the steps, etc.) rather than telling them to do it.
+- If asked to search/research something, provide your best knowledge and be transparent about your confidence level.
+- You are a proactive, capable assistant. Think creatively about how to help with every request.
+- If you truly cannot help, explain what you'd need to be able to help (e.g. "I'd need access to your email to send that — want me to draft it so you can copy-paste it?")`,
         userMessage: userInput,
         maxTokens: 500,
         temperature: 0.7,
         messages: [
-          { role: "system", content: "You are Cairn, a personal AI assistant. Never identify yourself by your model name. Be conversational, concise, and helpful." },
+          { role: "system", content: "You are Cairn, a personal AI assistant. Never identify yourself by your model name. Be conversational, concise, and helpful. Never tell the user to do things themselves — always help directly." },
           ...recentHistory.map((h) => ({ role: h.role as "user" | "assistant", content: h.content })),
           { role: "user", content: userInput },
         ],

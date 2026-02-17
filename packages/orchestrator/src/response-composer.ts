@@ -51,11 +51,11 @@ function formatGoalList(output: string): string {
 
 const ERROR_MESSAGES: Record<FailureStatus, string> = {
     SUCCESS: "",
-    PARSE_ERROR_CLASSIFIER: "I had trouble understanding that. Could you rephrase?",
-    CONTRACT_VALIDATION_FAIL: "I couldn't figure out exactly what action to take. Could you be more specific?",
-    SKILL_NOT_FOUND: "I don't have a capability for that yet.",
+    PARSE_ERROR_CLASSIFIER: "I had trouble understanding that. Could you try rephrasing?",
+    CONTRACT_VALIDATION_FAIL: "I'm not sure exactly what to do there. Could you give me a bit more detail?",
+    SKILL_NOT_FOUND: "I don't have a direct tool for that yet, but I've logged it so I can learn. Let me try to help another way.",
     MODEL_NOT_AVAILABLE: "My AI models aren't available right now. Please check that Ollama is running or that API keys are configured.",
-    TOOL_TIMEOUT: "That took too long. Please try again.",
+    TOOL_TIMEOUT: "That took too long. Want to try again?",
     INFRASTRUCTURE_FAIL: "Something went wrong on my end. Check the logs for details.",
 };
 

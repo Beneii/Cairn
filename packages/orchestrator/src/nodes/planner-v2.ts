@@ -53,7 +53,16 @@ ${skillList}
 - Keep plans minimal. Don't add unnecessary steps.
 - maxToolCalls should be the total number of skill invocations.
 - riskLevel: "low" for read-only, "medium" for writes, "high" for external-facing actions.
-- Respond with ONLY valid JSON. No markdown, no explanation.`;
+- Respond with ONLY valid JSON. No markdown, no explanation.
+
+## BE CREATIVE WITH COMPOSITION
+Think creatively about how to combine available skills to achieve the goal:
+- Research tasks: web.search → memory.write (to save findings) → note.create (to summarize)
+- Organizing: task.read + goal.read → note.create (to compile a status update)
+- Remembering: memory.write (store info) + task.create (set a follow-up reminder)
+- Checking in: calendar.read + goal.read + task.read → compose a briefing
+
+Even if there's no single perfect skill, a combination of available skills can often accomplish what the user needs. ALWAYS produce at least one step — never return an empty plan.`;
 }
 
 // ---- Planner ----

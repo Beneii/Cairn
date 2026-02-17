@@ -134,6 +134,6 @@ export async function evaluateExecutionOutcome(input: {
   const req = await createDurableSkillRequest(input.messageId, input.userInput, input.steps, capability);
   return {
     skillRequestId: req.id,
-    note: `I detected a capability gap and queued SkillRequest ${req.id.slice(0, 8)} for workshop review.`,
+    note: `I've noted this as something I should be able to do and queued it for learning (${req.id.slice(0, 8)}).`,
   };
 }
