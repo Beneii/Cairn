@@ -247,6 +247,9 @@ importers:
       '@cairn/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      '@cairn/skills':
+        specifier: workspace:*
+        version: link:../../packages/skills
       '@cairn/tasks':
         specifier: workspace:*
         version: link:../../packages/tasks
@@ -418,6 +421,9 @@ importers:
       '@cairn/shared':
         specifier: workspace:*
         version: link:../shared
+      '@cairn/skills':
+        specifier: workspace:*
+        version: link:../skills
       zod:
         specifier: ^3.22.4
         version: 3.25.76
@@ -556,6 +562,9 @@ importers:
       '@cairn/shared':
         specifier: workspace:*
         version: link:../shared
+      '@cairn/skills':
+        specifier: workspace:*
+        version: link:../skills
       '@cairn/tasks':
         specifier: workspace:*
         version: link:../tasks
@@ -647,6 +656,28 @@ importers:
 
   packages/shared:
     devDependencies:
+      '@types/node':
+        specifier: ^25.2.0
+        version: 25.2.0
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+
+  packages/skills:
+    dependencies:
+      '@cairn/ledger':
+        specifier: workspace:*
+        version: link:../ledger
+      '@cairn/shared':
+        specifier: workspace:*
+        version: link:../shared
+      better-sqlite3:
+        specifier: ^11.0.0
+        version: 11.10.0
+    devDependencies:
+      '@types/better-sqlite3':
+        specifier: ^7.6.11
+        version: 7.6.13
       '@types/node':
         specifier: ^25.2.0
         version: 25.2.0

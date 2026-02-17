@@ -13,6 +13,7 @@ import { SettingsPage } from "./components/cairn/pages/SettingsPage";
 import { ArchivePage } from "./components/cairn/pages/ArchivePage";
 import { GoalsPage } from "./components/cairn/pages/GoalsPage";
 import { TasksPage } from "./components/cairn/pages/TasksPage";
+import { SkillsPage } from "./components/cairn/pages/SkillsPage";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "./components/ui/resizable";
 import { useCairn } from "./hooks/useCairn";
 import { useLayout, type PanelId } from "./hooks/useLayout";
@@ -228,6 +229,14 @@ export default function App() {
           onRefreshSystemDocs={cairn.refreshSystemDocs}
           lastJobDetails={cairn.lastJobDetails}
           onGetJobDetails={cairn.getJobDetails}
+          darkMode={darkMode}
+        />
+      )}
+      {currentView === 'skills' && (
+        <SkillsPage
+          nav={<NavBar currentView={currentView} setCurrentView={setCurrentView} darkMode={darkMode} setDarkMode={setDarkMode} />}
+          metrics={cairn.skillMetrics}
+          requests={cairn.skillRequests}
           darkMode={darkMode}
         />
       )}

@@ -152,3 +152,25 @@ export interface Task {
   updated_at: string;
   completed_at?: string;
 }
+
+// ---- Skills ----
+
+export type SkillRequestStatus = "pending" | "building" | "failed" | "promoted";
+
+export interface SkillRequest {
+  id: string;
+  goal: string;
+  source_context?: string;
+  status: SkillRequestStatus;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SkillMetric {
+  skill_id: string;
+  success_count: number;
+  failure_count: number;
+  usage_count: number;
+  last_used?: string;
+}
+
