@@ -7,6 +7,8 @@ import type {
   LogEntry,
   SubAgent,
   ProactiveConfig,
+  SkillRequest,
+  SkillMetric,
 } from "../components/cairn/types";
 import type { NucleusState } from "../components/cairn/Nucleus";
 import { getWsUrl, getApiBase, getMode, getDashboardAuthToken } from "../../config/runtime";
@@ -41,6 +43,8 @@ interface CairnState {
   };
   archiveLogs: any[];
   archiveSystemDocs: any[];
+  skillRequests: SkillRequest[];
+  skillMetrics: SkillMetric[];
   lastJobDetails: any | null;
   updateProgress: {
     stage: "idle" | "pulling" | "building" | "restarting" | "error";
@@ -81,6 +85,8 @@ export function useCairn() {
     tasks: [],
     archiveLogs: [],
     archiveSystemDocs: [],
+    skillRequests: [],
+    skillMetrics: [],
     lastJobDetails: null,
     updateProgress: null,
     config: {
@@ -135,6 +141,10 @@ export function useCairn() {
         // Always send auth:dashboard (with token if available) to upgrade session capabilities
         console.log("[cairn] sending auth:dashboard", { hasToken: !!dashboardAuthToken });
         socket.send(JSON.stringify({ type: "auth:dashboard", token: dashboardAuthToken }));
+
+        // Request initial skill data
+        socket.send(JSON.stringify({ type: "skillRequests:list" }));
+        socket.send(JSON.stringify({ type: "skillMetrics:list" }));
 
         setState((s) => ({
           ...s,
@@ -213,6 +223,21 @@ export function useCairn() {
               break;
             case "job:details":
               setState((s) => ({ ...s, lastJobDetails: msg.job }));
+              break;
+            case "skillRequests:list:result":
+              setState((s) => ({ ...s, skillRequests: msg.requests }));
+              break;
+            case "skillMetrics:list:result":
+              setState((s) => ({ ...s, skillMetrics: msg.metrics }));
+              break;
+            case "skillMetrics:get:result":
+              setState((s) => {
+                const index = s.skillMetrics.findIndex(m => m.skill_id === msg.metric.skill_id);
+                if (index === -1) return { ...s, skillMetrics: [...s.skillMetrics, msg.metric] };
+                const newMetrics = [...s.skillMetrics];
+                newMetrics[index] = msg.metric;
+                return { ...s, skillMetrics: newMetrics };
+              });
               break;
             case "pong":
               setState((s) => ({
@@ -371,6 +396,11 @@ export function useCairn() {
     wsRef.current?.send(JSON.stringify({ type: "job:get", id }));
   }, []);
 
+  const refreshSkills = useCallback(() => {
+    wsRef.current?.send(JSON.stringify({ type: "skillRequests:list" }));
+    wsRef.current?.send(JSON.stringify({ type: "skillMetrics:list" }));
+  }, []);
+
   const setMobileConfig = useCallback((enabled: boolean, defaultClient: "telegram" | "mobile") => {
     wsRef.current?.send(JSON.stringify({ type: "config:set_mobile_config", enabled, defaultClient }));
   }, []);
@@ -415,6 +445,7 @@ export function useCairn() {
     refreshArchiveLogs,
     refreshSystemDocs,
     getJobDetails,
+    refreshSkills,
     setLocalMode,
     triggerUpdate,
     builder: state.builder,

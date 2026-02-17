@@ -1,7 +1,7 @@
-import { Circle, Settings, Archive, Flag, CheckCircle, LayoutDashboard, RotateCcw, Columns2, Rows2 } from "lucide-react";
+import { Circle, Settings, Archive, Flag, CheckCircle, LayoutDashboard, RotateCcw, Columns2, Rows2, Zap } from "lucide-react";
 import type { ViewMode } from "../../hooks/useLayout";
 
-type View = 'home' | 'settings' | 'archive' | 'goals' | 'tasks';
+type View = 'home' | 'settings' | 'archive' | 'goals' | 'tasks' | 'skills';
 
 interface NavBarProps {
   currentView: View;
@@ -23,6 +23,7 @@ export function NavBar({ currentView, setCurrentView, darkMode, editMode, viewMo
     { view: 'tasks', icon: <CheckCircle size={20} strokeWidth={1.5} />, title: 'Tasks' },
     { view: 'goals', icon: <Flag size={20} strokeWidth={1.5} />, title: 'Goals' },
     { view: 'settings', icon: <Settings size={20} strokeWidth={1.5} />, title: 'Settings' },
+    { view: 'skills', icon: <Zap size={20} strokeWidth={1.5} />, title: 'Skills' },
     { view: 'archive', icon: <Archive size={20} strokeWidth={1.5} />, title: 'Archive' },
   ];
 
