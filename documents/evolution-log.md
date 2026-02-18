@@ -135,6 +135,38 @@
    - `node skills/repo_graph_analyzer/scripts/analyze_repo_graph.mjs`
    - `pnpm lint && pnpm test && pnpm build`
 
+## 2026-02-18 Iteration 6
+
+### Change summary
+- Improved dashboard `NavBar` accessibility by introducing a semantic `<nav>` landmark and list structure for primary navigation controls.
+- Added explicit `aria-label` copy and `aria-current="page"` on active destination for better screen-reader orientation.
+- Increased discoverability and focus clarity with visible text labels on `sm+`, larger hit targets (`min-h/min-w`), hover affordances, and keyboard focus rings.
+
+### Files modified
+- `apps/dashboard/src/app/components/cairn/NavBar.tsx`
+- `documents/evolution-log.md`
+
+### Risk introduced
+- Low: nav buttons now include short text labels on larger breakpoints, which slightly changes horizontal density.
+- Low: updated visual states may need minor tuning against future theme token adjustments.
+
+### Metrics before/after
+- Before: icon-only buttons, no navigation landmark label, no `aria-current`, weaker keyboard focus discoverability.
+- After:
+  - Landmark/semantics: `div` wrapper → `nav[aria-label="Primary dashboard navigation"]` + `ul/li` structure.
+  - Active-state accessibility: `aria-current` coverage `0/4` → `1/4` (current view only, expected).
+  - Discoverability: visible text labels on `sm+` breakpoints `0` → `4` destinations.
+  - Touch/keyboard target floor: unconstrained icon button footprint → `min 36x36` via `min-h-9 min-w-9`.
+- Validation status:
+  - `pnpm lint` ✅
+  - `pnpm test` ✅
+  - `pnpm build` ✅
+
+### Rollback instructions
+1. `git revert <commit_sha>`
+2. Or restore previous `NavBar` button loop in `apps/dashboard/src/app/components/cairn/NavBar.tsx`.
+3. Re-run: `pnpm lint && pnpm test && pnpm build`
+
 ## 2026-02-18 Iteration 5
 
 ### Change summary
