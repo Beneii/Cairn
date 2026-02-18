@@ -1,5 +1,6 @@
 import { readFile, writeFile } from "fs/promises";
 import { join } from "path";
+import { randomBytes } from "crypto";
 import { initLLM } from "@cairn/orchestrator";
 import { setHeartbeatInterval } from "@cairn/scheduler";
 import { getProjectRoot } from "@cairn/shared";
@@ -86,12 +87,15 @@ export function migrateSecrets(): void {
     }
 }
 
+function generatePairingSecret(): string {
+    // 32 bytes => 64 hex chars, cryptographically secure for pairing auth.
+    return randomBytes(32).toString("hex");
+}
+
 export function getSystemConfig(options?: { includeSecrets?: boolean }) {
-    // Auto-generate pairing secret if missing (in-memory only for now, or persist if needed)
-    // For simplicity, we'll derive it or generate it once per process if not in env, 
-    // but better to persist it. Let's persist it.
+    // Auto-generate pairing secret if missing and persist it.
     if (!process.env.MOBILE_PAIRING_SECRET) {
-        const secret = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+        const secret = generatePairingSecret();
         updateEnvVar("MOBILE_PAIRING_SECRET", secret).catch(console.error);
     }
 

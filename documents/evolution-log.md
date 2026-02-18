@@ -135,6 +135,34 @@
    - `node skills/repo_graph_analyzer/scripts/analyze_repo_graph.mjs`
    - `pnpm lint && pnpm test && pnpm build`
 
+## 2026-02-18 Iteration 5
+
+### Change summary
+- Replaced gateway mobile pairing secret generation in config flow from `Math.random()` to Node `crypto.randomBytes(32)`.
+- Added a dedicated `generatePairingSecret()` helper to centralize secure token generation semantics.
+- Preserved existing persistence flow (`updateEnvVar`) while hardening randomness source.
+
+### Files modified
+- `apps/gateway/src/config.ts`
+- `documents/evolution-log.md`
+
+### Risk introduced
+- Low: pairing secret format changed from base36-like variable charset to fixed-length hex string; downstream consumers that validate charset/length should tolerate 64-char token values.
+
+### Metrics before/after
+- Before: `MOBILE_PAIRING_SECRET` generated via two `Math.random().toString(36)` segments (~26 chars total, non-cryptographic RNG).
+- After: `MOBILE_PAIRING_SECRET` generated via `randomBytes(32).toString("hex")` (64 chars, CSPRNG-backed).
+- Effective entropy target: ~`<=~134 bits (Math.random path, implementation-dependent)` → `256 bits (CSPRNG bytes)`.
+- Validation status:
+  - `pnpm lint` ✅
+  - `pnpm test` ✅
+  - `pnpm build` ✅
+
+### Rollback instructions
+1. `git revert <commit_sha>`
+2. Or restore prior generator in `apps/gateway/src/config.ts` (Math.random-based expression).
+3. Re-run: `pnpm lint && pnpm test && pnpm build`
+
 ## 2026-02-18 Iteration 4
 
 ### Change summary
