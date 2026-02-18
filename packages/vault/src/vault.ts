@@ -2,6 +2,7 @@ import Database from 'better-sqlite3';
 import { join } from 'node:path';
 import os from 'node:os';
 import { fsyncSync, mkdirSync, existsSync } from 'node:fs';
+import { randomUUID } from 'node:crypto';
 import { encrypt, decrypt, EncryptedData } from './crypto.js';
 
 const VAULT_DIR = join(os.homedir(), '.cairn');
@@ -86,7 +87,7 @@ export function leaseSecret(domain: string, purpose: string, secretKey: string, 
     const secret = getSecret(secretKey);
     if (!secret) return null;
 
-    const leaseId = Math.random().toString(36).substring(2, 15);
+    const leaseId = randomUUID();
     const expiresAt = new Date(Date.now() + ttlSeconds * 1000).toISOString();
 
     const stmt = db.prepare(`
