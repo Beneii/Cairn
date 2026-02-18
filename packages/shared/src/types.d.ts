@@ -463,8 +463,11 @@ export interface SkillDefinition {
 }
 export interface PlanGovernance {
     maxParallelLightWorkers?: number;
+    maxParallelHeavyWorkers?: number;
     maxRetriesPerStep?: number;
     escalationMode?: "none" | "final-step";
+    minConfidenceForAutonomy?: number;
+    createHumanTicketOnFailure?: boolean;
 }
 export interface Plan {
     steps: PlanStep[];
@@ -475,7 +478,7 @@ export interface Plan {
 export interface PlanStep {
     skillId: string;
     arguments: Record<string, any>;
-    workerClass?: "default" | "light";
+    workerClass?: "default" | "light" | "heavy";
     parallelGroup?: string;
     maxRetries?: number;
     escalationSkillId?: string;
