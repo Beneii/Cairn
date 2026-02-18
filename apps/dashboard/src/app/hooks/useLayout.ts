@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 
-export type PanelId = "notes" | "kanban" | "logs";
+export type PanelId = "notes" | "logs";
 export type ViewMode = "stacked" | "split";
 
 export interface LayoutConfig {
@@ -9,7 +9,7 @@ export interface LayoutConfig {
   splitVertical: [number, number];    // Split: Top (Nucleus+Chat) %, Bottom %
   splitHorizontal: [number, number];  // Split: Nucleus %, Chat % (within top)
   bottomOrder: PanelId[];
-  bottomSizes: [number, number, number];
+  bottomSizes: [number, number];
 }
 
 const DEFAULT_LAYOUT: LayoutConfig = {
@@ -17,8 +17,8 @@ const DEFAULT_LAYOUT: LayoutConfig = {
   vertical: [40, 30, 30],
   splitVertical: [60, 40],
   splitHorizontal: [40, 60],
-  bottomOrder: ["notes", "kanban", "logs"],
-  bottomSizes: [33, 34, 33],
+  bottomOrder: ["notes", "logs"],
+  bottomSizes: [50, 50],
 };
 
 const STORAGE_KEY = "cairn_layout";
@@ -29,16 +29,17 @@ function loadLayout(): LayoutConfig {
     if (!raw) return { ...DEFAULT_LAYOUT };
     const parsed = JSON.parse(raw);
     // Basic validation
-    if (
-      Array.isArray(parsed.vertical) && parsed.vertical.length === 3 &&
-      Array.isArray(parsed.bottomOrder) && parsed.bottomOrder.length === 3 &&
-      Array.isArray(parsed.bottomSizes) && parsed.bottomSizes.length === 3
-    ) {
-      // Backfill new fields for existing saved layouts
-      return {
-        ...DEFAULT_LAYOUT,
-        ...parsed,
-      } as LayoutConfig;
+    if (Array.isArray(parsed.vertical) && parsed.vertical.length === 3) {
+      // Migrate old 3-panel layouts to 2-panel (remove kanban)
+      const merged = { ...DEFAULT_LAYOUT, ...parsed };
+      if (Array.isArray(merged.bottomOrder)) {
+        merged.bottomOrder = merged.bottomOrder.filter((id: string) => id !== "kanban");
+      }
+      if (merged.bottomOrder.length !== 2) {
+        merged.bottomOrder = DEFAULT_LAYOUT.bottomOrder;
+      }
+      merged.bottomSizes = [50, 50];
+      return merged as LayoutConfig;
     }
   } catch {
     // Corrupt data, use defaults
@@ -102,7 +103,7 @@ export function useLayout() {
 
   const setBottomSizes = useCallback((sizes: number[]) => {
     setLayout((prev) => {
-      const next = { ...prev, bottomSizes: sizes as [number, number, number] };
+      const next = { ...prev, bottomSizes: sizes as [number, number] };
       persistLayout(next);
       return next;
     });
@@ -111,7 +112,7 @@ export function useLayout() {
   const reorderBottom = useCallback((fromIndex: number, toIndex: number) => {
     setLayout((prev) => {
       const order = [...prev.bottomOrder] as PanelId[];
-      const sizes = [...prev.bottomSizes] as [number, number, number];
+      const sizes = [...prev.bottomSizes] as [number, number];
       // Swap
       [order[fromIndex], order[toIndex]] = [order[toIndex], order[fromIndex]];
       [sizes[fromIndex], sizes[toIndex]] = [sizes[toIndex], sizes[fromIndex]];

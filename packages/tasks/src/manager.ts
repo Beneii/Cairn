@@ -4,16 +4,24 @@ import type { Task, TaskStatus, TaskType } from "@cairn/shared";
 
 // ---- Data Access ----
 
-export function getTasks(filter?: { status?: TaskStatus }): Task[] {
+export function getTasks(filter?: { status?: TaskStatus; source?: "user" | "cairn" }): Task[] {
     const db = getDatabase();
-    let sql = "SELECT * FROM tasks";
+    const conditions: string[] = [];
     const args: any[] = [];
 
     if (filter?.status) {
-        sql += " WHERE status = ?";
+        conditions.push("status = ?");
         args.push(filter.status);
     }
+    if (filter?.source) {
+        conditions.push("source = ?");
+        args.push(filter.source);
+    }
 
+    let sql = "SELECT * FROM tasks";
+    if (conditions.length > 0) {
+        sql += " WHERE " + conditions.join(" AND ");
+    }
     sql += " ORDER BY scheduled_date ASC, created_at DESC";
 
     const rows = db.prepare(sql).all(...args) as any[];
@@ -24,6 +32,12 @@ export function getTask(id: string): Task | undefined {
     const db = getDatabase();
     const row = db.prepare("SELECT * FROM tasks WHERE id = ?").get(id) as any;
     return row ? rowToTask(row) : undefined;
+}
+
+export function getTasksForGoal(goalId: string): Task[] {
+    const db = getDatabase();
+    const rows = db.prepare("SELECT * FROM tasks WHERE goal_id = ? ORDER BY created_at DESC").all(goalId) as any[];
+    return rows.map(rowToTask);
 }
 
 function rowToTask(row: any): Task {
@@ -37,6 +51,7 @@ function rowToTask(row: any): Task {
         recurrence_rule: row.recurrence_rule || undefined,
         source: row.source as "user" | "cairn",
         suggested_by_agent: Boolean(row.suggested_by_agent),
+        goal_id: row.goal_id || undefined,
         created_at: row.created_at,
         updated_at: row.updated_at,
         completed_at: row.completed_at || undefined,
@@ -60,9 +75,9 @@ export function createTask(task: Partial<Task> & { title: string }): Task {
     const stmt = db.prepare(`
     INSERT INTO tasks (
       id, title, status, type, due_date, scheduled_date, recurrence_rule,
-      source, suggested_by_agent, created_at, updated_at
+      source, suggested_by_agent, goal_id, created_at, updated_at
     ) VALUES (
-      ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+      ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
     )
   `);
 
@@ -71,6 +86,7 @@ export function createTask(task: Partial<Task> & { title: string }): Task {
         fullTask.due_date || null, fullTask.scheduled_date || null,
         fullTask.recurrence_rule || null, fullTask.source,
         fullTask.suggested_by_agent ? 1 : 0,
+        fullTask.goal_id || null,
         fullTask.created_at, fullTask.updated_at
     );
 
@@ -93,7 +109,7 @@ export function updateTask(id: string, changes: Partial<Task>): Task | undefined
     UPDATE tasks SET
       title = ?, status = ?, type = ?, due_date = ?, scheduled_date = ?,
       recurrence_rule = ?, source = ?, suggested_by_agent = ?,
-      updated_at = ?, completed_at = ?
+      goal_id = ?, updated_at = ?, completed_at = ?
     WHERE id = ?
   `);
 
@@ -101,6 +117,7 @@ export function updateTask(id: string, changes: Partial<Task>): Task | undefined
         updated.title, updated.status, updated.type, updated.due_date || null,
         updated.scheduled_date || null, updated.recurrence_rule || null,
         updated.source, updated.suggested_by_agent ? 1 : 0,
+        updated.goal_id || null,
         updated.updated_at, updated.completed_at || null,
         id
     );
@@ -133,6 +150,7 @@ export function completeTask(id: string): Task | undefined {
             status: "todo",
             scheduled_date: nextDate,
             source: task.source,
+            goal_id: task.goal_id,
         });
     }
 

@@ -54,6 +54,8 @@ const MESSAGE_CAPABILITY: Partial<Record<string, WsCapability>> = {
   "note:delete": "notes:write",
   "kanban:archive": "kanban:write",
   "kanban:restore": "kanban:write",
+  "kanban:delete": "kanban:write",
+  "kanban:update_status": "kanban:write",
   "kanban:set_project": "kanban:write",
   "archive:get_logs": "archive:read",
   "archive:get_system_docs": "system_docs:read",

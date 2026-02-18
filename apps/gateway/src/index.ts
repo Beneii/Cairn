@@ -31,6 +31,8 @@ import {
   updateCardByJobId,
   archiveCard,
   restoreCard,
+  deleteCard,
+  updateCardStatus,
   updateCardProject,
 } from "./kanban.js";
 import { setOpenAIKey, setHeartbeat, setSpendLimit, setDecisionLimit, setInteractionLimit, setTelegramToken, setTelegramAdminChatId, getSystemConfig, getMobilePairingSecret, getDashboardAuthToken, getMobileAuthToken, setProactiveConfig, setMobileConfig, setLocalMode, migrateSecrets } from "./config.js";
@@ -40,6 +42,7 @@ import { NODES, GRAPH_EDGES } from "@cairn/policy";
 import { recordMessageSource } from "./session-tracker.js";
 import { startLibrarianProcessor } from "./librarian.js";
 import { startCheckInProcessor, startProactiveProcessor } from "./checkins.js";
+import { startTaskAgent } from "./task-agent.js";
 import { initGoogleOAuth, getAuthUrl, exchangeCodeForTokens } from "@cairn/integrations";
 import { initCalendarProvider, getCalendarProvider } from "@cairn/executor";
 import { setBriefingCalendarSource, getGoals, createGoal as createGoalFactory, updateGoal, saveGoal } from "@cairn/goals";
@@ -64,30 +67,39 @@ function isSelfGrowthEnabled(): boolean {
   return process.env.CAIRN_MODE === "grow" || process.env.CAIRN_SELF_GROWTH === "enabled";
 }
 
-// Notes processor - scans inbox and processes unread notes
+// Notes processor - scans inbox and processes user-created notes only
+const processedNoteIds = new Set<string>();
+
 function startNotesProcessor(): void {
   setInterval(async () => {
     try {
-      const unreadNotes = getNotes().filter((n) => n.status === "unread");
+      // Only process user-created notes. Agent notes are deliverables, not input.
+      const unreadNotes = getNotes().filter(
+        (n) => n.status === "unread" && n.source !== "agent" && !processedNoteIds.has(n.id)
+      );
 
       if (unreadNotes.length === 0) {
-        return; // Most heartbeats do nothing - this is correct (truth.md §5)
+        return;
       }
 
-      // Process oldest unread note (one incremental step per heartbeat)
       const oldestNote = unreadNotes[unreadNotes.length - 1];
 
-      console.log(`[notes] Processing unread note: ${oldestNote.id}`);
+      // Idempotency: never process the same note twice
+      processedNoteIds.add(oldestNote.id);
 
-      // Mark as read and archive after processing to clean up inbox
+      console.log(`[notes] Processing user note: ${oldestNote.id}`);
+
       await markNoteRead(oldestNote.id);
       await archiveNote(oldestNote.id);
 
-      // Pass to gatekeeper via orchestrator
       if (isLLMAvailable()) {
         await processMessage(oldestNote.content);
-      } else {
-        console.log(`[notes] Skipping note processing - LLM not configured`);
+      }
+
+      // Cap the set size to prevent unbounded growth
+      if (processedNoteIds.size > 500) {
+        const idsArray = [...processedNoteIds];
+        for (let i = 0; i < 250; i++) processedNoteIds.delete(idsArray[i]);
       }
     } catch (err) {
       console.error("[notes] Error processing note:", err);
@@ -290,7 +302,7 @@ async function main() {
     broadcast({ type: "note:update", notes }),
   );
   bus.on("note:create", async (msg: any) => {
-    await createNote(msg.content);
+    await createNote(msg.content, "agent");
   });
   bus.on("job:updated", (job) =>
     broadcast({
@@ -465,6 +477,12 @@ async function main() {
             break;
           case "kanban:restore":
             await restoreCard(msg.id);
+            break;
+          case "kanban:delete":
+            await deleteCard(msg.id);
+            break;
+          case "kanban:update_status":
+            await updateCardStatus(msg.id, msg.status);
             break;
           case "kanban:set_project":
             await updateCardProject(msg.id, msg.project);
@@ -777,7 +795,10 @@ async function main() {
   // 12. Start proactive intelligence (goal-driven nudges)
   startProactiveProcessor();
 
-  // 13. Serve dashboard static files (single-process production deployment)
+  // 13. Start autonomous task agent (goal-driven task creation)
+  startTaskAgent();
+
+  // 14. Serve dashboard static files (single-process production deployment)
   const dashboardDist = path.join(PROJECT_ROOT, "apps/dashboard/dist");
   if (fs.existsSync(dashboardDist)) {
     app.use(express.static(dashboardDist));

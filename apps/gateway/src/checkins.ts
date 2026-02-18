@@ -12,6 +12,7 @@ import { warmGet, warmSet } from "@cairn/memory";
 import { bus, newId, shortTime } from "@cairn/shared";
 import { appendEntry } from "@cairn/ledger";
 import { isLLMAvailable, callLLM } from "@cairn/orchestrator";
+import { getTasks } from "@cairn/tasks";
 import { getCards } from "./kanban.js";
 import {
   generateDailyBriefing,
@@ -99,6 +100,24 @@ export function startCheckInProcessor(): void {
         );
       }
 
+      // Include goal-linked tasks created by Cairn
+      const allTasks = getTasks();
+      const cairnTasks = allTasks.filter((t) => t.source === "cairn" && t.status === "todo");
+      if (cairnTasks.length > 0) {
+        contextParts.push(
+          `Tasks Cairn created for goals (${cairnTasks.length}): ${cairnTasks.slice(0, 5).map((t) => t.title).join(", ")}`
+        );
+      }
+      const recentlyDone = allTasks.filter((t) => {
+        if (t.status !== "done" || !t.completed_at) return false;
+        return Date.now() - new Date(t.completed_at).getTime() < 24 * 60 * 60 * 1000;
+      });
+      if (recentlyDone.length > 0) {
+        contextParts.push(
+          `Completed today (${recentlyDone.length}): ${recentlyDone.slice(0, 3).map((t) => t.title).join(", ")}`
+        );
+      }
+
       console.log(`[checkins] Generating ${timeContext.period} check-in`);
       await appendEntry("agent", "checkins", "proactive", `Generating ${timeContext.period} check-in`);
 
@@ -115,6 +134,8 @@ Guidelines:
 - Be friendly but not annoying
 - If there are blocked tasks, gently mention them
 - If there are active tasks, offer encouragement
+- If Cairn created tasks for goals, briefly mention what you've been working on
+- If tasks were completed today, acknowledge progress
 - Don't be overly enthusiastic or use excessive punctuation
 - Sound natural, like a thoughtful colleague
 

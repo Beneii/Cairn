@@ -1,11 +1,11 @@
 /**
  * Goal Heartbeat
- * 
+ *
  * The central loop that checks goals, runs scheduled tasks, and manages interruptions.
  */
 
 import * as db from "./db/index.js";
-import { now } from "@cairn/shared";
+import { bus, now } from "@cairn/shared";
 import type { Goal } from "./types/goal.js";
 
 export interface HeartbeatResult {
@@ -99,6 +99,14 @@ async function checkGoal(
         db.logAction(goal.id, nextAction.action, "pending", nextAction.description);
         result.actionsTriggered.push(`${goal.id}:${nextAction.action}`);
 
+        // Emit event so the task agent can pick it up
+        bus.emit("log:entry", {
+            id: goal.id,
+            timestamp: now(),
+            type: "agent",
+            content: `[heartbeat] Goal "${goal.title}" action: ${nextAction.action} — ${nextAction.description}`,
+        });
+
         // Schedule next review
         const nextReview = calculateNextCheck(goal);
         db.updateGoal(goal.id, {
@@ -110,24 +118,88 @@ async function checkGoal(
     }
 }
 
-interface NextAction {
-    action: string;
+export interface NextAction {
+    action: "create_tasks" | "review_tasks" | "reassess" | "check_milestone" | "check_status";
     description: string;
     requiresApproval: boolean;
 }
 
 /**
- * Determine what action a goal should take next
+ * Determine what action a goal should take next based on its current state.
  */
 function determineNextAction(goal: Goal): NextAction | null {
-    // This will be expanded with domain-specific logic
-    // For now, return a generic "check" action
-
     if (goal.status !== "active") {
         return null;
     }
 
-    // Default: just a check cycle
+    const nowMs = Date.now();
+    const createdMs = new Date(goal.created_at).getTime();
+    const ageHours = (nowMs - createdMs) / (1000 * 60 * 60);
+
+    // Check recent actions to avoid repeating
+    const recentActions = goal.actions_log.filter((a) => {
+        const actionMs = new Date(a.timestamp).getTime();
+        return (nowMs - actionMs) < 24 * 60 * 60 * 1000; // last 24h
+    });
+    const recentActionTypes = new Set(recentActions.map((a) => a.action));
+
+    // New goal (< 2 hours old) with no task-creation action yet
+    if (ageHours < 2 && !recentActionTypes.has("create_tasks")) {
+        return {
+            action: "create_tasks",
+            description: `New goal needs initial tasks: "${goal.title}"`,
+            requiresApproval: false,
+        };
+    }
+
+    // Goal confidence is dropping — reassess
+    if (goal.confidence < 0.3 && !recentActionTypes.has("reassess")) {
+        return {
+            action: "reassess",
+            description: `Low confidence (${Math.round(goal.confidence * 100)}%) — needs reassessment`,
+            requiresApproval: false,
+        };
+    }
+
+    // Check if all recent logged actions are completed (milestone check)
+    const pendingActions = goal.actions_log.filter((a) => a.result === "pending");
+    const completedRecently = goal.actions_log.filter((a) => {
+        const actionMs = new Date(a.timestamp).getTime();
+        return a.result === "success" && (nowMs - actionMs) < 7 * 24 * 60 * 60 * 1000;
+    });
+
+    if (completedRecently.length >= 3 && pendingActions.length === 0 && !recentActionTypes.has("check_milestone")) {
+        return {
+            action: "check_milestone",
+            description: `Multiple tasks completed — check if goal milestone reached`,
+            requiresApproval: false,
+        };
+    }
+
+    // Stalled — no completed actions in 7 days
+    const lastCompletedAction = goal.actions_log
+        .filter((a) => a.result === "success")
+        .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0];
+
+    if (lastCompletedAction) {
+        const daysSinceCompletion = (nowMs - new Date(lastCompletedAction.timestamp).getTime()) / (1000 * 60 * 60 * 24);
+        if (daysSinceCompletion > 7 && !recentActionTypes.has("review_tasks")) {
+            return {
+                action: "review_tasks",
+                description: `No task progress in ${Math.round(daysSinceCompletion)} days — review and create new tasks`,
+                requiresApproval: false,
+            };
+        }
+    } else if (ageHours > 48 && !recentActionTypes.has("create_tasks")) {
+        // Goal is 2+ days old with zero completed actions — needs tasks
+        return {
+            action: "create_tasks",
+            description: `Goal has no completed work yet — create actionable tasks`,
+            requiresApproval: false,
+        };
+    }
+
+    // Default: periodic check
     return {
         action: "check_status",
         description: "Periodic status check",

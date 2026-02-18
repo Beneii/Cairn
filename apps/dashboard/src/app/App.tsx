@@ -5,15 +5,12 @@ import { Nucleus } from "./components/cairn/Nucleus";
 import type { LayoutConfig, ViewMode } from "./hooks/useLayout";
 import { Chat } from "./components/cairn/Chat";
 import { Notes } from "./components/cairn/Notes";
-import { Kanban } from "./components/cairn/Kanban";
 import { Logs } from "./components/cairn/Logs";
 import { NavBar, type View } from "./components/cairn/NavBar";
 import { DraggablePanel } from "./components/cairn/DraggablePanel";
 import { SettingsPage } from "./components/cairn/pages/SettingsPage";
 import { ArchivePage } from "./components/cairn/pages/ArchivePage";
 import { GoalsPage } from "./components/cairn/pages/GoalsPage";
-import { TasksPage } from "./components/cairn/pages/TasksPage";
-import { SkillsPage } from "./components/cairn/pages/SkillsPage";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "./components/ui/resizable";
 import { useCairn } from "./hooks/useCairn";
 import { useLayout, type PanelId } from "./hooks/useLayout";
@@ -60,12 +57,10 @@ export default function App() {
             darkMode={darkMode}
           />
         );
-      case "kanban":
-        return <Kanban cards={cairn.kanbanCards} className="h-full min-h-0" onArchive={cairn.archiveCard} darkMode={darkMode} />;
       case "logs":
         return <Logs logs={cairn.logs} className="h-full min-h-0" darkMode={darkMode} />;
     }
-  }, [cairn.notes, cairn.resurfaceNote, cairn.createNote, cairn.kanbanCards, cairn.archiveCard, cairn.logs, darkMode]);
+  }, [cairn.notes, cairn.resurfaceNote, cairn.createNote, cairn.logs, darkMode]);
 
   return (
     <div
@@ -208,20 +203,10 @@ export default function App() {
           deleteGoal={cairn.deleteGoal}
         />
       )}
-      {currentView === 'tasks' && (
-        <TasksPage
-          nav={<NavBar currentView={currentView} setCurrentView={setCurrentView} darkMode={darkMode} setDarkMode={setDarkMode} />}
-          darkMode={darkMode}
-          tasks={cairn.tasks}
-          createTask={cairn.createTask}
-          updateTask={cairn.updateTask}
-          deleteTask={cairn.deleteTask}
-        />
-      )}
       {currentView === 'archive' && (
         <ArchivePage
           nav={<NavBar currentView={currentView} setCurrentView={setCurrentView} darkMode={darkMode} setDarkMode={setDarkMode} />}
-          cards={cairn.kanbanCards}
+          cards={[]}
           logs={cairn.archiveLogs}
           systemDocs={cairn.archiveSystemDocs}
           onRestore={cairn.restoreCard}
@@ -229,14 +214,6 @@ export default function App() {
           onRefreshSystemDocs={cairn.refreshSystemDocs}
           lastJobDetails={cairn.lastJobDetails}
           onGetJobDetails={cairn.getJobDetails}
-          darkMode={darkMode}
-        />
-      )}
-      {currentView === 'skills' && (
-        <SkillsPage
-          nav={<NavBar currentView={currentView} setCurrentView={setCurrentView} darkMode={darkMode} setDarkMode={setDarkMode} />}
-          metrics={cairn.skillMetrics}
-          requests={cairn.skillRequests}
           darkMode={darkMode}
         />
       )}

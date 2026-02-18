@@ -113,6 +113,7 @@ export interface Note {
   content: string;
   status: NoteStatus;
   timestamp: string;
+  source?: "user" | "agent";
 }
 
 export type KanbanStatus = "backlog" | "active" | "blocked" | "done";
@@ -286,6 +287,7 @@ export interface Task {
   // Context
   source: "user" | "cairn";
   suggested_by_agent?: boolean; // If true, requires user approval
+  goal_id?: string; // Links task to parent goal
 
   // Metadata
   created_at: string;
@@ -305,6 +307,8 @@ export type ClientMessage =
   | { type: "note:delete"; id: string }
   | { type: "kanban:archive"; id: string }
   | { type: "kanban:restore"; id: string }
+  | { type: "kanban:delete"; id: string }
+  | { type: "kanban:update_status"; id: string; status: KanbanStatus }
   | { type: "kanban:set_project"; id: string; project: string }
   | { type: "config:request_sync" }
   | { type: "config:set_openai_key"; key: string }

@@ -40,6 +40,14 @@ export function initDatabase(): Database.Database {
 
     db.exec(SCHEMA);
 
+    // Migration: add goal_id column if missing
+    const cols = db.pragma("table_info(tasks)") as { name: string }[];
+    if (!cols.some((c) => c.name === "goal_id")) {
+        db.exec("ALTER TABLE tasks ADD COLUMN goal_id TEXT");
+        db.exec("CREATE INDEX IF NOT EXISTS idx_tasks_goal ON tasks(goal_id)");
+        console.log("[tasks] Migrated: added goal_id column");
+    }
+
     console.log(`[tasks] Database initialized at ${dbPath}`);
     return db;
 }

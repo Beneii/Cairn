@@ -27,8 +27,8 @@ const PlanOutputSchema = z.object({
 
 // ---- System Prompt ----
 
-function buildPlannerPrompt(skills: { id: string; description: string }[]): string {
-    const skillList = skills.map((s) => `  - ${s.id}: ${s.description}`).join("\n");
+function buildPlannerPrompt(skills: { id: string; description: string; inputSchema: object }[]): string {
+    const skillList = skills.map((s) => `  - ${s.id}: ${s.description}\n    Schema: ${JSON.stringify(s.inputSchema)}`).join("\n");
 
     return `You are a planner for Cairn, a personal AI assistant.
 You receive a task description and must produce a step-by-step plan using ONLY the available skills listed below.
@@ -61,6 +61,12 @@ Think creatively about how to combine available skills to achieve the goal:
 - Organizing: task.read + goal.read → note.create (to compile a status update)
 - Remembering: memory.write (store info) + task.create (set a follow-up reminder)
 - Checking in: calendar.read + goal.read + task.read → compose a briefing
+
+## CRITICAL INSTRUCTIONS
+- Do NOT assume you have information. If the user asks for research, you MUST use 'web.search' or 'research.ingest'.
+- Do NOT just create a note saying you did research if you haven't done it yet.
+- If the Primary Skill Hint is 'goal.read' but the user wants research, you must ALSO add 'web.search'.
+- Build a complete plan. Don't be lazy.
 
 Even if there's no single perfect skill, a combination of available skills can often accomplish what the user needs. ALWAYS produce at least one step — never return an empty plan.`;
 }

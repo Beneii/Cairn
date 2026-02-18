@@ -12,6 +12,8 @@
  * Returns execution trace for observability.
  */
 
+import * as fs from "fs";
+import * as path from "path";
 import type { Plan, PlanStep } from "@cairn/shared";
 import { newId, now, bus } from "@cairn/shared";
 import { appendEntry } from "@cairn/ledger";
@@ -24,7 +26,11 @@ import {
     type SkillContext,
     type SkillResult,
 } from "../skill-registry.js";
-import { warmGet, warmSet } from "@cairn/memory";
+import {
+    memoryRead,
+    memoryWrite,
+    initWarmMemory
+} from "@cairn/memory";
 
 // ---- Types ----
 
@@ -54,6 +60,11 @@ export async function executeSingleSkill(
     await ensureSkillRegistry();
 
     const start = Date.now();
+    try {
+        fs.appendFileSync(path.join(process.cwd(), "debug-executor.log"), `[${new Date().toISOString()}] Executing ${skillId} args: ${JSON.stringify(args)}\n`);
+    } catch (e) {
+        // ignore
+    }
 
     // 1. Validate skill exists
     const skillDef = getSkillDefinition(skillId);
@@ -69,6 +80,13 @@ export async function executeSingleSkill(
     // 2. Validate input
     const validation = validateSkillInput(skillId, args);
     if (!validation.valid) {
+        bus.emit("log:entry", {
+            id: newId(),
+            timestamp: now(),
+            type: "error",
+            content: `Skill ${skillId} validation failed: ${validation.reason}. Args: ${JSON.stringify(args)}`
+        });
+
         return {
             skillId,
             success: false,
@@ -81,8 +99,11 @@ export async function executeSingleSkill(
     const ctx: SkillContext = {
         jobId: messageId,
         messageId,
-        memoryRead: (tier, key) => warmGet(key),
-        memoryWrite: async (tier, key, value) => warmSet(key, value),
+        memoryRead: (tier, key) => memoryRead(tier as any, key, { read: ["hot", "warm", "cold"], write: [] }),
+        memoryWrite: async (tier, key, value) => {
+            if (tier === "warm") await initWarmMemory();
+            return memoryWrite(tier as any, key, value, { read: [], write: ["hot", "warm"] });
+        },
     };
 
     // 4. Execute
