@@ -12,6 +12,9 @@ export declare class BranchWorker {
     constructor(spec: BuildSpec);
     private log;
     run(): Promise<boolean>;
+    private getWorkshopRoot;
+    private resolveAndValidateTargetPath;
+    private runValidation;
     private executeTask;
     private exec;
     getReport(): any;

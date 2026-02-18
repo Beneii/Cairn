@@ -12,6 +12,7 @@
     "googleapis": "^144.0.0"
   },
   "devDependencies": {
+    "@types/node": "^25.2.3",
     "typescript": "^5.5.3"
   }
 }

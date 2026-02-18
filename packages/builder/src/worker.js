@@ -1,11 +1,22 @@
 import { callLLM } from "@cairn/orchestrator";
 import { exec } from "child_process";
 import { promisify } from "util";
-import { readFile, writeFile } from "fs/promises";
-import { join } from "path";
+import { readFile, writeFile, realpath, mkdir } from "fs/promises";
+import path from "path";
 import { getProjectRoot, bus, now } from "@cairn/shared";
 import { existsSync } from "fs";
 const execAsync = promisify(exec);
+const WORKSHOP_DIR = "skills_workshop";
+const PROTECTED_PATH_MARKERS = [
+    `${path.sep}apps${path.sep}`,
+    `${path.sep}packages${path.sep}orchestrator${path.sep}`,
+    `${path.sep}packages${path.sep}executor${path.sep}`,
+    `${path.sep}packages${path.sep}policy${path.sep}`,
+    `${path.sep}packages${path.sep}vault${path.sep}`,
+    `${path.sep}configs${path.sep}`,
+    `${path.sep}data${path.sep}`,
+    `${path.sep}.env`,
+];
 export class BranchWorker {
     spec;
     state;
@@ -23,12 +34,18 @@ export class BranchWorker {
         const entry = `[${now()}] ${msg}`;
         this.state.logs.push(entry);
         bus.emit("builder:log", { specId: this.spec.id, msg });
+        bus.emit("builder:progress", msg); // Send progress update to UI
         console.log(`[builder] ${msg}`);
     }
     async run() {
         this.state.status = "working";
         this.log(`Starting build ${this.spec.id} on branch ${this.spec.branch}`);
         try {
+            if (process.env.CAIRN_MODE !== "grow" && process.env.CAIRN_SELF_GROWTH !== "enabled") {
+                this.state.status = "failed";
+                this.log("Builder disabled outside GROW mode");
+                return false;
+            }
             // 1. Setup git
             await this.exec(`git checkout -b ${this.spec.branch}`);
             // 2. Loop tasks
@@ -58,8 +75,55 @@ export class BranchWorker {
             return false;
         }
     }
+    getWorkshopRoot() {
+        return path.resolve(this.root, WORKSHOP_DIR);
+    }
+    async resolveAndValidateTargetPath(targetFile) {
+        const workshopRoot = this.getWorkshopRoot();
+        const fullPath = path.resolve(this.root, targetFile);
+        if (!fullPath.startsWith(workshopRoot + path.sep)) {
+            throw new Error(`Builder write rejected: outside workshop root (${targetFile})`);
+        }
+        if (PROTECTED_PATH_MARKERS.some(marker => fullPath.includes(marker))) {
+            throw new Error(`Builder write rejected: protected path (${targetFile})`);
+        }
+        if (targetFile.includes("..")) {
+            throw new Error(`Builder write rejected: path traversal detected (${targetFile})`);
+        }
+        const parentDir = path.dirname(fullPath);
+        await mkdir(parentDir, { recursive: true });
+        const realParent = await realpath(parentDir);
+        if (!realParent.startsWith(workshopRoot + path.sep) && realParent !== workshopRoot) {
+            throw new Error(`Builder write rejected: symlink escape detected (${targetFile})`);
+        }
+        return {
+            fullPath,
+            relativePath: path.relative(this.root, fullPath),
+        };
+    }
+    async runValidation(action, skillPath) {
+        if (!action)
+            return;
+        const safeSkillPath = skillPath.replace(/[^a-zA-Z0-9_./-]/g, "");
+        switch (action) {
+            case "skill-tests":
+                await this.exec(`pnpm -C ${safeSkillPath} test`);
+                return;
+            case "lint":
+                await this.exec("pnpm lint");
+                return;
+            case "typecheck":
+                await this.exec("pnpm typecheck");
+                return;
+            case "workspace-test":
+                await this.exec("pnpm test");
+                return;
+            default:
+                throw new Error(`Invalid test action: ${String(action)}`);
+        }
+    }
     async executeTask(task) {
-        const fullPath = join(this.root, task.targetFile);
+        const { fullPath, relativePath } = await this.resolveAndValidateTargetPath(task.targetFile);
         let originalContent = "";
         if (task.changeType !== "create" && existsSync(fullPath)) {
             originalContent = await readFile(fullPath, "utf-8");
@@ -93,15 +157,8 @@ Return ONLY the new content for this file. No code fences, just the code.
         await writeFile(fullPath, newCode, "utf-8");
         // Verify Build
         try {
-            // Scope build to package? For now, just global build or specific test if provided
-            if (task.testCommand) {
-                await this.exec(task.testCommand);
-            }
-            else {
-                // Heuristic: try to build related package
-                // await this.exec("pnpm build"); // too slow for every step?
-                // Minimal check: tsc --noEmit?
-            }
+            const skillPath = path.dirname(relativePath);
+            await this.runValidation(task.testAction, skillPath);
         }
         catch (err) {
             // Self-correction loop would go here
@@ -112,7 +169,7 @@ Return ONLY the new content for this file. No code fences, just the code.
             throw err;
         }
         // Commit
-        await this.exec(`git add ${task.targetFile}`);
+        await this.exec(`git add ${relativePath}`);
         await this.exec(`git commit -m "builder: ${task.description}"`);
     }
     async exec(cmd) {
