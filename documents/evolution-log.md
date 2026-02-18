@@ -1,5 +1,37 @@
 # Evolution Log
 
+## 2026-02-18 Iteration 18
+
+### Change summary
+- Improved control-center chat responsiveness by extracting the transcript renderer into a memoized `MessageFeed` component, so composer keystrokes and activity timer ticks no longer re-render the full message history.
+- Isolated elapsed-time updates into a dedicated `ChatActivityBanner` state loop; active-run second ticks now update only the banner instead of the entire chat transcript tree.
+- Preserved existing chat UX (auto-scroll, tool output expansion, attachments, delivery states) while reducing render churn in the hottest interaction path.
+
+### Files modified
+- `apps/dashboard/src/app/components/cairn/Chat.tsx`
+- `documents/evolution-log.md`
+
+### Risk introduced
+- Low: memoization benefits depend on parent passing stable `messages` references; if upstream starts cloning arrays each render, gains are reduced (behavior remains correct).
+- Low: `MessageFeed` now owns its own scroll anchor/effect; future transcript layout changes should keep the feed mounted to preserve expected auto-scroll behavior.
+
+### Metrics before/after
+- Transcript re-render frequency while typing in composer (no new messages): `every keystroke re-mapped entire message list` -> `0 transcript re-renders (memoized feed short-circuits)`.
+- Active-run elapsed timer impact (1 tick/sec during pending runs): `entire Chat component tree re-rendered each second` -> `banner-only re-render each second`.
+- Render isolation structure: `single monolithic Chat render path` -> `separated hot paths (MessageFeed, ChatActivityBanner, composer)`.
+- Validation status:
+  - `pnpm lint` ✅
+  - `pnpm test` ✅
+  - `pnpm build` ✅
+
+### Rollback instructions
+1. `git revert <commit_sha>`
+2. Or manually revert in `Chat.tsx`:
+   - inline `MessageFeed` back into `Chat`,
+   - move activity timer state (`now` interval) back into `Chat`,
+   - remove memoized feed boundary.
+3. Re-run: `pnpm lint && pnpm test && pnpm build`
+
 ## 2026-02-18 Iteration 17
 
 ### Change summary
