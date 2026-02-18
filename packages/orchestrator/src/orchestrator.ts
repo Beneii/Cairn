@@ -117,7 +117,7 @@ export async function processMessage(userInput: string, attachments?: ChatAttach
 
 ${evaluation.note}` : responseTextBase;
 
-        trace.executionTrace = [{ skillId, durationMs: stepResult.durationMs, success: stepResult.success }];
+        trace.executionTrace = [{ skillId, durationMs: stepResult.durationMs, success: stepResult.success, confidence: stepResult.confidence }];
         trace.finalStatus = stepResult.success ? "SUCCESS" : "INFRASTRUCTURE_FAIL";
 
         emitResponse(responseText, [skillId]);
@@ -237,7 +237,7 @@ ${evaluation.note}`;
 
 ${evaluation.note}` : responseTextBase;
 
-      trace.executionTrace = [{ skillId, durationMs: stepResult.durationMs, success: stepResult.success }];
+      trace.executionTrace = [{ skillId, durationMs: stepResult.durationMs, success: stepResult.success, confidence: stepResult.confidence }];
       trace.finalStatus = stepResult.success ? "SUCCESS" : "INFRASTRUCTURE_FAIL";
 
       emitResponse(responseText, [skillId]);
@@ -294,6 +294,7 @@ ${evaluation.note}` : responseTextBase;
         skillId: s.skillId,
         durationMs: s.durationMs,
         success: s.success,
+        confidence: s.confidence,
       }));
 
       const responseTextBase = await composePlanResponse(

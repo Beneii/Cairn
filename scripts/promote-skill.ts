@@ -7,12 +7,14 @@ import crypto from "node:crypto";
 import { appendEntry, initLedger } from "../packages/ledger/src/index.ts";
 import {
   computeNextSemver,
+  ensureEvolutionQualityGate,
   getSkillRequestById,
   initSkillRequestStore,
   listSkillRequests,
   parseManifestRegistry,
   updateSkillRequestStatus,
   upsertSkillEntry,
+  validateSkillConstitution,
 } from "../packages/skills/src/index.ts";
 
 function ensureSelfGrowthMode() {
@@ -196,7 +198,7 @@ async function main() {
   const nextSemver = computeNextSemver(existing?.semantic_version);
   const mergedFrom = existing?.merge_lineage?.merged_from || [];
 
-  const updatedRegistry = upsertSkillEntry(registry, {
+  const nextEntry = {
     name: skillName,
     path: skillPathRel,
     entry_script: entryScriptRel,
@@ -206,7 +208,7 @@ async function main() {
     runtime_skill_id: existing?.runtime_skill_id ?? null,
     required_tools: existing?.required_tools ?? ["shell"],
     tier: existing?.tier ?? 1,
-    lifecycle_state: "active",
+    lifecycle_state: "active" as const,
     semantic_version: nextSemver,
     evolved_from_request_id: associatedRequestId,
     last_promoted_at: new Date().toISOString(),
@@ -215,7 +217,26 @@ async function main() {
       merged_from: mergedFrom,
       merged_into: existing?.merge_lineage?.merged_into,
     },
+  };
+
+  const constitutionIssues = validateSkillConstitution(nextEntry);
+  if (constitutionIssues.length > 0) {
+    throw new Error(`Skill constitution checks failed: ${constitutionIssues.join("; ")}`);
+  }
+
+  ensureEvolutionQualityGate({
+    changeSummary: `Promoted ${skillName} to active lifecycle state`,
+    risks: ["Promotion can expose runtime regressions if script assumptions are stale."],
+    metrics: [`hash_sha256=${folderHash}`, `semantic_version=${nextSemver}`],
+    rollbackSteps: [
+      `git revert <commit_sha_containing_${skillName}_promotion>`,
+      "pnpm lint",
+      "pnpm test",
+      "pnpm build",
+    ],
   });
+
+  const updatedRegistry = upsertSkillEntry(registry, nextEntry);
 
   await fsp.writeFile(registryFile, JSON.stringify(updatedRegistry, null, 2) + "\n", "utf-8");
 

@@ -1,5 +1,51 @@
 # Evolution Log
 
+## 2026-02-18 Iteration 9
+
+### Change summary
+- Upgraded planner/executor orchestration contracts with parallel-light worker governance (`maxParallelLightWorkers` cap up to 10), per-step retry controls, escalation hooks, and confidence scoring propagation.
+- Extended `executor-v2` to execute `workerClass=light` steps in bounded parallel groups, apply retry ladder logic, and emit confidence-aware step traces.
+- Strengthened skill lifecycle intelligence with constitution validation helpers, recoverable archived state transitions, and evolution quality-gate checks wired into promotion flow.
+- Added uni/admin actionable digest scaffolding (`buildActionableDigest`, `universityAdminExtractor`) with task/deadline extraction interfaces and digest contract types in shared models.
+
+### Files modified
+- `packages/shared/src/types.ts`
+- `packages/shared/src/types.d.ts`
+- `packages/orchestrator/src/nodes/planner-v2.ts`
+- `packages/orchestrator/src/nodes/executor-v2.ts`
+- `packages/orchestrator/src/nodes/executor-v2.test.ts`
+- `packages/orchestrator/src/orchestrator.ts`
+- `packages/orchestrator/src/index.ts`
+- `packages/orchestrator/src/digest/actionable-digest.ts`
+- `packages/skills/src/manifest-registry-manager.ts`
+- `scripts/promote-skill.ts`
+- `documents/evolution-log.md`
+
+### Risk introduced
+- Medium: parallel light-worker fanout may increase concurrent tool pressure if plans overuse `parallelGroup`; cap enforcement mitigates but does not remove saturation risk.
+- Low: retry/escalation ladders can increase execution cost/latency on flaky steps.
+- Low: constitution gates in promotion path are stricter and can fail previously tolerated malformed entries.
+- Low: digest extractor uses regex heuristics and may over/under-extract tasks from ambiguous text.
+
+### Metrics before/after
+- Planner/executor governance metadata: `none -> plan.governance + step-level worker/retry/confidence fields`.
+- Parallel orchestration: `sequential-only -> bounded light parallel groups (1..10 cap)`.
+- Reliability controls: `single-attempt -> retry ladder (0..3) + optional escalation hook`.
+- Trace observability: execution trace now includes per-step `confidence`.
+- Skill lifecycle controls: `basic normalization -> constitution validation + archive/recover transition support + quality gate API`.
+- Validation status:
+  - `pnpm lint` ✅
+  - `pnpm test` ✅
+  - `pnpm build` ✅
+
+### Rollback instructions
+1. `git revert <commit_sha>`
+2. If manual rollback is preferred:
+   - revert planner/executor/orchestrator/shared type changes,
+   - remove `packages/orchestrator/src/digest/actionable-digest.ts` + export,
+   - restore prior `manifest-registry-manager.ts` and `scripts/promote-skill.ts` behavior.
+3. Re-run: `pnpm lint && pnpm test && pnpm build`
+
 ## 2026-02-18 Iteration 8
 
 ### Change summary

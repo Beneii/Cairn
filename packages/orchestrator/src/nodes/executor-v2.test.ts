@@ -2,6 +2,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { executePlan } from './executor-v2.js';
 import type { Plan } from '@cairn/shared';
+import { executeSkill } from '../skill-registry.js';
 
 // Mock dependencies
 vi.mock('../skill-registry.js', () => ({
@@ -9,6 +10,7 @@ vi.mock('../skill-registry.js', () => ({
     getSkillDefinition: vi.fn((id) => {
         if (id === 'test.producer') return { id: 'test.producer' };
         if (id === 'test.consumer') return { id: 'test.consumer' };
+        if (id === 'test.flaky') return { id: 'test.flaky' };
         return null; // Unknown skill
     }),
     validateSkillInput: vi.fn(() => ({ valid: true })),
@@ -30,6 +32,11 @@ vi.mock('../skill-registry.js', () => ({
                 success: true,
                 output: `Received: ${JSON.stringify(args)}`
             };
+        }
+        if (id === 'test.flaky') {
+            const invocation = (globalThis as any).__flakyCount = ((globalThis as any).__flakyCount || 0) + 1;
+            if (invocation < 2) return { success: false, output: 'Transient failure' };
+            return { success: true, output: 'Recovered' };
         }
         return { success: false, output: 'Unknown skill' };
     })
@@ -63,6 +70,7 @@ vi.mock('fs', () => ({
 describe('Executor V2 Variable Substitution', () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        (globalThis as any).__flakyCount = 0;
     });
 
     it('should substitute variables from previous steps', async () => {
@@ -145,8 +153,35 @@ describe('Executor V2 Variable Substitution', () => {
 
         const result = await executePlan(plan, 'msg-3');
         expect(result.allSuccess).toBe(true);
-        // Should probably adhere to "undefined" or empty string or keep literal.
-        // For now let's assume it keeps the literal or resolves to undefined.
-        // We'll see what our implementation verification reveals.
+    });
+
+    it('retries flaky steps and records confidence hooks', async () => {
+        const plan: Plan = {
+            steps: [
+                {
+                    skillId: 'test.flaky',
+                    arguments: {},
+                    workerClass: 'light',
+                    parallelGroup: 'fanout-a',
+                    maxRetries: 2,
+                    confidenceHint: 0.9,
+                },
+                {
+                    skillId: 'test.consumer',
+                    arguments: { ack: true },
+                    workerClass: 'light',
+                    parallelGroup: 'fanout-a',
+                }
+            ],
+            maxToolCalls: 5,
+            riskLevel: 'low',
+            governance: { maxParallelLightWorkers: 2, maxRetriesPerStep: 1, escalationMode: 'final-step' },
+        };
+
+        const result = await executePlan(plan, 'msg-4');
+        expect(result.allSuccess).toBe(true);
+        expect(result.steps[0].attempts).toBeGreaterThan(1);
+        expect(result.steps[0].confidence).toBeLessThanOrEqual(0.9);
+        expect(vi.mocked(executeSkill).mock.calls.length).toBeGreaterThanOrEqual(3);
     });
 });

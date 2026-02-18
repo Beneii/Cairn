@@ -425,15 +425,27 @@ export interface SkillManifest {
 // Deprecated alias to ease migration
 export type SkillDefinition = SkillManifest;
 
+export interface PlanGovernance {
+  maxParallelLightWorkers?: number;
+  maxRetriesPerStep?: number;
+  escalationMode?: "none" | "final-step";
+}
+
 export interface Plan {
   steps: PlanStep[];
   maxToolCalls: number;
   riskLevel: "low" | "medium" | "high";
+  governance?: PlanGovernance;
 }
 
 export interface PlanStep {
   skillId: string;
   arguments: Record<string, any>;
+  workerClass?: "default" | "light";
+  parallelGroup?: string;
+  maxRetries?: number;
+  escalationSkillId?: string;
+  confidenceHint?: number;
 }
 
 export type FailureStatus =
@@ -451,8 +463,32 @@ export interface PipelineTrace {
   classifierOutput?: IntentClassification;
   actionContract?: ActionContract;
   plannerOutput?: Plan;
-  executionTrace?: { skillId: string; durationMs: number; success: boolean }[];
+  executionTrace?: { skillId: string; durationMs: number; success: boolean; confidence: number }[];
   finalStatus: FailureStatus;
   totalLatencyMs: number;
   totalCostUsd: number;
+}
+
+export interface ActionableDigestItem {
+  source: "university" | "admin" | "task" | "other";
+  title: string;
+  summary: string;
+  dueAt?: string;
+  owner?: string;
+  priority?: "low" | "medium" | "high";
+  confidence: number;
+  tags?: string[];
+}
+
+export interface ActionableDigest {
+  generatedAt: string;
+  items: ActionableDigestItem[];
+  risks: string[];
+  recommendedNextActions: string[];
+}
+
+export interface ActionableExtractor<TInput = unknown> {
+  id: string;
+  description: string;
+  extract: (input: TInput) => Promise<ActionableDigestItem[]>;
 }
