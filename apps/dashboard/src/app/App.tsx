@@ -143,9 +143,16 @@ export default function App() {
           />
         );
       case "logs":
-        return <Logs logs={cairn.logs} className="h-full min-h-0" darkMode={darkMode} />;
+        return (
+          <Logs
+            logs={cairn.logs}
+            droppedCount={cairn.diagnostics.droppedLogCount}
+            className="h-full min-h-0"
+            darkMode={darkMode}
+          />
+        );
     }
-  }, [cairn.notes, cairn.resurfaceNote, cairn.createNote, cairn.logs, darkMode]);
+  }, [cairn.notes, cairn.resurfaceNote, cairn.createNote, cairn.logs, cairn.diagnostics.droppedLogCount, darkMode]);
 
   return (
     <div
