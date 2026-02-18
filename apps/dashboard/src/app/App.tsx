@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { DndProvider } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
 import { Nucleus } from "./components/cairn/Nucleus";
@@ -7,6 +7,7 @@ import { Chat } from "./components/cairn/Chat";
 import { Notes } from "./components/cairn/Notes";
 import { Logs } from "./components/cairn/Logs";
 import { NavBar, type View } from "./components/cairn/NavBar";
+import { CommandPalette, type CommandAction } from "./components/cairn/CommandPalette";
 import { DraggablePanel } from "./components/cairn/DraggablePanel";
 import { SettingsPage } from "./components/cairn/pages/SettingsPage";
 import { ArchivePage } from "./components/cairn/pages/ArchivePage";
@@ -21,6 +22,11 @@ export default function App() {
     return localStorage.getItem("cairn_theme") === "dark";
   });
   const [currentView, setCurrentView] = useState<View>('home');
+  const [settingsTab, setSettingsTab] = useState<'general' | 'integrations' | 'system'>(() => {
+    const stored = localStorage.getItem('cairn_settings_tab');
+    return stored === 'integrations' || stored === 'system' ? stored : 'general';
+  });
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
 
   useEffect(() => {
     localStorage.setItem("cairn_theme", darkMode ? "dark" : "light");
@@ -44,6 +50,84 @@ export default function App() {
   const bg = darkMode ? '#1c1c1c' : '#F3F2EE';
   const fg = darkMode ? '#E5E5E5' : '#1A1D21';
   const border = darkMode ? 'rgba(255,255,255,0.1)' : 'rgba(26,29,33,0.1)';
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      const isShortcut = (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k';
+      if (!isShortcut) return;
+      event.preventDefault();
+      setCommandPaletteOpen((prev) => !prev);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
+
+  const commandActions = useMemo<CommandAction[]>(() => {
+    const canRunUpdate = !cairn.updateProgress || cairn.updateProgress.stage === 'idle' || cairn.updateProgress.stage === 'error';
+    const canRunBuilder = cairn.builder.status !== 'running';
+
+    return [
+      {
+        id: 'go-home',
+        label: 'Go to Home',
+        description: 'Return to control center overview',
+        keywords: 'dashboard nucleus',
+        perform: () => setCurrentView('home'),
+      },
+      {
+        id: 'go-goals',
+        label: 'Open Goals',
+        description: 'Jump to active goals and progress',
+        keywords: 'outcomes priorities',
+        perform: () => setCurrentView('goals'),
+      },
+      {
+        id: 'go-settings-general',
+        label: 'Open Settings → General',
+        description: 'Adjust limits, automation, and preferences',
+        keywords: 'settings limits heartbeat',
+        perform: () => { setSettingsTab('general'); setCurrentView('settings'); },
+      },
+      {
+        id: 'go-settings-system',
+        label: 'Open Settings → System',
+        description: 'Jump straight to system control center',
+        keywords: 'system update builder local mode',
+        perform: () => { setSettingsTab('system'); setCurrentView('settings'); },
+      },
+      {
+        id: 'toggle-local-mode',
+        label: cairn.config.local_mode_enabled ? 'Disable Local Mode' : 'Enable Local Mode',
+        description: cairn.config.local_mode_enabled ? 'Switch back to cloud-default inference' : 'Route agents to Ollama models',
+        keywords: 'ollama local mode',
+        perform: () => { cairn.setLocalMode(!cairn.config.local_mode_enabled); setCurrentView('settings'); setSettingsTab('system'); },
+      },
+      {
+        id: 'run-builder',
+        label: canRunBuilder ? 'Run Builder Now' : 'Builder already running',
+        description: canRunBuilder ? 'Start autonomous branch builder immediately' : 'Wait for current builder run to complete',
+        keywords: 'builder nightly',
+        perform: () => {
+          if (!canRunBuilder) return;
+          cairn.triggerBuilder();
+          setCurrentView('settings');
+          setSettingsTab('system');
+        },
+      },
+      {
+        id: 'update-restart',
+        label: canRunUpdate ? 'Update & Restart Gateway' : 'Update already in progress',
+        description: canRunUpdate ? 'Pull latest changes and restart services' : 'Wait for current update to finish',
+        keywords: 'deploy restart pull',
+        perform: () => {
+          if (!canRunUpdate) return;
+          cairn.triggerUpdate();
+          setCurrentView('settings');
+          setSettingsTab('system');
+        },
+      },
+    ];
+  }, [cairn.builder.status, cairn.config.local_mode_enabled, cairn.setLocalMode, cairn.triggerBuilder, cairn.triggerUpdate, cairn.updateProgress]);
 
   const renderBottomPanel = useCallback((id: PanelId) => {
     switch (id) {
@@ -87,6 +171,7 @@ export default function App() {
                   toggleEditMode={toggleEditMode}
                   toggleViewMode={toggleViewMode}
                   resetLayout={resetLayout}
+                  onOpenCommandPalette={() => setCommandPaletteOpen(true)}
                 />
               </ResizablePanel>
 
@@ -130,6 +215,7 @@ export default function App() {
                       toggleEditMode={toggleEditMode}
                       toggleViewMode={toggleViewMode}
                       resetLayout={resetLayout}
+                      onOpenCommandPalette={() => setCommandPaletteOpen(true)}
                     />
                   </ResizablePanel>
 
@@ -162,7 +248,7 @@ export default function App() {
 
       {currentView === 'settings' && (
         <SettingsPage
-          nav={<NavBar currentView={currentView} setCurrentView={setCurrentView} darkMode={darkMode} setDarkMode={setDarkMode} />}
+          nav={<NavBar currentView={currentView} setCurrentView={setCurrentView} darkMode={darkMode} setDarkMode={setDarkMode} onOpenCommandPalette={() => setCommandPaletteOpen(true)} />}
           darkMode={darkMode}
           setDarkMode={setDarkMode}
           config={cairn.config}
@@ -191,11 +277,13 @@ export default function App() {
           builderStatus={cairn.builder.status}
           builderProgress={cairn.builder.progress}
           triggerBuilder={cairn.triggerBuilder}
+          initialTab={settingsTab}
+          onTabChange={setSettingsTab}
         />
       )}
       {currentView === 'goals' && (
         <GoalsPage
-          nav={<NavBar currentView={currentView} setCurrentView={setCurrentView} darkMode={darkMode} setDarkMode={setDarkMode} />}
+          nav={<NavBar currentView={currentView} setCurrentView={setCurrentView} darkMode={darkMode} setDarkMode={setDarkMode} onOpenCommandPalette={() => setCommandPaletteOpen(true)} />}
           darkMode={darkMode}
           goals={cairn.goals}
           createGoal={cairn.createGoal}
@@ -205,7 +293,7 @@ export default function App() {
       )}
       {currentView === 'archive' && (
         <ArchivePage
-          nav={<NavBar currentView={currentView} setCurrentView={setCurrentView} darkMode={darkMode} setDarkMode={setDarkMode} />}
+          nav={<NavBar currentView={currentView} setCurrentView={setCurrentView} darkMode={darkMode} setDarkMode={setDarkMode} onOpenCommandPalette={() => setCommandPaletteOpen(true)} />}
           cards={[]}
           logs={cairn.archiveLogs}
           systemDocs={cairn.archiveSystemDocs}
@@ -218,6 +306,12 @@ export default function App() {
         />
       )}
 
+      <CommandPalette
+        open={commandPaletteOpen}
+        onClose={() => setCommandPaletteOpen(false)}
+        actions={commandActions}
+        currentView={currentView}
+      />
     </div>
   );
 }
@@ -236,6 +330,7 @@ function NucleusSection({
   toggleEditMode,
   toggleViewMode,
   resetLayout,
+  onOpenCommandPalette,
 }: {
   cairn: ReturnType<typeof useCairn>;
   bg: string;
@@ -249,6 +344,7 @@ function NucleusSection({
   toggleEditMode: () => void;
   toggleViewMode: () => void;
   resetLayout: () => void;
+  onOpenCommandPalette: () => void;
 }) {
   return (
     <div
@@ -273,6 +369,7 @@ function NucleusSection({
           onToggleEditMode={toggleEditMode}
           onToggleViewMode={toggleViewMode}
           onResetLayout={resetLayout}
+          onOpenCommandPalette={onOpenCommandPalette}
         />
       </div>
 

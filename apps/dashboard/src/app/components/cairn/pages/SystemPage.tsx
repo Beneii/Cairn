@@ -98,6 +98,8 @@ export function SystemSettings({ connected, diagnostics, localModeEnabled, nodes
     };
 
     const nodeList = Object.entries(nodes);
+    const updateBusy = !!updateProgress && updateProgress.stage !== "error" && updateProgress.stage !== "idle";
+    const builderBusy = builderStatus === "running";
 
     return (
         <div>
@@ -110,6 +112,70 @@ export function SystemSettings({ connected, diagnostics, localModeEnabled, nodes
                 {pendingAction === "update" && "Update request sent. Waiting for gateway acknowledgement..."}
                 {pendingAction === "builder" && "Builder run request sent. Waiting for scheduler acknowledgement..."}
             </div>
+
+            <section className="mb-8">
+                <h3 className="text-xs uppercase tracking-widest opacity-50 mb-4 pb-2" style={{ borderBottom: `1px solid ${border}` }}>
+                    Control Center
+                </h3>
+                <div className="grid gap-3 md:grid-cols-3">
+                    <div className="rounded-lg border p-3" style={{ backgroundColor: subtleBg, borderColor: border }}>
+                        <div className="text-xs opacity-60 uppercase tracking-wide mb-1">Gateway</div>
+                        <div className="flex items-center gap-2 text-sm font-medium">
+                            <StatusDot ok={connected && healthStatus === "ok"} />
+                            <span>{connected ? (healthStatus === "ok" ? "Operational" : "Connected, health issue") : "Offline"}</span>
+                        </div>
+                        <div className="mt-1 text-xs opacity-60">Reconnects: {diagnostics.reconnectCount}</div>
+                    </div>
+
+                    {triggerUpdate && (
+                        <div className="rounded-lg border p-3" style={{ backgroundColor: subtleBg, borderColor: border }}>
+                            <div className="text-xs opacity-60 uppercase tracking-wide mb-1">Update Pipeline</div>
+                            <div className="text-sm font-medium mb-2">{updateBusy ? `Running (${updateProgress?.stage})` : "Ready"}</div>
+                            <button
+                                onClick={() => {
+                                    setPendingAction("update");
+                                    triggerUpdate();
+                                }}
+                                disabled={updateBusy}
+                                className="inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-medium"
+                                style={{
+                                    backgroundColor: updateBusy ? (darkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)') : (darkMode ? '#E5E5E5' : '#1A1D21'),
+                                    color: updateBusy ? 'inherit' : (darkMode ? '#1c1c1c' : '#F3F2EE'),
+                                    opacity: updateBusy ? 0.6 : 1,
+                                }}
+                            >
+                                {updateBusy ? <RefreshCw size={12} className="animate-spin" /> : <Download size={12} />}
+                                {updateBusy ? "In progress" : "Run update"}
+                            </button>
+                            {updateProgress?.message && <div className="mt-2 text-xs opacity-65">{updateProgress.message}</div>}
+                        </div>
+                    )}
+
+                    {triggerBuilder && (
+                        <div className="rounded-lg border p-3" style={{ backgroundColor: subtleBg, borderColor: border }}>
+                            <div className="text-xs opacity-60 uppercase tracking-wide mb-1">Branch Builder</div>
+                            <div className="text-sm font-medium mb-2">{builderBusy ? "Running" : "Ready"}</div>
+                            <button
+                                onClick={() => {
+                                    setPendingAction("builder");
+                                    triggerBuilder();
+                                }}
+                                disabled={builderBusy}
+                                className="inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-medium"
+                                style={{
+                                    backgroundColor: builderBusy ? (darkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)') : (darkMode ? '#E5E5E5' : '#1A1D21'),
+                                    color: builderBusy ? 'inherit' : (darkMode ? '#1c1c1c' : '#F3F2EE'),
+                                    opacity: builderBusy ? 0.6 : 1,
+                                }}
+                            >
+                                {builderBusy ? <RefreshCw size={12} className="animate-spin" /> : <Zap size={12} />}
+                                {builderBusy ? "In progress" : "Run builder"}
+                            </button>
+                            {builderProgress && <div className="mt-2 text-xs opacity-65">{builderProgress}</div>}
+                        </div>
+                    )}
+                </div>
+            </section>
 
             {/* Connection Status */}
             <section className="mb-8">
@@ -137,137 +203,6 @@ export function SystemSettings({ connected, diagnostics, localModeEnabled, nodes
                     </div>
                 </div>
             </section>
-
-            {/* Self Update */}
-            {triggerUpdate && (
-                <section className="mb-8">
-                    <h3 className="text-xs uppercase tracking-widest opacity-50 mb-4 pb-2" style={{ borderBottom: `1px solid ${border}` }}>
-                        Updates
-                    </h3>
-                    <div className="p-4 rounded-lg border" style={{ backgroundColor: subtleBg, borderColor: border }}>
-                        <div className="flex items-center justify-between mb-2">
-                            <div>
-                                <div className="text-sm font-medium">Pull & Restart</div>
-                                <div className="text-xs opacity-60 max-w-md">
-                                    Pull latest changes from git, rebuild, and restart the gateway.
-                                </div>
-                            </div>
-                            <button
-                                onClick={() => {
-                                    setPendingAction("update");
-                                    triggerUpdate();
-                                }}
-                                disabled={!!updateProgress && updateProgress.stage !== "error" && updateProgress.stage !== "idle"}
-                                className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all"
-                                style={{
-                                    backgroundColor: updateProgress && updateProgress.stage !== "error" && updateProgress.stage !== "idle"
-                                        ? (darkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)')
-                                        : (darkMode ? '#E5E5E5' : '#1A1D21'),
-                                    color: updateProgress && updateProgress.stage !== "error" && updateProgress.stage !== "idle"
-                                        ? 'inherit'
-                                        : (darkMode ? '#1c1c1c' : '#F3F2EE'),
-                                    opacity: updateProgress && updateProgress.stage !== "error" && updateProgress.stage !== "idle" ? 0.5 : 1,
-                                    cursor: updateProgress && updateProgress.stage !== "error" && updateProgress.stage !== "idle" ? 'not-allowed' : 'pointer',
-                                }}
-                            >
-                                {updateProgress && updateProgress.stage !== "error" && updateProgress.stage !== "idle"
-                                    ? <RefreshCw size={14} className="animate-spin" />
-                                    : <Download size={14} />
-                                }
-                                {updateProgress && updateProgress.stage !== "error" && updateProgress.stage !== "idle"
-                                    ? "Updating..."
-                                    : "Update & Restart"
-                                }
-                            </button>
-                        </div>
-
-                        {updateProgress && (
-                            <div className="mt-3 pt-3 border-t" style={{ borderColor: border }}>
-                                <div className="flex items-center gap-2 text-xs">
-                                    <span
-                                        className="inline-block w-2 h-2 rounded-full"
-                                        style={{
-                                            backgroundColor:
-                                                updateProgress.stage === "error" ? "#ef4444" :
-                                                    updateProgress.stage === "restarting" ? "#f59e0b" :
-                                                        "#22c55e"
-                                        }}
-                                    />
-                                    <span className="uppercase tracking-wider opacity-60">{updateProgress.stage}</span>
-                                </div>
-                                <div className="text-xs opacity-70 mt-1 font-mono">
-                                    {updateProgress.message}
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                </section>
-            )}
-
-            {/* Branch Builder */}
-            {triggerBuilder && (
-                <section className="mb-8">
-                    <h3 className="text-xs uppercase tracking-widest opacity-50 mb-4 pb-2" style={{ borderBottom: `1px solid ${border}` }}>
-                        Local Branch Builder
-                    </h3>
-                    <div className="p-4 rounded-lg border" style={{ backgroundColor: subtleBg, borderColor: border }}>
-                        <div className="flex items-center justify-between mb-2">
-                            <div>
-                                <div className="text-sm font-medium">Nightly Builder</div>
-                                <div className="text-xs opacity-60 max-w-md">
-                                    Autonomous agent that fixes issues on a new branch.
-                                </div>
-                            </div>
-                            <button
-                                onClick={() => {
-                                    setPendingAction("builder");
-                                    triggerBuilder();
-                                }}
-                                disabled={builderStatus === "running"}
-                                className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all"
-                                style={{
-                                    backgroundColor: builderStatus === "running"
-                                        ? (darkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)')
-                                        : (darkMode ? '#E5E5E5' : '#1A1D21'),
-                                    color: builderStatus === "running"
-                                        ? 'inherit'
-                                        : (darkMode ? '#1c1c1c' : '#F3F2EE'),
-                                    opacity: builderStatus === "running" ? 0.5 : 1,
-                                    cursor: builderStatus === "running" ? 'not-allowed' : 'pointer',
-                                }}
-                            >
-                                {builderStatus === "running"
-                                    ? <RefreshCw size={14} className="animate-spin" />
-                                    : <Zap size={14} />
-                                }
-                                {builderStatus === "running" ? "Building..." : "Run Now"}
-                            </button>
-                        </div>
-
-                        {builderStatus && builderStatus !== "idle" && (
-                            <div className="mt-3 pt-3 border-t" style={{ borderColor: border }}>
-                                <div className="flex items-center gap-2 text-xs">
-                                    <span
-                                        className="inline-block w-2 h-2 rounded-full"
-                                        style={{
-                                            backgroundColor:
-                                                builderStatus === "failed" ? "#ef4444" :
-                                                    builderStatus === "running" ? "#f59e0b" :
-                                                        "#22c55e"
-                                        }}
-                                    />
-                                    <span className="uppercase tracking-wider opacity-60">{builderStatus}</span>
-                                </div>
-                                {builderProgress && (
-                                    <div className="text-xs opacity-70 mt-1 font-mono">
-                                        {builderProgress}
-                                    </div>
-                                )}
-                            </div>
-                        )}
-                    </div>
-                </section>
-            )}
 
             {/* Local Mode (Ollama) */}
             <section className="mb-8">

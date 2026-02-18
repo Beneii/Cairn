@@ -8,6 +8,8 @@ import { SystemSettings } from "./SystemPage";
 import type { ProactiveConfig } from "../types";
 import { useTheme } from "../../../theme";
 
+type SettingsTab = 'general' | 'integrations' | 'system';
+
 interface SettingsPageProps {
     nav: ReactNode;
     darkMode: boolean;
@@ -59,6 +61,8 @@ interface SettingsPageProps {
     builderStatus?: "idle" | "running" | "failed" | "completed";
     builderProgress?: string;
     triggerBuilder?: () => void;
+    initialTab?: SettingsTab;
+    onTabChange?: (tab: SettingsTab) => void;
 }
 
 /** Reusable toggle switch. */
@@ -143,8 +147,22 @@ function NumericCommitField({ value, onCommit, className, style }: {
 }
 
 export function SettingsPage(props: SettingsPageProps) {
-    const [activeTab, setActiveTab] = useState<'general' | 'integrations' | 'system'>('general');
-    const { darkMode, setDarkMode, config, setHeartbeat, setSpendLimit, setDecisionLimit, setInteractionLimit, setProactive } = props;
+    const [activeTab, setActiveTab] = useState<SettingsTab>(() => {
+        if (props.initialTab) return props.initialTab;
+        const stored = localStorage.getItem("cairn_settings_tab");
+        return stored === "integrations" || stored === "system" ? stored : "general";
+    });
+    const { darkMode, setDarkMode, config, setHeartbeat, setSpendLimit, setDecisionLimit, setInteractionLimit, setProactive, initialTab, onTabChange } = props;
+
+    useEffect(() => {
+        if (!initialTab) return;
+        setActiveTab(initialTab);
+    }, [initialTab]);
+
+    useEffect(() => {
+        localStorage.setItem("cairn_settings_tab", activeTab);
+        onTabChange?.(activeTab);
+    }, [activeTab, onTabChange]);
     const theme = useTheme(darkMode);
     const proactive = config.proactive;
 

@@ -14,9 +14,10 @@ interface NavBarProps {
   onToggleEditMode?: () => void;
   onToggleViewMode?: () => void;
   onResetLayout?: () => void;
+  onOpenCommandPalette?: () => void;
 }
 
-export function NavBar({ currentView, setCurrentView, darkMode, editMode, viewMode, onToggleEditMode, onToggleViewMode, onResetLayout }: NavBarProps) {
+export function NavBar({ currentView, setCurrentView, darkMode, editMode, viewMode, onToggleEditMode, onToggleViewMode, onResetLayout, onOpenCommandPalette }: NavBarProps) {
   const border = darkMode ? 'rgba(255,255,255,0.1)' : 'rgba(26,29,33,0.1)';
   const navItems: { view: View; icon: React.ReactNode; title: string; hint: string }[] = [
     { view: 'home', icon: <Circle size={20} strokeWidth={1.5} />, title: 'Home', hint: 'Overview and current system state' },
@@ -96,6 +97,19 @@ export function NavBar({ currentView, setCurrentView, darkMode, editMode, viewMo
         })}
       </ul>
       <div className="mx-1 h-5 w-px" style={{ backgroundColor: border }} aria-hidden="true" />
+      {onOpenCommandPalette && (
+        <button
+          type="button"
+          onClick={onOpenCommandPalette}
+          className="inline-flex items-center gap-2 rounded-md border px-2.5 py-1 text-xs opacity-80 transition hover:opacity-100"
+          style={{ borderColor: border }}
+          title="Open quick actions (Ctrl+K / Cmd+K)"
+          aria-label="Open quick actions"
+        >
+          <span className="uppercase tracking-wider">Quick Actions</span>
+          <kbd className="rounded border px-1 py-0.5 text-[10px]" style={{ borderColor: border }}>⌘K</kbd>
+        </button>
+      )}
     </nav>
   );
 }

@@ -1,5 +1,44 @@
 # Evolution Log
 
+## 2026-02-18 Iteration 11
+
+### Change summary
+- Added a global command palette (`Ctrl/Cmd + K`) with high-frequency control-center actions (view jumps, direct System tab jump, local mode toggle, builder run, update/restart) so operators can execute top workflows without menu traversal.
+- Added persistent Settings tab memory (`cairn_settings_tab`) and wired deep-linking into Settings so the UI reopens where the user last worked and quick actions can land directly on target controls.
+- Reworked System tab into a consolidated Control Center strip that surfaces gateway health + update + builder status/actions in a single above-the-fold section, removing duplicated action blocks lower on the page.
+
+### Files modified
+- `apps/dashboard/src/app/App.tsx`
+- `apps/dashboard/src/app/components/cairn/CommandPalette.tsx` (new)
+- `apps/dashboard/src/app/components/cairn/NavBar.tsx`
+- `apps/dashboard/src/app/components/cairn/pages/SettingsPage.tsx`
+- `apps/dashboard/src/app/components/cairn/pages/SystemPage.tsx`
+- `documents/evolution-log.md`
+
+### Risk introduced
+- Low: command palette introduces a global keyboard handler (`Ctrl/Cmd+K`); mitigated by explicit close behavior (Escape/click-outside) and no destructive defaults.
+- Low: Settings tab persistence can restore users into non-general tabs; mitigated by allowing explicit quick-action tab overrides.
+- Low: consolidating update/builder controls changes spatial muscle memory; mitigated by keeping labels and action semantics unchanged.
+
+### Metrics before/after
+- Navigation to System controls: `Home -> Settings -> System tab` (3 interactions) -> `Ctrl/Cmd+K + Enter` (2 interactions) or one-click "Quick Actions" button + select.
+- Triggering update/builder from non-Settings views: `4-5 interactions` (navigate + tab + action) -> `2 interactions` via command palette.
+- System control scan path: `3 separate sections (Connection + Updates + Builder)` -> `1 consolidated Control Center strip` for core run-state + actions.
+- Settings context persistence: `always reset to General tab` -> `restores last active tab across sessions + supports deep-link tab targeting`.
+- Validation status:
+  - `pnpm lint` ✅
+  - `pnpm test` ✅
+  - `pnpm build` ✅
+
+### Rollback instructions
+1. `git revert <commit_sha>`
+2. Or manually revert:
+   - remove `CommandPalette.tsx` and `App.tsx` palette wiring,
+   - remove `NavBar.tsx` quick-actions trigger button,
+   - restore non-persistent tab state in `SettingsPage.tsx`,
+   - restore previous standalone Updates/Builder sections in `SystemPage.tsx`.
+3. Re-run: `pnpm lint && pnpm test && pnpm build`
+
 ## 2026-02-18 Iteration 10
 
 ### Change summary
