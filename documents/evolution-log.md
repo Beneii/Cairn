@@ -1,5 +1,103 @@
 # Evolution Log
 
+## 2026-02-18 Iteration 21
+
+### Change summary
+- Added memory/reflection pipeline scaffold in `orchestrator-v2` finish path with explicit hot/warm/cold tier hooks.
+- Each completed pipeline now records a structured reflection artifact to hot working memory (`working:last_reflection`) and appends to warm episodic journal (`reflection_journal`, capped).
+- Added compact execution-trace retention (`orchestrator_recent_traces`) for supervisor/perf awareness and queued high-signal reflections (failures/high latency/high cost) for curator promotion into cold memory.
+
+### Files modified
+- `packages/orchestrator/src/orchestrator.ts`
+- `documents/evolution-log.md`
+
+### Risk introduced
+- Low: reflection journaling adds bounded warm-memory write pressure per message (caps in place).
+- Low: promotion trigger thresholds (latency/cost/status) are heuristic and may need tuning for noisy workloads.
+
+### Metrics before/after
+- Reflection persistence tiers: `none` -> `hot + warm + cold-promotion-hook`.
+- Supervisor-compatible trace availability: `none` -> `rolling warm trace window (300 step traces)`.
+- High-signal archival path: `manual/implicit` -> `automatic queued promotion for failure/high-latency/high-cost runs`.
+- Validation status:
+  - `pnpm lint` ✅
+  - `pnpm test` ✅
+  - `pnpm build` ✅
+
+### Rollback instructions
+1. `git revert <commit_sha>`
+2. Or manually revert in `orchestrator.ts`:
+   - remove `captureReflection(...)` helper and `finishPipeline` hook,
+   - restore original memory imports.
+3. Re-run: `pnpm lint && pnpm test && pnpm build`
+
+## 2026-02-18 Iteration 20
+
+### Change summary
+- Extended planner/executor governance to support hybrid worker classes (`light`, `heavy`, `default`) with explicit heavy cap enforcement (`maxParallelHeavyWorkers`, max 3).
+- Added autonomy-confidence policy controls in plan governance (`minConfidenceForAutonomy`, `createHumanTicketOnFailure`) and propagated them into execution.
+- Implemented human-decision ticketing in executor for low-confidence successes and retry/escalation failures, persisted in warm memory (`human_decision_tickets`).
+- Updated shared plan types to carry heavy worker/cap + confidence/ticket governance fields.
+
+### Files modified
+- `packages/shared/src/types.ts`
+- `packages/shared/src/types.d.ts`
+- `packages/orchestrator/src/nodes/planner-v2.ts`
+- `packages/orchestrator/src/nodes/executor-v2.ts`
+- `documents/evolution-log.md`
+
+### Risk introduced
+- Medium: heavy worker parallelism introduces a second concurrency lane; incorrect classification of steps as `heavy` can increase contention.
+- Low: human-ticket creation on low confidence may increase operator queue volume until confidence hints are tuned.
+
+### Metrics before/after
+- Worker model: `default + light` -> `default + light + heavy (capped)`.
+- Governance surface: `parallel-light/retries/escalation` -> `+ heavy cap + min confidence + ticket-on-failure`.
+- Failure handling: `retries + optional escalation` -> `retries/escalation + persistent human decision tickets`.
+- Validation status:
+  - `pnpm lint` ✅
+  - `pnpm test` ✅
+  - `pnpm build` ✅
+
+### Rollback instructions
+1. `git revert <commit_sha>`
+2. Or manually revert:
+   - shared `PlanGovernance`/`PlanStep` additions,
+   - planner schema/prompt/governance normalization fields,
+   - executor heavy-group logic + ticket creation hooks.
+3. Re-run: `pnpm lint && pnpm test && pnpm build`
+
+## 2026-02-18 Iteration 19
+
+### Change summary
+- Upgraded scheduler heartbeat into a lightweight persistent supervisor loop with trigger-based introspection.
+- Added queue/failure/stall/config-drift/perf snapshot evaluation with cooldown-based periodic suppression to keep awareness compute-efficient.
+- Persisted supervisor state and alert history to warm memory (`supervisor_state`, `supervisor_alerts`) and emitted structured log/ledger entries only on meaningful triggers.
+
+### Files modified
+- `packages/scheduler/src/scheduler.ts`
+- `documents/evolution-log.md`
+
+### Risk introduced
+- Low: trigger heuristics (queue>=5, reliability/failure deltas) may need environment-specific calibration.
+- Low: config fingerprint currently tracks selected env keys; additional drift dimensions may be added later.
+
+### Metrics before/after
+- Supervisor introspection mode: `none` -> `trigger-based (startup, stalls, failure growth, queue growth, reliability drop, config drift)`.
+- Alert persistence: `none` -> `warm-memory ring buffer (50 alerts)`.
+- Runtime overhead: `constant deep polling` -> `heartbeat piggyback + cooldown-gated summaries`.
+- Validation status:
+  - `pnpm lint` ✅
+  - `pnpm test` ✅
+  - `pnpm build` ✅
+
+### Rollback instructions
+1. `git revert <commit_sha>`
+2. Or manually revert in `scheduler.ts`:
+   - remove supervisor interfaces/helpers and `runSupervisorIntrospection` call,
+   - restore prior heartbeat-only scheduler flow.
+3. Re-run: `pnpm lint && pnpm test && pnpm build`
+
 ## 2026-02-18 Iteration 18
 
 ### Change summary
