@@ -12,5 +12,7 @@ const graph = JSON.parse(fs.readFileSync(out, 'utf8'));
 assert.ok(graph.nodeCount > 0, 'expected at least one node');
 assert.ok(Array.isArray(graph.edges), 'edges should be array');
 assert.ok(Array.isArray(graph.topologicalOrder), 'topologicalOrder should be array');
+assert.equal(graph.topologicalOrder.length, graph.nodeCount, 'topologicalOrder should cover all nodes when acyclic');
+assert.equal(graph.topologicalViolations, 0, 'build order should place dependencies before dependers');
 
 console.log('repo_graph_analyzer test passed');
