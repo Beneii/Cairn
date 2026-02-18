@@ -37,9 +37,15 @@ const PlanOutputSchema = z.object({
 
 // ---- System Prompt ----
 
+function getMaxParallelLightWorkers(): number {
+    const raw = Number.parseInt(process.env.CAIRN_MAX_LIGHT_WORKERS || "4", 10);
+    if (Number.isNaN(raw)) return 4;
+    return Math.min(Math.max(raw, 1), 10);
+}
+
 function buildPlannerPrompt(skills: { id: string; description: string; inputSchema: object }[]): string {
     const skillList = skills.map((s) => `  - ${s.id}: ${s.description}\n    Schema: ${JSON.stringify(s.inputSchema)}`).join("\n");
-    const maxParallelLightWorkers = Number.parseInt(process.env.CAIRN_MAX_LIGHT_WORKERS || "4", 10);
+    const maxParallelLightWorkers = getMaxParallelLightWorkers();
 
     return `You are a planner for Cairn, a personal AI assistant.
 You receive a task description and must produce a step-by-step plan using ONLY the available skills listed below.
@@ -193,8 +199,9 @@ Create a plan to accomplish this.`;
             confidenceHint: step.confidenceHint === undefined ? 0.7 : Math.min(Math.max(step.confidenceHint, 0), 1),
         }));
         parsed.maxToolCalls = Math.min(parsed.maxToolCalls, MAX_TOOL_CALLS);
+        const maxParallelLightWorkers = getMaxParallelLightWorkers();
         parsed.governance = {
-            maxParallelLightWorkers: Math.min(Math.max(parsed.governance?.maxParallelLightWorkers ?? 4, 1), 10),
+            maxParallelLightWorkers: Math.min(Math.max(parsed.governance?.maxParallelLightWorkers ?? maxParallelLightWorkers, 1), maxParallelLightWorkers),
             maxRetriesPerStep: Math.min(Math.max(parsed.governance?.maxRetriesPerStep ?? 1, 0), 3),
             escalationMode: parsed.governance?.escalationMode ?? "final-step",
         };
