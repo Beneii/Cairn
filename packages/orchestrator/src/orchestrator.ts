@@ -11,7 +11,7 @@
 import { bus, newId, now, shortTime, redactError } from "@cairn/shared";
 import type { Job, Artifact, CairnMessage, PipelineTrace, FailureStatus, ActionContract, ChatAttachment } from "@cairn/shared";
 import { appendEntry } from "@cairn/ledger";
-import { warmGet, warmSet } from "@cairn/memory";
+import { hotSet, warmGet, warmSet, queueForPromotion } from "@cairn/memory";
 
 // V2 Pipeline layers
 import { preRoute } from "./pre-router.js";
@@ -349,8 +349,71 @@ ${evaluation.note}` : responseTextBase;
 
 // ---- Pipeline Finish ----
 
+function captureReflection(trace: Partial<PipelineTrace>): void {
+  try {
+    const reflection = {
+      messageId: trace.messageId,
+      timestamp: now(),
+      status: trace.finalStatus,
+      latencyMs: trace.totalLatencyMs || 0,
+      costUsd: trace.totalCostUsd || 0,
+      route: trace.preRouteDecision?.route || "unknown",
+      intent: trace.classifierOutput?.intent || "unknown",
+      skills: (trace.executionTrace || []).map((s) => ({
+        skillId: s.skillId,
+        success: s.success,
+        durationMs: s.durationMs,
+        confidence: s.confidence,
+      })),
+    };
+
+    // HOT tier: latest working memory for live runtime awareness
+    hotSet("working:last_reflection", reflection, 30 * 60 * 1000);
+
+    // WARM tier: rolling episodic journal
+    const journal = warmGet<any[]>("reflection_journal") || [];
+    const nextJournal = [reflection, ...journal].slice(0, 200);
+    warmSet("reflection_journal", nextJournal);
+
+    // WARM tier: compact traces for supervisor/perf snapshots
+    const stepTraces = (trace.executionTrace || []).map((s) => ({
+      success: s.success,
+      durationMs: s.durationMs,
+    }));
+    if (stepTraces.length > 0) {
+      const previous = warmGet<any[]>("orchestrator_recent_traces") || [];
+      warmSet("orchestrator_recent_traces", [...stepTraces, ...previous].slice(0, 300));
+    }
+
+    // COLD tier hook: queue promotion for high-signal reflections
+    const shouldPromote =
+      trace.finalStatus !== "SUCCESS" ||
+      (trace.totalLatencyMs || 0) > 10000 ||
+      (trace.totalCostUsd || 0) > 0.05;
+
+    if (shouldPromote && trace.messageId) {
+      const summary = `Reflection ${trace.messageId}: status=${trace.finalStatus}; latency=${trace.totalLatencyMs}ms; cost=$${(trace.totalCostUsd || 0).toFixed(4)}; intent=${trace.classifierOutput?.intent || "unknown"}`;
+      queueForPromotion({
+        id: `reflection-${trace.messageId}`,
+        source: "document",
+        title: `Orchestrator reflection ${trace.messageId}`,
+        content: summary,
+        metadata: {
+          messageId: trace.messageId,
+          status: trace.finalStatus,
+          latencyMs: trace.totalLatencyMs || 0,
+          costUsd: trace.totalCostUsd || 0,
+        },
+      });
+    }
+  } catch (err) {
+    console.error("[orchestrator-v2] Reflection capture failed:", err);
+  }
+}
+
 function finishPipeline(trace: Partial<PipelineTrace>, startTime: number): void {
   trace.totalLatencyMs = Date.now() - startTime;
+  captureReflection(trace);
 
   bus.emit("nucleus:state", "idle");
 
