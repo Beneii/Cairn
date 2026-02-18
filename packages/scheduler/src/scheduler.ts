@@ -53,16 +53,26 @@ function appendSupervisorAlert(summary: SupervisorSummary): void {
 
 function collectSkillReliabilitySnapshot(): { avgSkillLatencyMs: number; lowReliabilitySkills: number } {
   try {
-    const traces = warmGet<{ success: boolean; durationMs: number }[]>("orchestrator_recent_traces") || [];
+    const traces = warmGet<{ skillId?: string; success: boolean; durationMs: number }[]>("orchestrator_recent_traces") || [];
     if (!Array.isArray(traces) || traces.length === 0) {
       return { avgSkillLatencyMs: 0, lowReliabilitySkills: 0 };
     }
 
     const totalLatency = traces.reduce((acc, t) => acc + (t.durationMs || 0), 0);
-    const failures = traces.filter((t) => !t.success).length;
+
+    // Count distinct skills that have ANY failure in the window (per-skill reliability)
+    const failingSkillIds = new Set<string>();
+    for (const t of traces) {
+      if (!t.success && t.skillId) {
+        failingSkillIds.add(t.skillId);
+      }
+    }
+    // Fall back to raw failure count for legacy traces without skillId
+    const legacyFailures = traces.filter((t) => !t.success && !t.skillId).length;
+
     return {
       avgSkillLatencyMs: Math.round(totalLatency / traces.length),
-      lowReliabilitySkills: failures,
+      lowReliabilitySkills: failingSkillIds.size + legacyFailures,
     };
   } catch {
     return { avgSkillLatencyMs: 0, lowReliabilitySkills: 0 };
