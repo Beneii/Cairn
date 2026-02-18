@@ -91,3 +91,46 @@
    - `documents/metrics/architectural-diff.json`
    - `documents/metrics/architectural-diff.metrics.json`
 4. Re-run: `pnpm lint && pnpm test && pnpm build`
+
+## 2026-02-18 Iteration 3
+
+### Change summary
+- Corrected `repo_graph_analyzer` topological sorting logic to output dependency-first build order instead of depender-first order.
+- Added `topologicalViolations` metric (count of dependency-order violations) to graph and metrics outputs.
+- Strengthened skill test to assert full topological coverage and zero ordering violations.
+
+### Files modified
+- `skills/repo_graph_analyzer/scripts/analyze_repo_graph.mjs`
+- `skills/repo_graph_analyzer/tests/repo_graph_analyzer.test.mjs`
+- `skills/repo_graph_analyzer/SKILL.md`
+- `documents/repo-graph.json`
+- `documents/metrics/repo-graph-analyzer.metrics.json`
+- `documents/evolution-log.md`
+
+### Risk introduced
+- Low: queue ordering among independent nodes remains input-order dependent (deterministic for current filesystem traversal, but not semantically significant).
+- Low: new violation metric assumes edges model `package -> dependency`; metric semantics depend on that convention.
+
+### Metrics before/after
+- Before: `topologicalOrder` violated dependency precedence across graph (effectively every edge in current snapshot), and no explicit violation counter existed.
+- After:
+  - `topologicalViolations`: `54 -> 0`
+  - `nodeCount`: `18` (unchanged)
+  - `edgeCount`: `54` (unchanged)
+  - `orphans`: `2` (unchanged)
+  - `hasCycle`: `false` (unchanged)
+- Validation status:
+  - `node skills/repo_graph_analyzer/tests/repo_graph_analyzer.test.mjs` ✅
+  - `pnpm lint` ✅
+  - `pnpm test` ✅
+  - `pnpm build` ✅
+
+### Rollback instructions
+1. `git revert <commit_sha>`
+2. Or restore previous analyzer/test docs:
+   - `skills/repo_graph_analyzer/scripts/analyze_repo_graph.mjs`
+   - `skills/repo_graph_analyzer/tests/repo_graph_analyzer.test.mjs`
+   - `skills/repo_graph_analyzer/SKILL.md`
+3. Re-run analyzer and pipeline:
+   - `node skills/repo_graph_analyzer/scripts/analyze_repo_graph.mjs`
+   - `pnpm lint && pnpm test && pnpm build`

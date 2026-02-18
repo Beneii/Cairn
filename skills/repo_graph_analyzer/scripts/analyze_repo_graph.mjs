@@ -46,26 +46,36 @@ for (const n of nodes) {
   }
 }
 
-const indeg = new Map(nodes.map((n) => [n.name, 0]));
-const out = new Map(nodes.map((n) => [n.name, []]));
+const dependencyCount = new Map(nodes.map((n) => [n.name, 0]));
+const dependersByDependency = new Map(nodes.map((n) => [n.name, []]));
 for (const e of edges) {
-  indeg.set(e.to, (indeg.get(e.to) || 0) + 1);
-  out.get(e.from).push(e.to);
+  dependencyCount.set(e.from, (dependencyCount.get(e.from) || 0) + 1);
+  dependersByDependency.get(e.to).push(e.from);
 }
 
-const q = [...[...indeg.entries()].filter(([, d]) => d === 0).map(([k]) => k)];
+const q = [...[...dependencyCount.entries()].filter(([, d]) => d === 0).map(([k]) => k)];
 const topo = [];
 while (q.length) {
   const cur = q.shift();
   topo.push(cur);
-  for (const next of out.get(cur) || []) {
-    indeg.set(next, indeg.get(next) - 1);
-    if (indeg.get(next) === 0) q.push(next);
+  for (const depender of dependersByDependency.get(cur) || []) {
+    dependencyCount.set(depender, dependencyCount.get(depender) - 1);
+    if (dependencyCount.get(depender) === 0) q.push(depender);
   }
 }
 
 const hasCycle = topo.length !== nodes.length;
-const orphans = nodes.filter((n) => (out.get(n.name) || []).length === 0 && !edges.some((e) => e.to === n.name)).map((n) => n.name);
+const outgoingByNode = new Map(nodes.map((n) => [n.name, []]));
+const incomingByNode = new Map(nodes.map((n) => [n.name, []]));
+for (const e of edges) {
+  outgoingByNode.get(e.from).push(e.to);
+  incomingByNode.get(e.to).push(e.from);
+}
+const orphans = nodes
+  .filter((n) => (outgoingByNode.get(n.name) || []).length === 0 && (incomingByNode.get(n.name) || []).length === 0)
+  .map((n) => n.name);
+const topoPos = new Map(topo.map((name, i) => [name, i]));
+const topologicalViolations = edges.filter((e) => (topoPos.get(e.to) ?? Number.POSITIVE_INFINITY) > (topoPos.get(e.from) ?? -1)).length;
 
 const graph = {
   generatedAt: new Date().toISOString(),
@@ -76,6 +86,7 @@ const graph = {
   nodes: nodes.map((n) => ({ name: n.name, dir: n.dir })),
   edges,
   topologicalOrder: topo,
+  topologicalViolations,
   orphans
 };
 
@@ -84,6 +95,6 @@ fs.writeFileSync(outputPath, JSON.stringify(graph, null, 2));
 
 const metricsPath = path.join(rootPath, 'documents', 'metrics', 'repo-graph-analyzer.metrics.json');
 fs.mkdirSync(path.dirname(metricsPath), { recursive: true });
-fs.writeFileSync(metricsPath, JSON.stringify({ nodeCount: graph.nodeCount, edgeCount: graph.edgeCount, orphans: graph.orphans.length, hasCycle, durationMs: Date.now() - start }, null, 2));
+fs.writeFileSync(metricsPath, JSON.stringify({ nodeCount: graph.nodeCount, edgeCount: graph.edgeCount, orphans: graph.orphans.length, hasCycle, topologicalViolations: graph.topologicalViolations, durationMs: Date.now() - start }, null, 2));
 
 console.log(`repo_graph_analyzer wrote ${outputPath}`);

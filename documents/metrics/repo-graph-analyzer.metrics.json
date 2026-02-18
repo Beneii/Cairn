@@ -3,5 +3,6 @@
   "edgeCount": 54,
   "orphans": 2,
   "hasCycle": false,
-  "durationMs": 4
+  "topologicalViolations": 0,
+  "durationMs": 5
 }
