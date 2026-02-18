@@ -1,0 +1,11 @@
+{
+  "durationMs": 1,
+  "generatedAt": "2026-02-18T07:18:06.481Z",
+  "beforePath": "C:\\Users\\Admin\\Desktop\\Cairn\\Cairn\\documents\\repo-graph.before.json",
+  "afterPath": "C:\\Users\\Admin\\Desktop\\Cairn\\Cairn\\documents\\repo-graph.json",
+  "nodeDelta": 0,
+  "edgeDelta": 0,
+  "orphanDelta": 0,
+  "cycleChanged": false,
+  "orderChanges": 0
+}

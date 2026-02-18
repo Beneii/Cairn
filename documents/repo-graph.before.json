@@ -1,0 +1,323 @@
+{
+  "generatedAt": "2026-02-18T07:18:06.363Z",
+  "rootPath": "C:\\Users\\Admin\\Desktop\\Cairn\\Cairn",
+  "nodeCount": 18,
+  "edgeCount": 54,
+  "hasCycle": false,
+  "nodes": [
+    {
+      "name": "@cairn/dashboard",
+      "dir": "apps\\dashboard"
+    },
+    {
+      "name": "@cairn/gateway",
+      "dir": "apps\\gateway"
+    },
+    {
+      "name": "mobile",
+      "dir": "apps\\mobile"
+    },
+    {
+      "name": "@cairn/browser",
+      "dir": "packages\\browser"
+    },
+    {
+      "name": "@cairn/builder",
+      "dir": "packages\\builder"
+    },
+    {
+      "name": "@cairn/executor",
+      "dir": "packages\\executor"
+    },
+    {
+      "name": "@cairn/goals",
+      "dir": "packages\\goals"
+    },
+    {
+      "name": "@cairn/integrations",
+      "dir": "packages\\integrations"
+    },
+    {
+      "name": "@cairn/ledger",
+      "dir": "packages\\ledger"
+    },
+    {
+      "name": "@cairn/memory",
+      "dir": "packages\\memory"
+    },
+    {
+      "name": "@cairn/orchestrator",
+      "dir": "packages\\orchestrator"
+    },
+    {
+      "name": "@cairn/policy",
+      "dir": "packages\\policy"
+    },
+    {
+      "name": "@cairn/research",
+      "dir": "packages\\research"
+    },
+    {
+      "name": "@cairn/scheduler",
+      "dir": "packages\\scheduler"
+    },
+    {
+      "name": "@cairn/shared",
+      "dir": "packages\\shared"
+    },
+    {
+      "name": "@cairn/skills",
+      "dir": "packages\\skills"
+    },
+    {
+      "name": "@cairn/tasks",
+      "dir": "packages\\tasks"
+    },
+    {
+      "name": "@cairn/vault",
+      "dir": "packages\\vault"
+    }
+  ],
+  "edges": [
+    {
+      "from": "@cairn/gateway",
+      "to": "@cairn/builder"
+    },
+    {
+      "from": "@cairn/gateway",
+      "to": "@cairn/executor"
+    },
+    {
+      "from": "@cairn/gateway",
+      "to": "@cairn/goals"
+    },
+    {
+      "from": "@cairn/gateway",
+      "to": "@cairn/integrations"
+    },
+    {
+      "from": "@cairn/gateway",
+      "to": "@cairn/ledger"
+    },
+    {
+      "from": "@cairn/gateway",
+      "to": "@cairn/memory"
+    },
+    {
+      "from": "@cairn/gateway",
+      "to": "@cairn/orchestrator"
+    },
+    {
+      "from": "@cairn/gateway",
+      "to": "@cairn/policy"
+    },
+    {
+      "from": "@cairn/gateway",
+      "to": "@cairn/scheduler"
+    },
+    {
+      "from": "@cairn/gateway",
+      "to": "@cairn/shared"
+    },
+    {
+      "from": "@cairn/gateway",
+      "to": "@cairn/tasks"
+    },
+    {
+      "from": "@cairn/gateway",
+      "to": "@cairn/vault"
+    },
+    {
+      "from": "@cairn/gateway",
+      "to": "@cairn/skills"
+    },
+    {
+      "from": "@cairn/browser",
+      "to": "@cairn/shared"
+    },
+    {
+      "from": "@cairn/browser",
+      "to": "@cairn/vault"
+    },
+    {
+      "from": "@cairn/builder",
+      "to": "@cairn/ledger"
+    },
+    {
+      "from": "@cairn/builder",
+      "to": "@cairn/orchestrator"
+    },
+    {
+      "from": "@cairn/builder",
+      "to": "@cairn/policy"
+    },
+    {
+      "from": "@cairn/builder",
+      "to": "@cairn/shared"
+    },
+    {
+      "from": "@cairn/builder",
+      "to": "@cairn/skills"
+    },
+    {
+      "from": "@cairn/executor",
+      "to": "@cairn/goals"
+    },
+    {
+      "from": "@cairn/executor",
+      "to": "@cairn/integrations"
+    },
+    {
+      "from": "@cairn/executor",
+      "to": "@cairn/ledger"
+    },
+    {
+      "from": "@cairn/executor",
+      "to": "@cairn/memory"
+    },
+    {
+      "from": "@cairn/executor",
+      "to": "@cairn/policy"
+    },
+    {
+      "from": "@cairn/executor",
+      "to": "@cairn/research"
+    },
+    {
+      "from": "@cairn/executor",
+      "to": "@cairn/browser"
+    },
+    {
+      "from": "@cairn/executor",
+      "to": "@cairn/shared"
+    },
+    {
+      "from": "@cairn/executor",
+      "to": "@cairn/tasks"
+    },
+    {
+      "from": "@cairn/goals",
+      "to": "@cairn/memory"
+    },
+    {
+      "from": "@cairn/goals",
+      "to": "@cairn/shared"
+    },
+    {
+      "from": "@cairn/ledger",
+      "to": "@cairn/shared"
+    },
+    {
+      "from": "@cairn/memory",
+      "to": "@cairn/shared"
+    },
+    {
+      "from": "@cairn/orchestrator",
+      "to": "@cairn/executor"
+    },
+    {
+      "from": "@cairn/orchestrator",
+      "to": "@cairn/ledger"
+    },
+    {
+      "from": "@cairn/orchestrator",
+      "to": "@cairn/memory"
+    },
+    {
+      "from": "@cairn/orchestrator",
+      "to": "@cairn/goals"
+    },
+    {
+      "from": "@cairn/orchestrator",
+      "to": "@cairn/tasks"
+    },
+    {
+      "from": "@cairn/orchestrator",
+      "to": "@cairn/policy"
+    },
+    {
+      "from": "@cairn/orchestrator",
+      "to": "@cairn/shared"
+    },
+    {
+      "from": "@cairn/orchestrator",
+      "to": "@cairn/skills"
+    },
+    {
+      "from": "@cairn/policy",
+      "to": "@cairn/shared"
+    },
+    {
+      "from": "@cairn/research",
+      "to": "@cairn/shared"
+    },
+    {
+      "from": "@cairn/research",
+      "to": "@cairn/memory"
+    },
+    {
+      "from": "@cairn/scheduler",
+      "to": "@cairn/ledger"
+    },
+    {
+      "from": "@cairn/scheduler",
+      "to": "@cairn/memory"
+    },
+    {
+      "from": "@cairn/scheduler",
+      "to": "@cairn/goals"
+    },
+    {
+      "from": "@cairn/scheduler",
+      "to": "@cairn/orchestrator"
+    },
+    {
+      "from": "@cairn/scheduler",
+      "to": "@cairn/shared"
+    },
+    {
+      "from": "@cairn/scheduler",
+      "to": "@cairn/builder"
+    },
+    {
+      "from": "@cairn/skills",
+      "to": "@cairn/ledger"
+    },
+    {
+      "from": "@cairn/skills",
+      "to": "@cairn/shared"
+    },
+    {
+      "from": "@cairn/tasks",
+      "to": "@cairn/shared"
+    },
+    {
+      "from": "@cairn/vault",
+      "to": "@cairn/shared"
+    }
+  ],
+  "topologicalOrder": [
+    "@cairn/dashboard",
+    "@cairn/gateway",
+    "mobile",
+    "@cairn/scheduler",
+    "@cairn/builder",
+    "@cairn/orchestrator",
+    "@cairn/executor",
+    "@cairn/skills",
+    "@cairn/goals",
+    "@cairn/integrations",
+    "@cairn/policy",
+    "@cairn/research",
+    "@cairn/browser",
+    "@cairn/tasks",
+    "@cairn/ledger",
+    "@cairn/memory",
+    "@cairn/vault",
+    "@cairn/shared"
+  ],
+  "orphans": [
+    "@cairn/dashboard",
+    "mobile"
+  ]
+}
