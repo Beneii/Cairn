@@ -10,3 +10,4 @@ export { initLLM, isLLMAvailable, callLLM } from "./llm.js";
 export { isOllamaAvailable, getLocalModels, pullModel, pullModelStream } from "./ollama.js";
 export type { OllamaModelInfo } from "./ollama.js";
 export { parseJsonObjectFromLLM, repairJsonViaLLM, sanitizeLogSnippet } from "./utils.js";
+export { buildActionableDigest, universityAdminExtractor } from "./digest/actionable-digest.js";

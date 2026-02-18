@@ -1,4 +1,4 @@
-export type RegistryLifecycleState = "experimental" | "active" | "merged" | "deprecated";
+export type RegistryLifecycleState = "experimental" | "active" | "merged" | "deprecated" | "archived";
 
 export interface RegistryMergeLineage {
   parent_skill?: string;
@@ -21,11 +21,20 @@ export interface SkillRegistryEntry {
   merge_lineage?: RegistryMergeLineage;
   evolved_from_request_id?: string;
   last_promoted_at?: string;
+  archived_at?: string;
+  archived_reason?: string;
 }
 
 export interface SkillManifestRegistry {
   version: number;
   skills: SkillRegistryEntry[];
+}
+
+export interface EvolutionQualityGateInput {
+  changeSummary: string;
+  risks: string[];
+  metrics: string[];
+  rollbackSteps: string[];
 }
 
 function normalizeEntry(entry: SkillRegistryEntry): SkillRegistryEntry {
@@ -56,6 +65,32 @@ export function parseManifestRegistry(raw: unknown): SkillManifestRegistry {
   };
 }
 
+export function validateSkillConstitution(entry: SkillRegistryEntry): string[] {
+  const issues: string[] = [];
+  if (!entry.name || !/^[a-z0-9-]+$/.test(entry.name)) issues.push("name must be kebab-case");
+  if (!entry.path?.endsWith("/SKILL.md")) issues.push("path must point to SKILL.md");
+  if (!entry.entry_script?.includes("/scripts/")) issues.push("entry_script must be in scripts/");
+  if ((entry.required_tools || []).length === 0) issues.push("required_tools must not be empty");
+  if (!entry.semantic_version || !/^\d+\.\d+\.\d+$/.test(entry.semantic_version)) issues.push("semantic_version must be semver");
+
+  if (entry.lifecycle_state === "merged" && !entry.merge_lineage?.merged_into) {
+    issues.push("merged skills require merge_lineage.merged_into");
+  }
+
+  if (entry.lifecycle_state === "archived" && !entry.archived_at) {
+    issues.push("archived skills require archived_at timestamp");
+  }
+
+  return issues;
+}
+
+export function ensureEvolutionQualityGate(input: EvolutionQualityGateInput): void {
+  if (!input.changeSummary.trim()) throw new Error("quality gate: changeSummary is required");
+  if (input.risks.length === 0) throw new Error("quality gate: at least one risk is required");
+  if (input.metrics.length === 0) throw new Error("quality gate: at least one metric is required");
+  if (input.rollbackSteps.length === 0) throw new Error("quality gate: rollbackSteps are required");
+}
+
 export function upsertSkillEntry(
   registry: SkillManifestRegistry,
   entry: SkillRegistryEntry,
@@ -66,6 +101,49 @@ export function upsertSkillEntry(
     version: Math.max(2, registry.version || 2),
     skills: [...remaining, normalized].sort((a, b) => a.name.localeCompare(b.name)),
   };
+}
+
+export function applyLifecycleTransition(
+  registry: SkillManifestRegistry,
+  skillName: string,
+  targetState: RegistryLifecycleState,
+  options?: { mergedInto?: string; archivedReason?: string; timestamp?: string },
+): SkillManifestRegistry {
+  const timestamp = options?.timestamp ?? new Date().toISOString();
+  const skill = registry.skills.find((s) => s.name === skillName);
+  if (!skill) throw new Error(`skill not found: ${skillName}`);
+
+  const next: SkillRegistryEntry = { ...skill, lifecycle_state: targetState };
+
+  if (targetState === "merged") {
+    if (!options?.mergedInto) throw new Error("merged transition requires mergedInto");
+    next.enabled = false;
+    next.merge_lineage = { ...(next.merge_lineage || {}), merged_into: options.mergedInto };
+  }
+
+  if (targetState === "deprecated") {
+    next.enabled = false;
+  }
+
+  if (targetState === "archived") {
+    next.enabled = false;
+    next.archived_at = timestamp;
+    next.archived_reason = options?.archivedReason ?? "manual_archive";
+  }
+
+  if (targetState === "active") {
+    next.enabled = true;
+    // recoverable flow from archived/deprecated
+    next.archived_at = undefined;
+    next.archived_reason = undefined;
+  }
+
+  const issues = validateSkillConstitution(next);
+  if (issues.length > 0) {
+    throw new Error(`constitution check failed: ${issues.join("; ")}`);
+  }
+
+  return upsertSkillEntry(registry, next);
 }
 
 export function computeNextSemver(previous?: string): string {

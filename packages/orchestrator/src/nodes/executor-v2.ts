@@ -1,14 +1,14 @@
 /**
  * Executor V2 — Cairn V2
- * 
+ *
  * Dumb executor. No LLM. No interpretation.
- * 
+ *
  * For each step in a plan:
  * 1. Validate skillId exists in registry
  * 2. Validate input against SkillDefinition.inputSchema
  * 3. Execute skill handler
  * 4. Log latency, status, cost
- * 
+ *
  * Returns execution trace for observability.
  */
 
@@ -24,7 +24,6 @@ import {
     executeSkill,
     ensureSkillRegistry,
     type SkillContext,
-    type SkillResult,
 } from "../skill-registry.js";
 import {
     memoryRead,
@@ -39,12 +38,54 @@ export interface ExecutionStepResult {
     success: boolean;
     output: string;
     durationMs: number;
+    attempts: number;
+    confidence: number;
 }
 
 export interface ExecutionResult {
     steps: ExecutionStepResult[];
     allSuccess: boolean;
     totalDurationMs: number;
+}
+
+// ---- Internal helpers ----
+
+function getLightWorkerLimit(plan?: Plan): number {
+    const envLimit = Number.parseInt(process.env.CAIRN_MAX_LIGHT_WORKERS || "4", 10);
+    const base = Number.isFinite(envLimit) ? envLimit : 4;
+    const planLimit = plan?.governance?.maxParallelLightWorkers ?? base;
+    return Math.min(Math.max(planLimit, 1), 10);
+}
+
+function computeConfidence(step: PlanStep, success: boolean, attempts: number): number {
+    const hint = step.confidenceHint ?? 0.7;
+    if (!success) return Math.max(0.05, hint * 0.25);
+    const retryPenalty = Math.max(0, attempts - 1) * 0.15;
+    return Math.max(0.1, Math.min(1, hint - retryPenalty));
+}
+
+function getRetryBudget(step: PlanStep, plan: Plan): number {
+    const planBudget = plan.governance?.maxRetriesPerStep ?? 1;
+    const stepBudget = step.maxRetries ?? planBudget;
+    return Math.min(Math.max(stepBudget, 0), 3);
+}
+
+async function runWithConcurrency<T>(
+    items: T[],
+    concurrency: number,
+    worker: (item: T) => Promise<void>,
+): Promise<void> {
+    let cursor = 0;
+    const runners = Array.from({ length: Math.max(1, concurrency) }, async () => {
+        while (true) {
+            const idx = cursor;
+            cursor += 1;
+            if (idx >= items.length) return;
+            await worker(items[idx]);
+        }
+    });
+
+    await Promise.all(runners);
 }
 
 // ---- Executor ----
@@ -62,7 +103,7 @@ export async function executeSingleSkill(
     const start = Date.now();
     try {
         fs.appendFileSync(path.join(process.cwd(), "debug-executor.log"), `[${new Date().toISOString()}] Executing ${skillId} args: ${JSON.stringify(args)}\n`);
-    } catch (e) {
+    } catch {
         // ignore
     }
 
@@ -74,6 +115,8 @@ export async function executeSingleSkill(
             success: false,
             output: `Skill not found: ${skillId}`,
             durationMs: Date.now() - start,
+            attempts: 1,
+            confidence: 0.05,
         };
     }
 
@@ -92,6 +135,8 @@ export async function executeSingleSkill(
             success: false,
             output: `Invalid input: ${validation.reason}`,
             durationMs: Date.now() - start,
+            attempts: 1,
+            confidence: 0.05,
         };
     }
 
@@ -148,6 +193,8 @@ export async function executeSingleSkill(
             success: result.success,
             output: result.output,
             durationMs,
+            attempts: 1,
+            confidence: result.success ? 0.8 : 0.2,
         };
     } catch (err) {
         const durationMs = Date.now() - start;
@@ -164,7 +211,6 @@ export async function executeSingleSkill(
     }
 }
 
-
 /**
  * Recursively resolve variable references in arguments.
  * Supported syntax: {{stepN.output.path.to.value}}
@@ -178,7 +224,7 @@ function resolveArguments(
         const match = args.match(/^{{step(\d+)\.output(?:\.(.+))?}}$/);
         if (match) {
             const stepIndex = parseInt(match[1], 10) - 1; // 1-based index to 0-based
-            const path = match[2];
+            const targetPath = match[2];
 
             const step = previousSteps[stepIndex];
             if (!step || !step.success) {
@@ -194,10 +240,10 @@ function resolveArguments(
             }
 
             // Return full output if no path
-            if (!path) return outputData;
+            if (!targetPath) return outputData;
 
             // Traverse path
-            const parts = path.split(".");
+            const parts = targetPath.split(".");
             let current = outputData;
             for (const part of parts) {
                 if (current && typeof current === "object" && part in current) {
@@ -226,9 +272,56 @@ function resolveArguments(
     return args;
 }
 
+async function executeStepWithRetry(
+    step: PlanStep,
+    messageId: string,
+    resolvedArgs: Record<string, any>,
+    plan: Plan,
+): Promise<ExecutionStepResult> {
+    const retryBudget = getRetryBudget(step, plan);
+    const totalAttempts = retryBudget + 1;
+
+    let last: ExecutionStepResult | null = null;
+    for (let attempt = 1; attempt <= totalAttempts; attempt += 1) {
+        const base = await executeSingleSkill(step.skillId, resolvedArgs, messageId);
+        last = {
+            ...base,
+            attempts: attempt,
+            confidence: computeConfidence(step, base.success, attempt),
+        };
+        if (last.success) return last;
+    }
+
+    if (step.escalationSkillId && plan.governance?.escalationMode !== "none") {
+        const escalation = await executeSingleSkill(step.escalationSkillId, {
+            originalSkillId: step.skillId,
+            originalArgs: resolvedArgs,
+            reason: "step_failed_after_retries",
+        }, messageId);
+
+        if (escalation.success) {
+            return {
+                ...escalation,
+                skillId: `${step.skillId}::escalated(${step.escalationSkillId})`,
+                attempts: totalAttempts + 1,
+                confidence: computeConfidence(step, true, totalAttempts + 1),
+            };
+        }
+    }
+
+    return last || {
+        skillId: step.skillId,
+        success: false,
+        output: "Execution failed before attempt loop could run",
+        durationMs: 0,
+        attempts: totalAttempts,
+        confidence: 0.05,
+    };
+}
+
 /**
- * Execute a full plan (multiple steps in sequence).
- * Stops on first failure unless step is marked as non-critical.
+ * Execute a full plan. Supports lightweight parallel groups with governance caps.
+ * Stops on first failure in sequential mode; parallel groups complete then halt if any failed.
  */
 export async function executePlan(
     plan: Plan,
@@ -239,9 +332,10 @@ export async function executePlan(
     const results: ExecutionStepResult[] = [];
     const overallStart = Date.now();
     let toolCallCount = 0;
+    const maxLightWorkers = getLightWorkerLimit(plan);
 
-    for (const step of plan.steps) {
-        // Enforce maxToolCalls
+    const steps = plan.steps;
+    for (let i = 0; i < steps.length; i += 1) {
         if (toolCallCount >= plan.maxToolCalls) {
             bus.emit("log:entry", {
                 id: newId(),
@@ -252,20 +346,58 @@ export async function executePlan(
             break;
         }
 
-        // Resolve variables
-        const resolvedArgs = resolveArguments(step.arguments, results);
+        const current = steps[i];
+        const isParallelRoot = current.workerClass === "light" && !!current.parallelGroup;
 
-        const stepResult = await executeSingleSkill(step.skillId, resolvedArgs, messageId);
-        results.push(stepResult);
-        toolCallCount++;
+        if (!isParallelRoot) {
+            const resolvedArgs = resolveArguments(current.arguments, results);
+            const stepResult = await executeStepWithRetry(current, messageId, resolvedArgs, plan);
+            results.push(stepResult);
+            toolCallCount += 1;
 
-        // Stop on failure
-        if (!stepResult.success) {
+            if (!stepResult.success) {
+                bus.emit("log:entry", {
+                    id: newId(),
+                    timestamp: now(),
+                    type: "error",
+                    content: `Plan execution stopped at step ${toolCallCount}: ${current.skillId} failed`,
+                });
+                break;
+            }
+            continue;
+        }
+
+        const groupId = current.parallelGroup!;
+        const group: { step: PlanStep; index: number; out?: ExecutionStepResult }[] = [];
+        while (i < steps.length) {
+            const candidate = steps[i];
+            if (candidate.workerClass === "light" && candidate.parallelGroup === groupId) {
+                group.push({ step: candidate, index: i });
+                i += 1;
+                continue;
+            }
+            break;
+        }
+        i -= 1;
+
+        const allowed = Math.min(maxLightWorkers, Math.max(1, plan.maxToolCalls - toolCallCount));
+        await runWithConcurrency(group, allowed, async (entry) => {
+            const resolvedArgs = resolveArguments(entry.step.arguments, results);
+            entry.out = await executeStepWithRetry(entry.step, messageId, resolvedArgs, plan);
+        });
+
+        toolCallCount += group.length;
+        group.sort((a, b) => a.index - b.index);
+        for (const entry of group) {
+            if (entry.out) results.push(entry.out);
+        }
+
+        if (group.some((g) => !g.out?.success)) {
             bus.emit("log:entry", {
                 id: newId(),
                 timestamp: now(),
                 type: "error",
-                content: `Plan execution stopped at step ${toolCallCount}: ${step.skillId} failed`,
+                content: `Plan execution halted after parallel group '${groupId}' due to failures`,
             });
             break;
         }
@@ -273,8 +405,7 @@ export async function executePlan(
 
     return {
         steps: results,
-        allSuccess: results.every((r) => r.success),
+        allSuccess: results.length > 0 && results.every((r) => r.success),
         totalDurationMs: Date.now() - overallStart,
     };
 }
-

@@ -17,18 +17,29 @@ import { listSkills, getSkillDefinition } from "../skill-registry.js";
 const PlanStepSchema = z.object({
     skillId: z.string(),
     arguments: z.record(z.string(), z.any()),
+    workerClass: z.enum(["default", "light"]).optional(),
+    parallelGroup: z.string().min(1).max(40).optional(),
+    maxRetries: z.number().int().min(0).max(3).optional(),
+    escalationSkillId: z.string().optional(),
+    confidenceHint: z.number().min(0).max(1).optional(),
 });
 
 const PlanOutputSchema = z.object({
     steps: z.array(PlanStepSchema).min(1).max(10),
     maxToolCalls: z.number().int().min(1).max(20),
     riskLevel: z.enum(["low", "medium", "high"]),
+    governance: z.object({
+        maxParallelLightWorkers: z.number().int().min(1).max(10).optional(),
+        maxRetriesPerStep: z.number().int().min(0).max(3).optional(),
+        escalationMode: z.enum(["none", "final-step"]).optional(),
+    }).optional(),
 });
 
 // ---- System Prompt ----
 
 function buildPlannerPrompt(skills: { id: string; description: string; inputSchema: object }[]): string {
     const skillList = skills.map((s) => `  - ${s.id}: ${s.description}\n    Schema: ${JSON.stringify(s.inputSchema)}`).join("\n");
+    const maxParallelLightWorkers = Number.parseInt(process.env.CAIRN_MAX_LIGHT_WORKERS || "4", 10);
 
     return `You are a planner for Cairn, a personal AI assistant.
 You receive a task description and must produce a step-by-step plan using ONLY the available skills listed below.
@@ -39,11 +50,24 @@ ${skillList}
 ## Output Format (STRICT JSON)
 {
   "steps": [
-    { "skillId": "skill.id", "arguments": { ... } },
+    {
+      "skillId": "skill.id",
+      "arguments": { ... },
+      "workerClass": "default" | "light",
+      "parallelGroup": "optional-group-id",
+      "maxRetries": 0-3,
+      "escalationSkillId": "optional.skill.id",
+      "confidenceHint": 0.0-1.0
+    },
     ...
   ],
   "maxToolCalls": number,
-  "riskLevel": "low" | "medium" | "high"
+  "riskLevel": "low" | "medium" | "high",
+  "governance": {
+    "maxParallelLightWorkers": 1-10,
+    "maxRetriesPerStep": 0-3,
+    "escalationMode": "none" | "final-step"
+  }
 }
 
 
@@ -53,6 +77,11 @@ ${skillList}
 - Order steps logically — if step 2 depends on step 1's output, say so.
 - Keep plans minimal. Don't add unnecessary steps.
 - maxToolCalls should be the total number of skill invocations.
+- Use \`workerClass: "light"\` for independent, low-risk reads that can run in parallel.
+- Any shared \`parallelGroup\` can run concurrently; keep groups small and safe.
+- max parallel light workers cap is ${maxParallelLightWorkers}. Never exceed it.
+- Use \`maxRetries\` only where transient failures are likely.
+- Set \`confidenceHint\` per step (higher when input certainty is high).
 - riskLevel: "low" for read-only, "medium" for writes, "high" for external-facing actions.
 - Respond with ONLY valid JSON. No markdown, no explanation.
 
@@ -157,8 +186,18 @@ Create a plan to accomplish this.`;
         }
 
         // Enforce limits
-        parsed.steps = parsed.steps.slice(0, MAX_PLAN_STEPS);
+        parsed.steps = parsed.steps.slice(0, MAX_PLAN_STEPS).map((step) => ({
+            ...step,
+            workerClass: step.workerClass ?? "default",
+            maxRetries: Math.min(Math.max(step.maxRetries ?? 0, 0), 3),
+            confidenceHint: step.confidenceHint === undefined ? 0.7 : Math.min(Math.max(step.confidenceHint, 0), 1),
+        }));
         parsed.maxToolCalls = Math.min(parsed.maxToolCalls, MAX_TOOL_CALLS);
+        parsed.governance = {
+            maxParallelLightWorkers: Math.min(Math.max(parsed.governance?.maxParallelLightWorkers ?? 4, 1), 10),
+            maxRetriesPerStep: Math.min(Math.max(parsed.governance?.maxRetriesPerStep ?? 1, 0), 3),
+            escalationMode: parsed.governance?.escalationMode ?? "final-step",
+        };
 
         return { plan: parsed, cost_usd: response.cost.cost_usd };
     } catch (err) {
