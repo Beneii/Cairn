@@ -50,7 +50,14 @@ export interface ExecutionResult {
 
 // ---- Internal helpers ----
 
-function getLightWorkerLimit(plan?: Plan): number {
+function getWorkerLimit(workerClass: "light" | "heavy", plan?: Plan): number {
+    if (workerClass === "heavy") {
+        const envLimit = Number.parseInt(process.env.CAIRN_MAX_HEAVY_WORKERS || "3", 10);
+        const base = Number.isFinite(envLimit) ? envLimit : 3;
+        const planLimit = plan?.governance?.maxParallelHeavyWorkers ?? base;
+        return Math.min(Math.max(planLimit, 1), 3);
+    }
+
     const envLimit = Number.parseInt(process.env.CAIRN_MAX_LIGHT_WORKERS || "4", 10);
     const base = Number.isFinite(envLimit) ? envLimit : 4;
     const planLimit = plan?.governance?.maxParallelLightWorkers ?? base;
@@ -272,6 +279,34 @@ function resolveArguments(
     return args;
 }
 
+async function createHumanDecisionTicket(messageId: string, step: PlanStep, result: ExecutionStepResult, reason: string): Promise<void> {
+    try {
+        await initWarmMemory();
+        const existing = memoryRead("warm" as any, "human_decision_tickets", { read: ["warm"], write: [] });
+        const tickets = Array.isArray(existing) ? existing : [];
+        const ticket = {
+            id: newId(),
+            createdAt: new Date().toISOString(),
+            status: "open",
+            messageId,
+            skillId: step.skillId,
+            reason,
+            attempts: result.attempts,
+            confidence: result.confidence,
+            output: result.output.slice(0, 500),
+        };
+        await memoryWrite("warm" as any, "human_decision_tickets", [ticket, ...tickets].slice(0, 100), { read: [], write: ["warm"] });
+        bus.emit("log:entry", {
+            id: newId(),
+            timestamp: now(),
+            type: "agent",
+            content: `[executor-v2] Human decision ticket created for ${step.skillId}: ${reason}`,
+        });
+    } catch (err) {
+        console.warn("[executor-v2] failed to create human decision ticket", err);
+    }
+}
+
 async function executeStepWithRetry(
     step: PlanStep,
     messageId: string,
@@ -309,7 +344,7 @@ async function executeStepWithRetry(
         }
     }
 
-    return last || {
+    const failedResult = last || {
         skillId: step.skillId,
         success: false,
         output: "Execution failed before attempt loop could run",
@@ -317,6 +352,12 @@ async function executeStepWithRetry(
         attempts: totalAttempts,
         confidence: 0.05,
     };
+
+    if (plan.governance?.createHumanTicketOnFailure ?? true) {
+        await createHumanDecisionTicket(messageId, step, failedResult, "step_failed_after_retries_and_escalation");
+    }
+
+    return failedResult;
 }
 
 /**
@@ -332,7 +373,8 @@ export async function executePlan(
     const results: ExecutionStepResult[] = [];
     const overallStart = Date.now();
     let toolCallCount = 0;
-    const maxLightWorkers = getLightWorkerLimit(plan);
+    const maxLightWorkers = getWorkerLimit("light", plan);
+    const maxHeavyWorkers = getWorkerLimit("heavy", plan);
 
     const steps = plan.steps;
     for (let i = 0; i < steps.length; i += 1) {
@@ -347,13 +389,19 @@ export async function executePlan(
         }
 
         const current = steps[i];
-        const isParallelRoot = current.workerClass === "light" && !!current.parallelGroup;
+        const parallelClass = current.workerClass === "heavy" ? "heavy" : current.workerClass === "light" ? "light" : null;
+        const isParallelRoot = !!parallelClass && !!current.parallelGroup;
 
         if (!isParallelRoot) {
             const resolvedArgs = resolveArguments(current.arguments, results);
             const stepResult = await executeStepWithRetry(current, messageId, resolvedArgs, plan);
             results.push(stepResult);
             toolCallCount += 1;
+
+            const minConfidence = plan.governance?.minConfidenceForAutonomy ?? 0.35;
+            if (stepResult.success && stepResult.confidence < minConfidence) {
+                await createHumanDecisionTicket(messageId, current, stepResult, `low_confidence_success_below_${minConfidence}`);
+            }
 
             if (!stepResult.success) {
                 bus.emit("log:entry", {
@@ -371,7 +419,8 @@ export async function executePlan(
         const group: { step: PlanStep; index: number; out?: ExecutionStepResult }[] = [];
         while (i < steps.length) {
             const candidate = steps[i];
-            if (candidate.workerClass === "light" && candidate.parallelGroup === groupId) {
+            const candidateClass = candidate.workerClass === "heavy" ? "heavy" : candidate.workerClass === "light" ? "light" : null;
+            if (candidateClass === parallelClass && candidate.parallelGroup === groupId) {
                 group.push({ step: candidate, index: i });
                 i += 1;
                 continue;
@@ -380,7 +429,8 @@ export async function executePlan(
         }
         i -= 1;
 
-        const allowed = Math.min(maxLightWorkers, Math.max(1, plan.maxToolCalls - toolCallCount));
+        const classLimit = parallelClass === "heavy" ? maxHeavyWorkers : maxLightWorkers;
+        const allowed = Math.min(classLimit, Math.max(1, plan.maxToolCalls - toolCallCount));
         await runWithConcurrency(group, allowed, async (entry) => {
             const resolvedArgs = resolveArguments(entry.step.arguments, results);
             entry.out = await executeStepWithRetry(entry.step, messageId, resolvedArgs, plan);
@@ -388,8 +438,14 @@ export async function executePlan(
 
         toolCallCount += group.length;
         group.sort((a, b) => a.index - b.index);
+        const minConfidence = plan.governance?.minConfidenceForAutonomy ?? 0.35;
         for (const entry of group) {
-            if (entry.out) results.push(entry.out);
+            if (entry.out) {
+                results.push(entry.out);
+                if (entry.out.success && entry.out.confidence < minConfidence) {
+                    await createHumanDecisionTicket(messageId, entry.step, entry.out, `low_confidence_success_below_${minConfidence}`);
+                }
+            }
         }
 
         if (group.some((g) => !g.out?.success)) {

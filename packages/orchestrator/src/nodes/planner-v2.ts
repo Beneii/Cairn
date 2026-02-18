@@ -17,7 +17,7 @@ import { listSkills, getSkillDefinition } from "../skill-registry.js";
 const PlanStepSchema = z.object({
     skillId: z.string(),
     arguments: z.record(z.string(), z.any()),
-    workerClass: z.enum(["default", "light"]).optional(),
+    workerClass: z.enum(["default", "light", "heavy"]).optional(),
     parallelGroup: z.string().min(1).max(40).optional(),
     maxRetries: z.number().int().min(0).max(3).optional(),
     escalationSkillId: z.string().optional(),
@@ -30,8 +30,11 @@ const PlanOutputSchema = z.object({
     riskLevel: z.enum(["low", "medium", "high"]),
     governance: z.object({
         maxParallelLightWorkers: z.number().int().min(1).max(10).optional(),
+        maxParallelHeavyWorkers: z.number().int().min(1).max(3).optional(),
         maxRetriesPerStep: z.number().int().min(0).max(3).optional(),
         escalationMode: z.enum(["none", "final-step"]).optional(),
+        minConfidenceForAutonomy: z.number().min(0).max(1).optional(),
+        createHumanTicketOnFailure: z.boolean().optional(),
     }).optional(),
 });
 
@@ -43,9 +46,16 @@ function getMaxParallelLightWorkers(): number {
     return Math.min(Math.max(raw, 1), 10);
 }
 
+function getMaxParallelHeavyWorkers(): number {
+    const raw = Number.parseInt(process.env.CAIRN_MAX_HEAVY_WORKERS || "3", 10);
+    if (Number.isNaN(raw)) return 3;
+    return Math.min(Math.max(raw, 1), 3);
+}
+
 function buildPlannerPrompt(skills: { id: string; description: string; inputSchema: object }[]): string {
     const skillList = skills.map((s) => `  - ${s.id}: ${s.description}\n    Schema: ${JSON.stringify(s.inputSchema)}`).join("\n");
     const maxParallelLightWorkers = getMaxParallelLightWorkers();
+    const maxParallelHeavyWorkers = getMaxParallelHeavyWorkers();
 
     return `You are a planner for Cairn, a personal AI assistant.
 You receive a task description and must produce a step-by-step plan using ONLY the available skills listed below.
@@ -59,7 +69,7 @@ ${skillList}
     {
       "skillId": "skill.id",
       "arguments": { ... },
-      "workerClass": "default" | "light",
+      "workerClass": "default" | "light" | "heavy",
       "parallelGroup": "optional-group-id",
       "maxRetries": 0-3,
       "escalationSkillId": "optional.skill.id",
@@ -71,8 +81,11 @@ ${skillList}
   "riskLevel": "low" | "medium" | "high",
   "governance": {
     "maxParallelLightWorkers": 1-10,
+    "maxParallelHeavyWorkers": 1-3,
     "maxRetriesPerStep": 0-3,
-    "escalationMode": "none" | "final-step"
+    "escalationMode": "none" | "final-step",
+    "minConfidenceForAutonomy": 0.0-1.0,
+    "createHumanTicketOnFailure": true | false
   }
 }
 
@@ -84,10 +97,13 @@ ${skillList}
 - Keep plans minimal. Don't add unnecessary steps.
 - maxToolCalls should be the total number of skill invocations.
 - Use \`workerClass: "light"\` for independent, low-risk reads that can run in parallel.
+- Use \`workerClass: "heavy"\` for expensive or long-running tasks; keep heavy work minimal.
 - Any shared \`parallelGroup\` can run concurrently; keep groups small and safe.
-- max parallel light workers cap is ${maxParallelLightWorkers}. Never exceed it.
+- max parallel light workers cap is ${maxParallelLightWorkers}; heavy cap is ${maxParallelHeavyWorkers}. Never exceed either.
+- Apply cheap-first model policy: read/cheap steps before expensive ones, and escalate only when confidence is low.
 - Use \`maxRetries\` only where transient failures are likely.
 - Set \`confidenceHint\` per step (higher when input certainty is high).
+- Set \`minConfidenceForAutonomy\` and \`createHumanTicketOnFailure\` for uncertain/high-impact plans.
 - riskLevel: "low" for read-only, "medium" for writes, "high" for external-facing actions.
 - Respond with ONLY valid JSON. No markdown, no explanation.
 
@@ -200,10 +216,14 @@ Create a plan to accomplish this.`;
         }));
         parsed.maxToolCalls = Math.min(parsed.maxToolCalls, MAX_TOOL_CALLS);
         const maxParallelLightWorkers = getMaxParallelLightWorkers();
+        const maxParallelHeavyWorkers = getMaxParallelHeavyWorkers();
         parsed.governance = {
             maxParallelLightWorkers: Math.min(Math.max(parsed.governance?.maxParallelLightWorkers ?? maxParallelLightWorkers, 1), maxParallelLightWorkers),
+            maxParallelHeavyWorkers: Math.min(Math.max(parsed.governance?.maxParallelHeavyWorkers ?? maxParallelHeavyWorkers, 1), maxParallelHeavyWorkers),
             maxRetriesPerStep: Math.min(Math.max(parsed.governance?.maxRetriesPerStep ?? 1, 0), 3),
             escalationMode: parsed.governance?.escalationMode ?? "final-step",
+            minConfidenceForAutonomy: Math.min(Math.max(parsed.governance?.minConfidenceForAutonomy ?? 0.35, 0), 1),
+            createHumanTicketOnFailure: parsed.governance?.createHumanTicketOnFailure ?? true,
         };
 
         return { plan: parsed, cost_usd: response.cost.cost_usd };
