@@ -135,6 +135,33 @@
    - `node skills/repo_graph_analyzer/scripts/analyze_repo_graph.mjs`
    - `pnpm lint && pnpm test && pnpm build`
 
+## 2026-02-18 Iteration 7
+
+### Change summary
+- Hardened vault lease identifier generation by replacing `Math.random()` lease IDs with `crypto.randomUUID()`.
+- Removed predictable low-entropy lease key path for secret lease records.
+
+### Files modified
+- `packages/vault/src/vault.ts`
+- `documents/evolution-log.md`
+
+### Risk introduced
+- Low: lease ID format changed from short base36 token to UUID v4 string; any downstream code assuming legacy ID length/pattern should be updated.
+
+### Metrics before/after
+- Before: lease IDs created with `Math.random().toString(36).substring(2,15)` (~13 chars, non-cryptographic RNG).
+- After: lease IDs created with `randomUUID()` (122 bits UUID v4 randomness, CSPRNG-backed).
+- Collision/predictability profile: materially improved for concurrent lease creation.
+- Validation status:
+  - `pnpm lint` ✅
+  - `pnpm test` ✅
+  - `pnpm build` ✅
+
+### Rollback instructions
+1. `git revert <commit_sha>`
+2. Or restore previous lease ID expression in `packages/vault/src/vault.ts`.
+3. Re-run: `pnpm lint && pnpm test && pnpm build`
+
 ## 2026-02-18 Iteration 6
 
 ### Change summary
