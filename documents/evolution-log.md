@@ -1,5 +1,37 @@
 # Evolution Log
 
+## 2026-02-18 Iteration 17
+
+### Change summary
+- Improved orchestration planning consistency by introducing a normalized `getMaxParallelLightWorkers()` helper in `planner-v2` and reusing it in both planner prompt constraints and runtime governance clamping.
+- Removed mismatch where environment-configured worker caps were reflected in prompt text but not always respected by governance defaults/clamps during plan normalization.
+- Tightened parallel-light execution safety: planner governance now cannot exceed the configured `CAIRN_MAX_LIGHT_WORKERS` ceiling after parsing.
+
+### Files modified
+- `packages/orchestrator/src/nodes/planner-v2.ts`
+- `documents/evolution-log.md`
+
+### Risk introduced
+- Low: deployments that intentionally expected planner governance to float above `CAIRN_MAX_LIGHT_WORKERS` via model output will now be hard-capped to the configured ceiling.
+- Low: invalid `CAIRN_MAX_LIGHT_WORKERS` values now normalize to fallback default `4`.
+
+### Metrics before/after
+- Parallel worker cap source-of-truth in planner: `duplicated/inconsistent (prompt env cap, runtime clamp fixed to 10/default 4)` -> `single normalized helper used for both prompt + runtime enforcement`.
+- Governance clamp behavior when env cap < 10 (e.g., `CAIRN_MAX_LIGHT_WORKERS=2`): `planner could still normalize to >2` -> `always <=2`.
+- Configuration robustness for malformed env values: `implicit parse behavior` -> `explicit NaN fallback to 4 and clamp 1..10`.
+- Validation status:
+  - `pnpm lint` ✅
+  - `pnpm test` ✅
+  - `pnpm build` ✅
+
+### Rollback instructions
+1. `git revert <commit_sha>`
+2. Or manually revert in `planner-v2.ts`:
+   - remove `getMaxParallelLightWorkers()` helper,
+   - restore inline env parse in prompt builder,
+   - restore governance normalization to fixed `1..10` clamp with default `4`.
+3. Re-run: `pnpm lint && pnpm test && pnpm build`
+
 ## 2026-02-18 Iteration 16
 
 ### Change summary
