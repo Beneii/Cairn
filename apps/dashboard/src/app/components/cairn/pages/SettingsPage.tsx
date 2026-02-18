@@ -1,6 +1,6 @@
 import { Sun, Calendar, DollarSign, Brain, MessageSquare, Sliders, Box, Monitor } from "lucide-react";
-import { useState } from "react";
-import type { ReactNode } from "react";
+import { useEffect, useState } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { PageLayout } from "../PageLayout";
 import { PageContent } from "../PageContent";
 import { IntegrationsSettings } from "./IntegrationsPage";
@@ -90,6 +90,56 @@ function formatHour(h: number): string {
     if (h < 12) return `${h} AM`;
     if (h === 12) return "12 PM";
     return `${h - 12} PM`;
+}
+
+function CommitHint({ dirty }: { dirty: boolean }) {
+    return (
+        <span className="text-[10px] uppercase tracking-wider opacity-45 min-w-[5rem] text-right" aria-live="polite">
+            {dirty ? "Press Enter or blur" : "Saved"}
+        </span>
+    );
+}
+
+function NumericCommitField({ value, onCommit, className, style }: {
+    value: number;
+    onCommit: (next: number) => void;
+    className: string;
+    style: CSSProperties;
+}) {
+    const [draft, setDraft] = useState(String(value));
+
+    useEffect(() => {
+        setDraft(String(value));
+    }, [value]);
+
+    const parsed = Number(draft);
+    const canCommit = Number.isFinite(parsed);
+    const dirty = canCommit && parsed !== value;
+
+    const commit = () => {
+        if (!dirty) return;
+        onCommit(parsed);
+    };
+
+    return (
+        <div className="flex items-center gap-2">
+            <input
+                type="number"
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                onBlur={commit}
+                onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        commit();
+                    }
+                }}
+                className={className}
+                style={style}
+            />
+            <CommitHint dirty={dirty} />
+        </div>
+    );
 }
 
 export function SettingsPage(props: SettingsPageProps) {
@@ -237,20 +287,18 @@ export function SettingsPage(props: SettingsPageProps) {
                                         {proactive.enabled && (
                                             <div className="space-y-1 pl-4 border-l-2" style={{ borderColor: theme.border }}>
                                                 <Row label="Max Daily Nudges" description="">
-                                                    <input
-                                                        type="number"
+                                                    <NumericCommitField
                                                         value={proactive.maxDailyNudges}
-                                                        onChange={(e) => setProactive({ maxDailyNudges: Number(e.target.value) })}
+                                                        onCommit={(maxDailyNudges) => setProactive({ maxDailyNudges })}
                                                         className="w-16 rounded-md px-2 py-1 text-right text-sm"
                                                         style={inputStyle}
                                                     />
                                                 </Row>
 
                                                 <Row label="Min Hours Between Nudges" description="">
-                                                    <input
-                                                        type="number"
+                                                    <NumericCommitField
                                                         value={proactive.minHoursBetweenNudges}
-                                                        onChange={(e) => setProactive({ minHoursBetweenNudges: Number(e.target.value) })}
+                                                        onCommit={(minHoursBetweenNudges) => setProactive({ minHoursBetweenNudges })}
                                                         className="w-16 rounded-md px-2 py-1 text-right text-sm"
                                                         style={inputStyle}
                                                     />
@@ -320,10 +368,9 @@ export function SettingsPage(props: SettingsPageProps) {
                                     <Row label="Monthly Spend Limit" description="Hard cap on LLM API usage">
                                         <div className="flex items-center gap-2">
                                             <span className="opacity-50">$</span>
-                                            <input
-                                                type="number"
+                                            <NumericCommitField
                                                 value={config.monthly_spend_limit_usd}
-                                                onChange={(e) => setSpendLimit(Number(e.target.value))}
+                                                onCommit={setSpendLimit}
                                                 className="w-20 rounded-md px-2 py-1 text-right text-sm"
                                                 style={inputStyle}
                                             />
@@ -335,20 +382,18 @@ export function SettingsPage(props: SettingsPageProps) {
                                 {/* Cognitive Load */}
                                 <Section icon={<Brain size={14} />} label="Cognitive Load Budget" border={theme.border}>
                                     <Row label="Daily Decision Limit" description="Max interruptions for choices per day">
-                                        <input
-                                            type="number"
+                                        <NumericCommitField
                                             value={config.max_decisions_per_day}
-                                            onChange={(e) => setDecisionLimit(Number(e.target.value))}
+                                            onCommit={setDecisionLimit}
                                             className="w-16 rounded-md px-2 py-1 text-right text-sm"
                                             style={inputStyle}
                                         />
                                     </Row>
 
                                     <Row label="Daily Interaction Limit" description="Max total messages from Cairn per day">
-                                        <input
-                                            type="number"
+                                        <NumericCommitField
                                             value={config.max_interactions_per_day}
-                                            onChange={(e) => setInteractionLimit(Number(e.target.value))}
+                                            onCommit={setInteractionLimit}
                                             className="w-16 rounded-md px-2 py-1 text-right text-sm"
                                             style={inputStyle}
                                         />

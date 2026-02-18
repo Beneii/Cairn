@@ -1,5 +1,44 @@
 # Evolution Log
 
+## 2026-02-18 Iteration 10
+
+### Change summary
+- Added immediate action acknowledgement in System settings (`pendingAction` live status) for local mode toggles, update requests, and builder triggers so users see instant confirmation before backend status events arrive.
+- Reduced control-center Settings churn by replacing per-keystroke numeric websocket writes with commit-based fields (Enter/blur) plus explicit "Saved / Press Enter or blur" state hints.
+- Optimized logs panel rendering by memoizing filtered data, capping visible rows to latest 200 entries, and only autoscrolling when user is already near bottom.
+- Improved keyboard/focus responsiveness for primary dashboard navigation with ArrowLeft/ArrowRight/Home/End support and deterministic focus movement.
+
+### Files modified
+- `apps/dashboard/src/app/components/cairn/pages/SystemPage.tsx`
+- `apps/dashboard/src/app/components/cairn/pages/SettingsPage.tsx`
+- `apps/dashboard/src/app/components/cairn/Logs.tsx`
+- `apps/dashboard/src/app/components/cairn/NavBar.tsx`
+- `documents/evolution-log.md`
+
+### Risk introduced
+- Low: commit-on-blur/Enter numeric fields delay persistence compared with instant write; mitigated by visible commit hints and blur fallback.
+- Low: logs now intentionally hide older entries beyond 200 in active view; full history remains in archive/back-end.
+- Low: keyboard nav overrides arrow/home/end inside nav list context by design.
+
+### Metrics before/after
+- Settings websocket update pressure (numeric fields): `~1 send per keypress` -> `1 send per committed value` (typically 3-6x fewer sends while editing multi-digit values).
+- Logs render ceiling: `unbounded list` -> `max 200 rendered rows` (worst-case DOM/log animation work bounded regardless of backlog size).
+- Logs auto-scroll behavior: `always force-scroll on new log` -> `conditional stick-to-bottom only when within 80px of bottom` (avoids disruptive jump while reviewing historical logs).
+- Action confirmation latency in System tab: `no explicit immediate acknowledgement` -> `instant aria-live status message on click/toggle before server echo`.
+- Validation status:
+  - `pnpm lint` ✅
+  - `pnpm test` ✅
+  - `pnpm build` ✅
+
+### Rollback instructions
+1. `git revert <commit_sha>`
+2. Or manually restore prior behavior by reverting:
+   - `SystemPage.tsx` pending action acknowledgement state/UX,
+   - `SettingsPage.tsx` `NumericCommitField` usage,
+   - `Logs.tsx` capped/memoized feed logic,
+   - `NavBar.tsx` keyboard roving logic.
+3. Re-run: `pnpm lint && pnpm test && pnpm build`
+
 ## 2026-02-18 Iteration 9
 
 ### Change summary

@@ -1,4 +1,5 @@
 import { Circle, Settings, Archive, Flag } from "lucide-react";
+import { useRef } from "react";
 import type { ViewMode } from "../../hooks/useLayout";
 
 type View = 'home' | 'settings' | 'archive' | 'goals';
@@ -17,7 +18,6 @@ interface NavBarProps {
 
 export function NavBar({ currentView, setCurrentView, darkMode, editMode, viewMode, onToggleEditMode, onToggleViewMode, onResetLayout }: NavBarProps) {
   const border = darkMode ? 'rgba(255,255,255,0.1)' : 'rgba(26,29,33,0.1)';
-
   const navItems: { view: View; icon: React.ReactNode; title: string; hint: string }[] = [
     { view: 'home', icon: <Circle size={20} strokeWidth={1.5} />, title: 'Home', hint: 'Overview and current system state' },
     { view: 'goals', icon: <Flag size={20} strokeWidth={1.5} />, title: 'Goals', hint: 'Review and manage active goals' },
@@ -25,14 +25,58 @@ export function NavBar({ currentView, setCurrentView, darkMode, editMode, viewMo
     { view: 'archive', icon: <Archive size={20} strokeWidth={1.5} />, title: 'Archive', hint: 'Browse previous runs and history' },
   ];
 
+  const buttonRefs = useRef<Array<HTMLButtonElement | null>>([]);
+
+  const moveFocus = (index: number) => {
+    buttonRefs.current[index]?.focus();
+  };
+
+  const handleNavKeyDown = (event: React.KeyboardEvent<HTMLUListElement>) => {
+    const currentIndex = navItems.findIndex((item) => item.view === currentView);
+    if (currentIndex === -1) return;
+
+    switch (event.key) {
+      case 'ArrowRight': {
+        event.preventDefault();
+        const nextIndex = (currentIndex + 1) % navItems.length;
+        setCurrentView(navItems[nextIndex].view);
+        moveFocus(nextIndex);
+        return;
+      }
+      case 'ArrowLeft': {
+        event.preventDefault();
+        const prevIndex = (currentIndex - 1 + navItems.length) % navItems.length;
+        setCurrentView(navItems[prevIndex].view);
+        moveFocus(prevIndex);
+        return;
+      }
+      case 'Home': {
+        event.preventDefault();
+        setCurrentView(navItems[0].view);
+        moveFocus(0);
+        return;
+      }
+      case 'End': {
+        event.preventDefault();
+        const last = navItems.length - 1;
+        setCurrentView(navItems[last].view);
+        moveFocus(last);
+        return;
+      }
+    }
+  };
+
   return (
     <nav className="flex items-center gap-4" aria-label="Primary dashboard navigation">
-      <ul className="m-0 flex list-none items-center gap-2 p-0">
-        {navItems.map((item) => {
+      <ul className="m-0 flex list-none items-center gap-2 p-0" onKeyDown={handleNavKeyDown}>
+        {navItems.map((item, index) => {
           const isActive = currentView === item.view;
           return (
             <li key={item.view}>
               <button
+                ref={(el) => {
+                  buttonRefs.current[index] = el;
+                }}
                 onClick={() => setCurrentView(item.view)}
                 title={`${item.title} — ${item.hint}`}
                 aria-label={`${item.title}. ${item.hint}`}
