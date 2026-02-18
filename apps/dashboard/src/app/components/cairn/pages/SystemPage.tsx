@@ -40,6 +40,7 @@ export function SystemSettings({ connected, diagnostics, localModeEnabled, nodes
     const [healthStatus, setHealthStatus] = useState<"checking" | "ok" | "error">("checking");
     const [healthDetail, setHealthDetail] = useState("");
     const [showNodes, setShowNodes] = useState(false);
+    const [pendingAction, setPendingAction] = useState<"localMode" | "update" | "builder" | null>(null);
 
     const [localMode, setLocalModeState] = useState(localModeEnabled);
 
@@ -69,10 +70,23 @@ export function SystemSettings({ connected, diagnostics, localModeEnabled, nodes
     // Sync local state when server-confirmed prop changes
     useEffect(() => {
         setLocalModeState(localModeEnabled);
-    }, [localModeEnabled]);
+        if (pendingAction === "localMode") {
+            setPendingAction(null);
+        }
+    }, [localModeEnabled, pendingAction]);
+
+    useEffect(() => {
+        if (pendingAction === "update" && updateProgress && updateProgress.stage !== "idle") {
+            setPendingAction(null);
+        }
+        if (pendingAction === "builder" && builderStatus === "running") {
+            setPendingAction(null);
+        }
+    }, [pendingAction, updateProgress, builderStatus]);
 
     const handleToggleLocalMode = () => {
         const newState = !localMode;
+        setPendingAction("localMode");
         setLocalModeState(newState); // Optimistic output
         setLocalMode(newState); // Trigger parent action (WS send)
     };
@@ -87,9 +101,14 @@ export function SystemSettings({ connected, diagnostics, localModeEnabled, nodes
 
     return (
         <div>
-            <div className="flex items-center gap-2 mb-6 opacity-60 text-sm">
+            <div className="flex items-center gap-2 mb-2 opacity-60 text-sm">
                 {connected ? <Wifi size={14} /> : <WifiOff size={14} />}
                 {connected ? "Connected to Gateway" : "Offline"}
+            </div>
+            <div className="text-xs opacity-50 mb-6 min-h-4" aria-live="polite">
+                {pendingAction === "localMode" && "Saving local mode preference..."}
+                {pendingAction === "update" && "Update request sent. Waiting for gateway acknowledgement..."}
+                {pendingAction === "builder" && "Builder run request sent. Waiting for scheduler acknowledgement..."}
             </div>
 
             {/* Connection Status */}
@@ -134,7 +153,10 @@ export function SystemSettings({ connected, diagnostics, localModeEnabled, nodes
                                 </div>
                             </div>
                             <button
-                                onClick={triggerUpdate}
+                                onClick={() => {
+                                    setPendingAction("update");
+                                    triggerUpdate();
+                                }}
                                 disabled={!!updateProgress && updateProgress.stage !== "error" && updateProgress.stage !== "idle"}
                                 className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all"
                                 style={{
@@ -197,7 +219,10 @@ export function SystemSettings({ connected, diagnostics, localModeEnabled, nodes
                                 </div>
                             </div>
                             <button
-                                onClick={triggerBuilder}
+                                onClick={() => {
+                                    setPendingAction("builder");
+                                    triggerBuilder();
+                                }}
                                 disabled={builderStatus === "running"}
                                 className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all"
                                 style={{
@@ -261,7 +286,9 @@ export function SystemSettings({ connected, diagnostics, localModeEnabled, nodes
                         </div>
                         <button
                             onClick={handleToggleLocalMode}
-                            className="w-8 h-5 rounded-full transition-all relative shrink-0"
+                            disabled={pendingAction === "localMode"}
+                            aria-busy={pendingAction === "localMode"}
+                            className="w-8 h-5 rounded-full transition-all relative shrink-0 disabled:opacity-60"
                             style={{ backgroundColor: localMode ? (darkMode ? '#E5E5E5' : '#1A1D21') : subtleBg }}
                         >
                             <div
