@@ -6,10 +6,13 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { appendEntry, initLedger } from "../packages/ledger/src/index.ts";
 import {
+  computeNextSemver,
   getSkillRequestById,
   initSkillRequestStore,
   listSkillRequests,
+  parseManifestRegistry,
   updateSkillRequestStatus,
+  upsertSkillEntry,
 } from "../packages/skills/src/index.ts";
 
 function ensureSelfGrowthMode() {
@@ -123,6 +126,23 @@ async function resolveRequestId(skillName: string, explicitId?: string): Promise
   return candidates[0]?.id;
 }
 
+async function appendEvolutionLogEntry(params: {
+  skillName: string;
+  semver: string;
+  hash: string;
+  requestId?: string;
+  mergedFrom: string[];
+}) {
+  const logPath = path.join(process.cwd(), "documents", "evolution-log.md");
+  const nowIso = new Date().toISOString();
+  const mergeLabel = params.mergedFrom.length > 0 ? params.mergedFrom.join(", ") : "none";
+
+  const block = `\n## ${nowIso} Skill Promotion (${params.skillName})\n\n### Change summary\n- Promoted \\`${params.skillName}\\` into production registry.\n- Advanced lifecycle metadata: state=\\`active\\`, semantic_version=\\`${params.semver}\\`.\n- Merge lineage updated (merged_from=${mergeLabel}).\n\n### Metrics before/after\n- Registry entry hash: \\`${params.hash}\\`.\n- Associated SkillRequest: ${params.requestId ? `\\`${params.requestId}\\`` : "none"}.\n\n### Risk introduced\n- Low: metadata schema expanded; older readers that assume v1 fields only may ignore new lifecycle fields.\n\n### Rollback instructions\n1. Revert this promotion commit (or remove \\`${params.skillName}\\` from \\`skills/manifest-registry.json\\`).\n2. Re-run: \\`pnpm lint && pnpm test && pnpm build\\`.\n`;
+
+  await fsp.mkdir(path.dirname(logPath), { recursive: true });
+  await fsp.appendFile(logPath, block, "utf-8");
+}
+
 async function main() {
   ensureSelfGrowthMode();
 
@@ -165,30 +185,40 @@ async function main() {
   }
   await copyDir(srcDir, dstDir);
 
-  let registry: { version: number; skills: any[] } = { version: 1, skills: [] };
-  if (fs.existsSync(registryFile)) {
-    registry = JSON.parse(await fsp.readFile(registryFile, "utf-8"));
-  }
-  if (!Array.isArray(registry.skills)) {
-    throw new Error("manifest-registry.json must contain skills[]");
-  }
+  const existingRaw = fs.existsSync(registryFile)
+    ? JSON.parse(await fsp.readFile(registryFile, "utf-8"))
+    : { version: 2, skills: [] };
+  const registry = parseManifestRegistry(existingRaw);
 
   const folderHash = await computeFolderHash(dstDir);
+  const associatedRequestId = await resolveRequestId(skillName, requestId);
+  const existing = registry.skills.find((s) => s.name === skillName);
+  const nextSemver = computeNextSemver(existing?.semantic_version);
+  const mergedFrom = existing?.merge_lineage?.merged_from || [];
 
-  registry.skills = registry.skills.filter((s) => s.name !== skillName);
-  registry.skills.push({
+  const updatedRegistry = upsertSkillEntry(registry, {
     name: skillName,
     path: skillPathRel,
     entry_script: entryScriptRel,
     enabled: true,
-    version: 1,
+    version: (existing?.version || 0) + 1,
     hash_sha256: folderHash,
+    runtime_skill_id: existing?.runtime_skill_id ?? null,
+    required_tools: existing?.required_tools ?? ["shell"],
+    tier: existing?.tier ?? 1,
+    lifecycle_state: "active",
+    semantic_version: nextSemver,
+    evolved_from_request_id: associatedRequestId,
+    last_promoted_at: new Date().toISOString(),
+    merge_lineage: {
+      parent_skill: existing?.merge_lineage?.parent_skill,
+      merged_from: mergedFrom,
+      merged_into: existing?.merge_lineage?.merged_into,
+    },
   });
-  registry.skills.sort((a, b) => String(a.name).localeCompare(String(b.name)));
 
-  await fsp.writeFile(registryFile, JSON.stringify(registry, null, 2) + "\n", "utf-8");
+  await fsp.writeFile(registryFile, JSON.stringify(updatedRegistry, null, 2) + "\n", "utf-8");
 
-  const associatedRequestId = await resolveRequestId(skillName, requestId);
   if (associatedRequestId) {
     const req = getSkillRequestById(associatedRequestId);
     if (req && req.status === "building") {
@@ -202,6 +232,17 @@ async function main() {
     skill: skillName,
     request_id: associatedRequestId,
     hash_sha256: folderHash,
+    lifecycle_state: "active",
+    semantic_version: nextSemver,
+    merge_lineage: { merged_from: mergedFrom },
+  });
+
+  await appendEvolutionLogEntry({
+    skillName,
+    semver: nextSemver,
+    hash: folderHash,
+    requestId: associatedRequestId,
+    mergedFrom,
   });
 
   console.log(`Promoted skill: ${skillName}`);

@@ -26,6 +26,7 @@ export interface SkillContext {
     messageId: string;
     memoryRead: (tier: string, key: string) => unknown | undefined;
     memoryWrite: (tier: string, key: string, value: unknown) => Promise<void>;
+    maxSkillCalls?: number;
 }
 
 export interface SkillResult {
@@ -42,6 +43,7 @@ interface RegisteredSkill {
 }
 
 const skills = new Map<string, RegisteredSkill>();
+const jobGovernance = new Map<string, { calls: number; inFlight: Set<string> }>();
 
 export function registerSkill(manifest: SkillManifest, handler: SkillHandler): void {
     if (skills.has(manifest.id)) {
@@ -153,6 +155,27 @@ export async function executeSkill(
         // In verify mode or future phases, we might enforce confirmation here
     }
 
+    const maxSkillCalls = ctx.maxSkillCalls ?? 12;
+    const governance = jobGovernance.get(ctx.jobId) || { calls: 0, inFlight: new Set<string>() };
+
+    if (governance.calls >= maxSkillCalls) {
+        return {
+            success: false,
+            output: `Skill ${skillId} blocked: execution budget exceeded for job (${maxSkillCalls}).`,
+        };
+    }
+
+    if (governance.inFlight.has(skillId)) {
+        return {
+            success: false,
+            output: `Skill ${skillId} blocked: duplicate in-flight invocation for this job.`,
+        };
+    }
+
+    governance.calls += 1;
+    governance.inFlight.add(skillId);
+    jobGovernance.set(ctx.jobId, governance);
+
     const start = Date.now();
     try {
         const result = await skill.handler(args, ctx);
@@ -178,6 +201,9 @@ export async function executeSkill(
         });
 
         return { success: false, output: `Skill execution error: ${errorMsg}` };
+    } finally {
+        const tracked = jobGovernance.get(ctx.jobId);
+        tracked?.inFlight.delete(skillId);
     }
 }
 

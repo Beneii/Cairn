@@ -2,6 +2,7 @@
 import React from "react";
 import { Zap, Activity, Clock, Trash2, CheckCircle2, AlertCircle, Play, Sparkles } from "lucide-react";
 import { SkillMetric, SkillRequest } from "../types";
+import { SkillLifecyclePill } from "../SkillLifecyclePill";
 import { PageLayout } from "../PageLayout";
 import { PageContent } from "../PageContent";
 import { useTheme } from "../../../theme";
@@ -18,7 +19,7 @@ export function SkillsPage({ nav, metrics, requests, darkMode }: SkillsPageProps
 
     const pendingRequests = requests.filter(r => r.status === "pending" || r.status === "building");
     const promotedRequests = requests.filter(r => r.status === "promoted");
-    const failedRequests = requests.filter(r => r.status === "failed");
+    const failedRequests = requests.filter(r => r.status === "failed" || r.status === "rejected");
 
     const getStatusIcon = (status: string) => {
         switch (status) {
@@ -108,13 +109,7 @@ export function SkillsPage({ nav, metrics, requests, darkMode }: SkillsPageProps
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-4">
-                                        <span className={`text-[10px] uppercase font-bold tracking-widest px-2 py-0.5 rounded ${request.status === 'promoted' ? 'bg-green-500/20 text-green-500' :
-                                                request.status === 'building' ? 'bg-blue-500/20 text-blue-500' :
-                                                    request.status === 'failed' ? 'bg-red-500/20 text-red-500' :
-                                                        'bg-gray-500/20 text-gray-500'
-                                            }`}>
-                                            {request.status}
-                                        </span>
+                                        <SkillLifecyclePill status={request.status} />
                                         <div className="text-[10px] opacity-40 whitespace-nowrap">
                                             {new Date(request.created_at).toLocaleDateString()}
                                         </div>
