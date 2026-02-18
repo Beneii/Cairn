@@ -16,6 +16,10 @@ import { getWsUrl, getApiBase, getMode, getDashboardAuthToken } from "../../conf
 
 const MAX_CHAT_HISTORY = 300;
 const MAX_LOG_BUFFER = 1000;
+const LOG_FLUSH_INTERVAL_MS = 120;
+
+const capHistory = <T,>(entries: T[], limit: number) =>
+  entries.length > limit ? entries.slice(entries.length - limit) : entries;
 
 interface CairnState {
   connected: boolean;
@@ -136,11 +140,10 @@ export function useCairn() {
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mountedRef = useRef(false);
+  const pendingLogEntriesRef = useRef<LogEntry[]>([]);
+  const logFlushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const isoClock = () => new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-
-  const capHistory = <T,>(entries: T[], limit: number) =>
-    entries.length > limit ? entries.slice(entries.length - limit) : entries;
 
   const resolvePendingMessage = (messages: ChatMessage[], serverMessage: ChatMessage) => {
     const index = messages.findIndex((m) =>
@@ -157,6 +160,33 @@ export function useCairn() {
     next[index] = { ...serverMessage, deliveryStatus: undefined, pending: false };
     return { messages: capHistory(next, MAX_CHAT_HISTORY), replaced: true };
   };
+
+  const flushPendingLogs = useCallback(() => {
+    logFlushTimerRef.current = null;
+    if (!mountedRef.current || pendingLogEntriesRef.current.length === 0) return;
+
+    const batch = pendingLogEntriesRef.current;
+    pendingLogEntriesRef.current = [];
+
+    setState((s) => {
+      const nextLogs = [...s.logs, ...batch];
+      const dropped = Math.max(0, nextLogs.length - MAX_LOG_BUFFER);
+      return {
+        ...s,
+        logs: capHistory(nextLogs, MAX_LOG_BUFFER),
+        diagnostics: {
+          ...s.diagnostics,
+          droppedLogCount: s.diagnostics.droppedLogCount + dropped,
+        },
+      };
+    });
+  }, []);
+
+  const enqueueLogEntry = useCallback((entry: LogEntry) => {
+    pendingLogEntriesRef.current.push(entry);
+    if (logFlushTimerRef.current) return;
+    logFlushTimerRef.current = setTimeout(flushPendingLogs, LOG_FLUSH_INTERVAL_MS);
+  }, [flushPendingLogs]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -259,18 +289,7 @@ export function useCairn() {
               }));
               break;
             case "log:entry":
-              setState((s) => {
-                const nextLogs = [...s.logs, msg.entry];
-                const dropped = Math.max(0, nextLogs.length - MAX_LOG_BUFFER);
-                return {
-                  ...s,
-                  logs: capHistory(nextLogs, MAX_LOG_BUFFER),
-                  diagnostics: {
-                    ...s.diagnostics,
-                    droppedLogCount: s.diagnostics.droppedLogCount + dropped,
-                  },
-                };
-              });
+              enqueueLogEntry(msg.entry);
               break;
             case "note:update":
               setState((s) => ({ ...s, notes: msg.notes }));
@@ -350,6 +369,11 @@ export function useCairn() {
     return () => {
       mountedRef.current = false;
       if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
+      if (logFlushTimerRef.current) {
+        clearTimeout(logFlushTimerRef.current);
+        logFlushTimerRef.current = null;
+      }
+      pendingLogEntriesRef.current = [];
       if (wsRef.current) {
         wsRef.current.onmessage = null;
         wsRef.current.onclose = null;
@@ -357,7 +381,7 @@ export function useCairn() {
         wsRef.current.close();
       }
     };
-  }, [wsUrl, dashboardAuthToken]);
+  }, [wsUrl, dashboardAuthToken, enqueueLogEntry]);
 
   const sendChat = useCallback((text: string, attachments?: ChatAttachment[]) => {
     const payload: Record<string, unknown> = { type: "chat:send", text };

@@ -1,5 +1,36 @@
 # Evolution Log
 
+## 2026-02-18 Iteration 14
+
+### Change summary
+- Reduced control-center log-stream UI churn by introducing buffered websocket ingestion in `useCairn`: `log:entry` events now enqueue and flush in short batches instead of forcing one React state update per message.
+- Added bounded log flush cadence (`LOG_FLUSH_INTERVAL_MS = 120`) to preserve near-live operator visibility while preventing high-frequency render storms during noisy runtime/tool output.
+- Preserved existing memory safety semantics (`MAX_LOG_BUFFER = 1000` and dropped-log diagnostics) while making the hot path cheaper under sustained throughput.
+
+### Files modified
+- `apps/dashboard/src/app/hooks/useCairn.ts`
+- `documents/evolution-log.md`
+
+### Risk introduced
+- Low: logs are now rendered in micro-batches (up to ~120ms delay) rather than instantly per-event; this trades tiny latency for smoother responsiveness.
+- Low: queued log entries are intentionally discarded on dashboard unmount to avoid post-unmount state updates.
+
+### Metrics before/after
+- Log-driven state updates: `1 React state update per websocket log event` -> `<= ~8-9 updates/sec max flush cadence` under heavy streams.
+- Worst-case UI update amplification (example 100 log events/sec): `~100 state updates/sec` -> `~8-9 batched updates/sec` (~91% reduction in update frequency).
+- Log retention + diagnostics: `unchanged` (`MAX_LOG_BUFFER=1000`, dropped counter still tracked).
+- Validation status:
+  - `pnpm lint` ✅
+  - `pnpm test` ✅
+  - `pnpm build` ✅
+
+### Rollback instructions
+1. `git revert <commit_sha>`
+2. Or manually revert:
+   - remove `LOG_FLUSH_INTERVAL_MS`, pending queue refs, and enqueue/flush helpers in `useCairn.ts`,
+   - restore direct `setState` handling in `case "log:entry"`.
+3. Re-run: `pnpm lint && pnpm test && pnpm build`
+
 ## 2026-02-18 Iteration 13
 
 ### Change summary
