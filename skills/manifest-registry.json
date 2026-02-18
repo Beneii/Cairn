@@ -1,89 +1,117 @@
 {
-  "version": 1,
+  "version": 2,
   "skills": [
     {
+      "runtime_skill_id": null,
+      "tier": 1,
+      "required_tools": [
+        "shell"
+      ],
+      "lifecycle_state": "active",
+      "semantic_version": "1.0.0",
+      "merge_lineage": {},
+      "last_promoted_at": "2026-02-18T08:01:51.050Z",
       "name": "create-feature-branch",
       "path": "skills/create-feature-branch/SKILL.md",
       "entry_script": "skills/create-feature-branch/scripts/create_branch.sh",
       "enabled": true,
-      "version": 1,
+      "version": 1
+    },
+    {
+      "runtime_skill_id": null,
       "tier": 1,
       "required_tools": [
         "shell"
       ],
-      "runtime_skill_id": null
-    },
-    {
+      "lifecycle_state": "active",
+      "semantic_version": "1.0.0",
+      "merge_lineage": {},
+      "last_promoted_at": "2026-02-18T08:01:51.050Z",
       "name": "investigate-bug",
       "path": "skills/investigate-bug/SKILL.md",
       "entry_script": "skills/investigate-bug/scripts/reproduce_issue.sh",
       "enabled": true,
-      "version": 1,
+      "version": 1
+    },
+    {
+      "runtime_skill_id": null,
       "tier": 1,
       "required_tools": [
         "shell"
       ],
-      "runtime_skill_id": null
-    },
-    {
+      "lifecycle_state": "active",
+      "semantic_version": "1.0.0",
+      "merge_lineage": {},
+      "last_promoted_at": "2026-02-18T08:01:51.050Z",
       "name": "run-tests",
       "path": "skills/run-tests/SKILL.md",
       "entry_script": "skills/run-tests/scripts/execute_tests.sh",
       "enabled": true,
-      "version": 1,
+      "version": 1
+    },
+    {
+      "runtime_skill_id": null,
       "tier": 1,
       "required_tools": [
         "shell"
       ],
-      "runtime_skill_id": null
-    },
-    {
+      "lifecycle_state": "active",
+      "semantic_version": "1.0.0",
+      "merge_lineage": {},
+      "last_promoted_at": "2026-02-18T08:01:51.050Z",
       "name": "refactor-file",
       "path": "skills/refactor-file/SKILL.md",
       "entry_script": "skills/refactor-file/scripts/apply_refactor.sh",
       "enabled": true,
-      "version": 1,
+      "version": 1
+    },
+    {
+      "runtime_skill_id": null,
       "tier": 1,
       "required_tools": [
         "shell"
       ],
-      "runtime_skill_id": null
-    },
-    {
+      "lifecycle_state": "active",
+      "semantic_version": "1.0.0",
+      "merge_lineage": {},
+      "last_promoted_at": "2026-02-18T08:01:51.050Z",
       "name": "generate-design-doc",
       "path": "skills/generate-design-doc/SKILL.md",
       "entry_script": "skills/generate-design-doc/scripts/generate_doc.sh",
       "enabled": true,
-      "version": 1,
-      "tier": 1,
-      "required_tools": [
-        "shell"
-      ],
-      "runtime_skill_id": null
+      "version": 1
     },
     {
-      "name": "repo_graph_analyzer",
-      "path": "skills/repo_graph_analyzer/SKILL.md",
-      "entry_script": "skills/repo_graph_analyzer/scripts/analyze_repo_graph.mjs",
-      "enabled": true,
-      "version": 1,
+      "runtime_skill_id": null,
       "tier": 0,
       "required_tools": [
         "shell"
       ],
-      "runtime_skill_id": null
+      "lifecycle_state": "active",
+      "semantic_version": "1.0.0",
+      "merge_lineage": {},
+      "last_promoted_at": "2026-02-18T08:01:51.050Z",
+      "name": "repo_graph_analyzer",
+      "path": "skills/repo_graph_analyzer/SKILL.md",
+      "entry_script": "skills/repo_graph_analyzer/scripts/analyze_repo_graph.mjs",
+      "enabled": true,
+      "version": 1
     },
     {
-      "name": "architectural_diff_analyzer",
-      "path": "skills/architectural_diff_analyzer/SKILL.md",
-      "entry_script": "skills/architectural_diff_analyzer/scripts/architectural_diff.mjs",
-      "enabled": true,
-      "version": 1,
+      "runtime_skill_id": null,
       "tier": 1,
       "required_tools": [
         "shell"
       ],
-      "runtime_skill_id": null
+      "lifecycle_state": "active",
+      "semantic_version": "1.0.0",
+      "merge_lineage": {},
+      "last_promoted_at": "2026-02-18T08:01:51.050Z",
+      "name": "architectural_diff_analyzer",
+      "path": "skills/architectural_diff_analyzer/SKILL.md",
+      "entry_script": "skills/architectural_diff_analyzer/scripts/architectural_diff.mjs",
+      "enabled": true,
+      "version": 1
     }
   ]
 }

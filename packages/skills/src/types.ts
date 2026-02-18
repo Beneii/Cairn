@@ -16,6 +16,14 @@ export interface SkillRequest {
 }
 
 
+export type SkillLifecycleState = "experimental" | "active" | "merged" | "deprecated";
+
+export interface SkillMergeLineage {
+  parent_skill?: string;
+  merged_from?: string[];
+  merged_into?: string;
+}
+
 export interface SkillMetrics {
   skill_id: string;
   invocation_count: number;

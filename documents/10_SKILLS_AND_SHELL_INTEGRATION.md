@@ -47,7 +47,12 @@ planner output and executed through shell scripts.
 
 - `enabled` (boolean): If `false`, runtime skips this skill mapping.
 - `runtime_skill_id` (string): Optional mapping to a runtime skill ID (e.g. `task.create`).
-- `version` (number): Skill manifest version for promotion workflows.
+- `version` (number): Numeric registry revision incremented on each promotion.
+- `semantic_version` (string): Human-readable lifecycle version (`major.minor.patch`) used for merge and deprecation workflows.
+- `lifecycle_state` (`experimental|active|merged|deprecated`): Current lifecycle state enforced by governance tooling.
+- `merge_lineage` (object): Merge ancestry (`parent_skill`, `merged_from[]`, `merged_into`) for skill genealogy.
+- `evolved_from_request_id` (string): SkillRequest ID that triggered this promotion, when available.
+- `last_promoted_at` (ISO string): Last registry promotion timestamp.
 - `hash_sha256` (string): Optional folder hash used for tamper verification in RUN mode.
 - `tier` (number): Trust tier hint for promotion/audit.
 - `required_tools` (string[]): Required backing tools for runtime validation.

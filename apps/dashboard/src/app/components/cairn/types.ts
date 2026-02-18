@@ -155,7 +155,7 @@ export interface Task {
 
 // ---- Skills ----
 
-export type SkillRequestStatus = "pending" | "building" | "failed" | "promoted";
+export type SkillRequestStatus = "pending" | "building" | "failed" | "rejected" | "promoted";
 
 export interface SkillRequest {
   id: string;

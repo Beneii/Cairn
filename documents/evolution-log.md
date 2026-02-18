@@ -1,5 +1,53 @@
 # Evolution Log
 
+## 2026-02-18 Iteration 8
+
+### Change summary
+- Extended `skills/manifest-registry.json` to lifecycle-aware v2 metadata (`lifecycle_state`, `semantic_version`, `merge_lineage`, `evolved_from_request_id`, `last_promoted_at`).
+- Added `packages/skills/src/manifest-registry-manager.ts` for typed registry parsing/upsert/semver progression and wired `scripts/promote-skill.ts` to use it.
+- Added automated evolution logging from promotion flow (`appendEvolutionLogEntry`) so each promotion writes a structured audit block into this document.
+- Hardened orchestration governance in `executeSkill` with per-job invocation budget + duplicate in-flight skill guard to reduce runaway background loops.
+- Added UI polish infrastructure via reusable `SkillLifecyclePill` and updated Skills page to render normalized lifecycle badges (`failed|rejected` grouped in backlog view).
+
+### Files modified
+- `skills/manifest-registry.json`
+- `packages/skills/src/manifest-registry-manager.ts`
+- `packages/skills/src/index.ts`
+- `packages/skills/src/types.ts`
+- `scripts/promote-skill.ts`
+- `packages/orchestrator/src/skill-registry.ts`
+- `apps/dashboard/src/app/components/cairn/SkillLifecyclePill.tsx`
+- `apps/dashboard/src/app/components/cairn/pages/SkillsPage.tsx`
+- `apps/dashboard/src/app/components/cairn/types.ts`
+- `documents/10_SKILLS_AND_SHELL_INTEGRATION.md`
+- `documents/evolution-log.md`
+
+### Risk introduced
+- Medium: registry schema bumped to v2; external tooling expecting v1-only keys may require tolerant parsing.
+- Low: per-job skill budget (default 12) can block unusually long but valid automations unless max is raised in context.
+- Low: dashboard status pill now includes `rejected`; upstream APIs that still emit only `failed` remain supported.
+
+### Metrics before/after
+- Before: registry lifecycle fields absent, promotion script did not auto-write evolution log entries, and skill execution had no duplicate in-flight guard.
+- After:
+  - Registry schema version: `1 -> 2`.
+  - Lifecycle metadata coverage: `0/7 -> 7/7` entries include state/version/merge lineage.
+  - Promotion audit automation: `manual-only -> automated append` in `scripts/promote-skill.ts`.
+  - Governance controls: `0` per-job in-flight dedupe checks -> `1` enforced gate in `executeSkill`.
+- Validation status:
+  - `pnpm lint` ✅
+  - `pnpm test` ✅
+  - `pnpm build` ✅
+
+### Rollback instructions
+1. `git revert <commit_sha>`
+2. Or manually revert:
+   - restore `skills/manifest-registry.json` to v1 structure,
+   - remove `packages/skills/src/manifest-registry-manager.ts` and script wiring,
+   - remove governance budget/in-flight checks from `packages/orchestrator/src/skill-registry.ts`,
+   - restore inline status badge in `SkillsPage.tsx`.
+3. Re-run: `pnpm lint && pnpm test && pnpm build`
+
 ## 2026-02-18 Iteration 1
 
 ### Change summary
