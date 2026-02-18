@@ -18,7 +18,7 @@ Builds a dependency-aware graph of the Cairn repository so architectural refacto
 ## Trace + Metrics
 Writes trace and counters:
 - `documents/metrics/repo-graph-analyzer.metrics.json`
-- includes `nodeCount`, `edgeCount`, `orphans`, `durationMs`, `hasCycle`, `topologicalViolations`
+- includes `nodeCount`, `edgeCount`, `orphans`, `entrypoints`, `durationMs`, `hasCycle`, `topologicalViolations`
 
 ## Schema
 See `skills/repo_graph_analyzer/schema.json`.

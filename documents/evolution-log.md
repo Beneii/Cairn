@@ -134,3 +134,46 @@
 3. Re-run analyzer and pipeline:
    - `node skills/repo_graph_analyzer/scripts/analyze_repo_graph.mjs`
    - `pnpm lint && pnpm test && pnpm build`
+
+## 2026-02-18 Iteration 4
+
+### Change summary
+- Extended `repo_graph_analyzer` to emit `entrypoints` (packages with zero dependers) so architecture reports distinguish isolated modules from runtime roots.
+- Added `entrypoints` count to analyzer metrics for trend tracking.
+- Expanded analyzer test coverage to verify `entrypoints` output shape and non-empty detection.
+
+### Files modified
+- `skills/repo_graph_analyzer/scripts/analyze_repo_graph.mjs`
+- `skills/repo_graph_analyzer/tests/repo_graph_analyzer.test.mjs`
+- `skills/repo_graph_analyzer/SKILL.md`
+- `documents/repo-graph.json`
+- `documents/metrics/repo-graph-analyzer.metrics.json`
+- `documents/evolution-log.md`
+
+### Risk introduced
+- Low: `entrypoints` semantics are graph-structural (no incoming edges) and may include intentionally isolated apps/services.
+- Low: downstream consumers expecting old metrics schema must tolerate the new `entrypoints` field.
+
+### Metrics before/after
+- Before: no explicit entrypoint metric.
+- After:
+  - `entrypoints`: `3` (`@cairn/dashboard`, `@cairn/gateway`, `mobile`)
+  - `orphans`: `2` (unchanged)
+  - `topologicalViolations`: `0` (unchanged)
+  - `nodeCount`: `18` (unchanged)
+  - `edgeCount`: `54` (unchanged)
+- Validation status:
+  - `node skills/repo_graph_analyzer/tests/repo_graph_analyzer.test.mjs` ✅
+  - `pnpm lint` ✅
+  - `pnpm test` ✅
+  - `pnpm build` ✅
+
+### Rollback instructions
+1. `git revert <commit_sha>`
+2. Or remove `entrypoints` additions from:
+   - `skills/repo_graph_analyzer/scripts/analyze_repo_graph.mjs`
+   - `skills/repo_graph_analyzer/tests/repo_graph_analyzer.test.mjs`
+   - `skills/repo_graph_analyzer/SKILL.md`
+3. Regenerate graph artifacts and re-run pipeline:
+   - `node skills/repo_graph_analyzer/scripts/analyze_repo_graph.mjs`
+   - `pnpm lint && pnpm test && pnpm build`

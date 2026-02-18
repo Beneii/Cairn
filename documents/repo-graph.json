@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-18T07:20:40.732Z",
+  "generatedAt": "2026-02-18T07:21:45.118Z",
   "rootPath": "C:\\Users\\Admin\\Desktop\\Cairn\\Cairn",
   "nodeCount": 18,
   "edgeCount": 54,
@@ -317,6 +317,11 @@
     "@cairn/gateway"
   ],
   "topologicalViolations": 0,
+  "entrypoints": [
+    "@cairn/dashboard",
+    "@cairn/gateway",
+    "mobile"
+  ],
   "orphans": [
     "@cairn/dashboard",
     "mobile"

@@ -74,6 +74,7 @@ for (const e of edges) {
 const orphans = nodes
   .filter((n) => (outgoingByNode.get(n.name) || []).length === 0 && (incomingByNode.get(n.name) || []).length === 0)
   .map((n) => n.name);
+const entrypoints = nodes.filter((n) => (incomingByNode.get(n.name) || []).length === 0).map((n) => n.name);
 const topoPos = new Map(topo.map((name, i) => [name, i]));
 const topologicalViolations = edges.filter((e) => (topoPos.get(e.to) ?? Number.POSITIVE_INFINITY) > (topoPos.get(e.from) ?? -1)).length;
 
@@ -87,6 +88,7 @@ const graph = {
   edges,
   topologicalOrder: topo,
   topologicalViolations,
+  entrypoints,
   orphans
 };
 
@@ -95,6 +97,6 @@ fs.writeFileSync(outputPath, JSON.stringify(graph, null, 2));
 
 const metricsPath = path.join(rootPath, 'documents', 'metrics', 'repo-graph-analyzer.metrics.json');
 fs.mkdirSync(path.dirname(metricsPath), { recursive: true });
-fs.writeFileSync(metricsPath, JSON.stringify({ nodeCount: graph.nodeCount, edgeCount: graph.edgeCount, orphans: graph.orphans.length, hasCycle, topologicalViolations: graph.topologicalViolations, durationMs: Date.now() - start }, null, 2));
+fs.writeFileSync(metricsPath, JSON.stringify({ nodeCount: graph.nodeCount, edgeCount: graph.edgeCount, orphans: graph.orphans.length, entrypoints: graph.entrypoints.length, hasCycle, topologicalViolations: graph.topologicalViolations, durationMs: Date.now() - start }, null, 2));
 
 console.log(`repo_graph_analyzer wrote ${outputPath}`);
