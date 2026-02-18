@@ -12,7 +12,8 @@
     "test": "turbo run test",
     "clean": "turbo run clean && rm -rf node_modules",
     "login:google": "npx tsx scripts/browser-login.ts",
-    "promote-skill": "npx tsx scripts/promote-skill.ts"
+    "promote-skill": "npx tsx scripts/promote-skill.ts",
+    "test:pipeline": "npx tsx tests/pipeline-harness.ts"
   },
   "devDependencies": {
     "ts-node": "^10.9.2",

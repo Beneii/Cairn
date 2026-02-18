@@ -352,6 +352,14 @@ export function useCairn() {
     wsRef.current?.send(JSON.stringify({ type: "kanban:restore", id }));
   }, []);
 
+  const deleteCard = useCallback((id: string) => {
+    wsRef.current?.send(JSON.stringify({ type: "kanban:delete", id }));
+  }, []);
+
+  const updateCardStatus = useCallback((id: string, status: string) => {
+    wsRef.current?.send(JSON.stringify({ type: "kanban:update_status", id, status }));
+  }, []);
+
   const setCardProject = useCallback((id: string, project: string) => {
     wsRef.current?.send(JSON.stringify({ type: "kanban:set_project", id, project }));
   }, []);
@@ -433,6 +441,8 @@ export function useCairn() {
     setInteractionLimit,
     archiveCard,
     restoreCard,
+    deleteCard,
+    updateCardStatus,
     setCardProject,
     setProactiveConfig,
     setMobileConfig,

@@ -83,11 +83,12 @@ function metricSortKey(skillId: string): { successRate: number; p50: number } {
     }
 }
 
-export function listSkills(): { id: string; description: string }[] {
+export function listSkills(): { id: string; description: string; inputSchema: object }[] {
     return Array.from(skills.values())
         .map((s) => ({
             id: s.definition.id,
             description: s.definition.description,
+            inputSchema: s.definition.inputSchema,
         }))
         .sort((a, b) => {
             const aKey = metricSortKey(a.id);

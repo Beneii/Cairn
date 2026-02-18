@@ -21,12 +21,13 @@ export function getNotes(): Note[] {
   return [...notes];
 }
 
-export async function createNote(content: string): Promise<Note> {
+export async function createNote(content: string, source: "user" | "agent" = "user"): Promise<Note> {
   const note: Note = {
     id: newId(),
     content,
     status: "unread",
     timestamp: shortTime(),
+    source,
   };
   notes.unshift(note);
   await persist();
