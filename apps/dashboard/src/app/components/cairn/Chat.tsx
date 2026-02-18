@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { memo, useState, useRef, useEffect } from "react";
 import type { ChatMessage, ChatAttachment, ChatActivity } from "./types";
 import { clsx } from "clsx";
 import { AlertTriangle, ChevronDown, ChevronRight, Loader2, Paperclip, Send, X } from "lucide-react";
@@ -20,23 +20,7 @@ export function Chat({ messages, onSend, className, darkMode = false, chatActivi
   const theme = useTheme(darkMode);
   const [input, setInput] = useState("");
   const [attachments, setAttachments] = useState<ChatAttachment[]>([]);
-  const [now, setNow] = useState(() => Date.now());
-  const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
-
-  useEffect(() => {
-    if (!chatActivity?.active || !chatActivity.startedAt) return;
-    const timer = window.setInterval(() => setNow(Date.now()), 1000);
-    return () => window.clearInterval(timer);
-  }, [chatActivity?.active, chatActivity?.startedAt]);
-
-  const activitySeconds = chatActivity?.active && chatActivity.startedAt
-    ? Math.max(0, Math.floor((now - chatActivity.startedAt) / 1000))
-    : 0;
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -75,69 +59,13 @@ export function Chat({ messages, onSend, className, darkMode = false, chatActivi
 
   return (
     <div className={clsx("flex flex-col h-full overflow-y-auto p-4 font-mono text-sm", className)}>
-      {chatActivity?.active && (
-        <div
-          className="mb-3 rounded-md px-3 py-2 text-xs flex items-center justify-between"
-          style={{ border: `1px solid ${theme.border}`, backgroundColor: theme.subtleBg }}
-        >
-          <div className="flex items-center gap-2 min-w-0">
-            {chatActivity.phase === "failed" ? (
-              <AlertTriangle size={14} className="shrink-0" />
-            ) : (
-              <Loader2 size={14} className="animate-spin shrink-0" />
-            )}
-            <span className="truncate">{chatActivity.label}</span>
-          </div>
-          <span className="opacity-60 ml-3 whitespace-nowrap">
-            {chatActivity.pendingCount > 0 ? `${chatActivity.pendingCount} pending` : ""}
-            {activitySeconds > 0 ? ` • ${activitySeconds}s` : ""}
-          </span>
-        </div>
-      )}
+      <ChatActivityBanner
+        activity={chatActivity}
+        borderColor={theme.border}
+        backgroundColor={theme.subtleBg}
+      />
 
-      <div className="flex-1 space-y-4">
-        {messages.map((msg) => (
-          <div key={msg.id} className="flex flex-col gap-1">
-            <div className="flex items-baseline gap-2 text-xs opacity-50 select-none">
-              <span>{msg.timestamp}</span>
-              <span className="uppercase tracking-wider font-bold">
-                {msg.role}{msg.source === "telegram" ? " (telegram)" : ""}
-              </span>
-              {msg.deliveryStatus && (
-                <span className="uppercase tracking-wider opacity-70">
-                  {msg.deliveryStatus === "queued" && "queued"}
-                  {msg.deliveryStatus === "sent" && "sent"}
-                  {msg.deliveryStatus === "thinking" && "thinking"}
-                  {msg.deliveryStatus === "failed" && "failed"}
-                </span>
-              )}
-            </div>
-            {msg.text && (
-              <div className="whitespace-pre-wrap leading-relaxed">
-                {msg.text}
-              </div>
-            )}
-            {msg.attachments && msg.attachments.length > 0 && (
-              <div className="flex gap-2 mt-1 flex-wrap">
-                {msg.attachments.map(att => (
-                  <img
-                    key={att.id}
-                    src={att.dataUrl}
-                    alt={att.name}
-                    className="max-w-xs max-h-48 rounded object-contain cursor-pointer hover:opacity-90 transition-opacity"
-                    style={{ border: `1px solid ${theme.border}` }}
-                    onClick={() => window.open(att.dataUrl, '_blank')}
-                  />
-                ))}
-              </div>
-            )}
-            {msg.tools && msg.tools.length > 0 && (
-              <ToolOutputs tools={msg.tools} />
-            )}
-          </div>
-        ))}
-        <div ref={messagesEndRef} />
-      </div>
+      <MessageFeed messages={messages} borderColor={theme.border} />
 
       {/* Input area */}
       <div className="mt-4 pt-4" style={{ borderTop: `1px solid ${theme.border}` }}>
@@ -183,7 +111,6 @@ export function Chat({ messages, onSend, className, darkMode = false, chatActivi
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            // onKeyDown removed - handled by form submission
             placeholder="Type to Cairn..."
             className="flex-1 bg-transparent outline-none placeholder:opacity-30"
           />
@@ -213,6 +140,104 @@ export function Chat({ messages, onSend, className, darkMode = false, chatActivi
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+const MessageFeed = memo(function MessageFeed({ messages, borderColor }: { messages: ChatMessage[]; borderColor: string }) {
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  return (
+    <div className="flex-1 space-y-4">
+      {messages.map((msg) => (
+        <div key={msg.id} className="flex flex-col gap-1">
+          <div className="flex items-baseline gap-2 text-xs opacity-50 select-none">
+            <span>{msg.timestamp}</span>
+            <span className="uppercase tracking-wider font-bold">
+              {msg.role}{msg.source === "telegram" ? " (telegram)" : ""}
+            </span>
+            {msg.deliveryStatus && (
+              <span className="uppercase tracking-wider opacity-70">
+                {msg.deliveryStatus === "queued" && "queued"}
+                {msg.deliveryStatus === "sent" && "sent"}
+                {msg.deliveryStatus === "thinking" && "thinking"}
+                {msg.deliveryStatus === "failed" && "failed"}
+              </span>
+            )}
+          </div>
+          {msg.text && (
+            <div className="whitespace-pre-wrap leading-relaxed">
+              {msg.text}
+            </div>
+          )}
+          {msg.attachments && msg.attachments.length > 0 && (
+            <div className="flex gap-2 mt-1 flex-wrap">
+              {msg.attachments.map(att => (
+                <img
+                  key={att.id}
+                  src={att.dataUrl}
+                  alt={att.name}
+                  className="max-w-xs max-h-48 rounded object-contain cursor-pointer hover:opacity-90 transition-opacity"
+                  style={{ border: `1px solid ${borderColor}` }}
+                  onClick={() => window.open(att.dataUrl, '_blank')}
+                />
+              ))}
+            </div>
+          )}
+          {msg.tools && msg.tools.length > 0 && (
+            <ToolOutputs tools={msg.tools} />
+          )}
+        </div>
+      ))}
+      <div ref={messagesEndRef} />
+    </div>
+  );
+});
+
+function ChatActivityBanner({
+  activity,
+  borderColor,
+  backgroundColor,
+}: {
+  activity?: ChatActivity;
+  borderColor: string;
+  backgroundColor: string;
+}) {
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (!activity?.active || !activity.startedAt) return;
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [activity?.active, activity?.startedAt]);
+
+  if (!activity?.active) return null;
+
+  const activitySeconds = activity.startedAt
+    ? Math.max(0, Math.floor((now - activity.startedAt) / 1000))
+    : 0;
+
+  return (
+    <div
+      className="mb-3 rounded-md px-3 py-2 text-xs flex items-center justify-between"
+      style={{ border: `1px solid ${borderColor}`, backgroundColor }}
+    >
+      <div className="flex items-center gap-2 min-w-0">
+        {activity.phase === "failed" ? (
+          <AlertTriangle size={14} className="shrink-0" />
+        ) : (
+          <Loader2 size={14} className="animate-spin shrink-0" />
+        )}
+        <span className="truncate">{activity.label}</span>
+      </div>
+      <span className="opacity-60 ml-3 whitespace-nowrap">
+        {activity.pendingCount > 0 ? `${activity.pendingCount} pending` : ""}
+        {activitySeconds > 0 ? ` • ${activitySeconds}s` : ""}
+      </span>
     </div>
   );
 }
