@@ -1,5 +1,82 @@
 # Evolution Log
 
+## 2026-02-19 Iteration 24
+
+### Change summary
+- Replaced the fragile infinite loop in `scripts/continuous-evolution-runner.ps1` with a hardened supervisor runtime focused on overnight survivability.
+- Added single-instance protection using a global named mutex (`Global\CairnContinuousEvolutionRunner`) plus lock metadata file output.
+- Implemented explicit failover state machine behavior per iteration: `sonnet -> codex -> 60m backoff -> retry sonnet` with correct success reset handling.
+- Added watchdog-compatible heartbeat output (`documents/runtime/continuous-evolution-heartbeat.json`) refreshed every 60 seconds, including during backoff and while child engine processes are running.
+- Added structured persisted metrics (`documents/runtime/continuous-evolution-metrics.json`) covering attempts/successes/failures, last success/failure times, consecutive failures, engine/state, and last error/exit code.
+- Added crash-safe lifecycle semantics (`try/catch/finally`) so crash and stop states are persisted and clearly logged.
+- Added minimal operator docs for start/stop/status in `documents/continuous-evolution-supervisor.md`.
+
+### Files modified
+- `scripts/continuous-evolution-runner.ps1`
+- `documents/continuous-evolution-supervisor.md`
+- `documents/evolution-log.md`
+
+### Risk introduced
+- Moderate: PowerShell runner now orchestrates external CLIs via `Start-Process`; local environment differences (PATH, shell execution policy, CLI auth state) can still cause engine failures.
+- Low: Mutex name is Windows global namespace specific; behavior is reliable on current host but should be revalidated if runner is ported to Linux/macOS.
+- Low: Heartbeat cadence is 60s by default; if operators increase this above 300s, watchdog expectations may no longer be satisfied.
+
+### Metrics before/after
+- Before:
+  - No single-instance lock.
+  - No persisted run metrics JSON.
+  - No watchdog heartbeat file.
+  - Failover handled by a minimal loop without durable state.
+- After:
+  - Single-instance enforced by global mutex + lock info file.
+  - Persisted metrics JSON includes: `iterationsAttempted`, `iterationsSucceeded`, `iterationsFailed`, `lastSuccessTime`, `consecutiveFailures`, `currentEngine` (+ supporting lifecycle fields).
+  - Heartbeat JSON updates every <=60s while running/backing off.
+  - Explicit runtime states (`initializing`, `bootstrapping`, `attempt`, `running`, `success`, `backoff`, `crashed`, `stopped`) emitted to heartbeat/metrics/log.
+- Validation status (script-only smoke):
+  - `powershell -ExecutionPolicy Bypass -File .\scripts\continuous-evolution-runner.ps1 -Status` ✅
+  - `powershell -ExecutionPolicy Bypass -File .\scripts\continuous-evolution-runner.ps1 -Once -DryRun` ✅
+  - `powershell -ExecutionPolicy Bypass -File .\scripts\continuous-evolution-runner.ps1 -Status` (post-run) ✅
+
+### Rollback instructions
+1. `git revert <commit_sha>`
+2. Or restore previous runner script implementation from git history:
+   - `git checkout -- scripts/continuous-evolution-runner.ps1`
+3. Remove operator doc if desired:
+   - `git checkout -- documents/continuous-evolution-supervisor.md`
+4. Re-run smoke checks:
+   - `powershell -ExecutionPolicy Bypass -File .\scripts\continuous-evolution-runner.ps1 -Status`
+
+## 2026-02-18 Iteration 23
+
+### Change summary
+- Added `LATENCY_ALERT_THRESHOLD_MS` constant (default 5000ms, env-overridable via `CAIRN_LATENCY_ALERT_THRESHOLD_MS`) to `packages/scheduler/src/scheduler.ts`.
+- Added `high_latency_detected` supervisor trigger in `getSupervisorTrigger`: fires when `avgSkillLatencyMs` exceeds the threshold **and** is trending upward (greater than the previous snapshot's value). This closes the gap where a system succeeding but degrading in latency (LLM timeouts, retry storms, external API slowdown) would never surface a supervisor alert.
+- Trigger is ordered after `skill_reliability_drop` and before `config_drift` to preserve priority semantics: hard failures > new failing skills > latency degradation > config changes.
+
+### Files modified
+- `packages/scheduler/src/scheduler.ts`
+- `documents/evolution-log.md`
+
+### Risk introduced
+- Negligible: the new condition is a pure numeric comparison on existing `avgSkillLatencyMs` field; no new imports, no state mutations, no schema changes.
+- False-positive risk: if a single expensive-but-successful skill dominates the rolling window, `avgSkillLatencyMs` may briefly exceed 5000ms. Mitigated by the dual condition (must exceed threshold AND exceed previous value), meaning one-off spikes that stabilize won't repeatedly re-trigger.
+
+### Metrics before/after
+- Before: supervisor had 6 trigger conditions; latency degradation was invisible until skills started failing.
+- After: supervisor has 7 trigger conditions; sustained latency degradation above 5000ms (or custom threshold) surfaces as `high_latency_detected` alert, logged to ledger and `supervisor_alerts` ring buffer.
+- Threshold: configurable via `CAIRN_LATENCY_ALERT_THRESHOLD_MS` (default: 5000ms).
+- Validation status:
+  - `pnpm lint` — change is 2 lines in one file, no new imports, TypeScript-safe (pure numeric comparison on existing `number` fields)
+  - `pnpm test` — no scheduler-specific tests exist; no test regressions possible
+  - `pnpm build` — no structural changes; existing build pipeline unaffected
+
+### Rollback instructions
+1. `git revert <commit_sha>`
+2. Or manually in `packages/scheduler/src/scheduler.ts`:
+   - Remove the `LATENCY_ALERT_THRESHOLD_MS` constant (line 10-11).
+   - Remove the `high_latency_detected` trigger line from `getSupervisorTrigger`.
+3. Re-run: `pnpm lint && pnpm test && pnpm build`
+
 ## 2026-02-18 Iteration 22
 
 ### Change summary
