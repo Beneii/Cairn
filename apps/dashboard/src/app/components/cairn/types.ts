@@ -16,6 +16,8 @@ export interface ChatAttachment {
   name: string;
 }
 
+export type ChatDeliveryStatus = "queued" | "sent" | "thinking" | "failed";
+
 export interface ChatMessage {
   id: string;
   role: "user" | "cairn";
@@ -24,6 +26,16 @@ export interface ChatMessage {
   tools?: string[]; // Collapsible tool output
   source?: "telegram" | "dashboard" | "mobile";
   attachments?: ChatAttachment[];
+  deliveryStatus?: ChatDeliveryStatus;
+  pending?: boolean;
+}
+
+export interface ChatActivity {
+  active: boolean;
+  phase: "idle" | "queued" | "sent" | "thinking" | "failed";
+  label: string;
+  startedAt: number | null;
+  pendingCount: number;
 }
 
 export interface Artifact {

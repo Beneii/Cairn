@@ -1,5 +1,41 @@
 # Evolution Log
 
+## 2026-02-18 Iteration 12
+
+### Change summary
+- Added optimistic chat send in the Home control-center Chat panel: outgoing user messages now render instantly with delivery state (`queued` -> `sent`) instead of waiting for websocket round-trip echo.
+- Added explicit in-flight response tracking (`chatActivity`) shared across Chat + Home header so users always see whether Cairn is sending, thinking, or failed, including pending-count and elapsed wait time.
+- Added explicit send affordance + offline guardrail: visible Send button with connected-state disable and disconnected warning to reduce uncertainty when actions cannot execute.
+
+### Files modified
+- `apps/dashboard/src/app/hooks/useCairn.ts`
+- `apps/dashboard/src/app/components/cairn/Chat.tsx`
+- `apps/dashboard/src/app/components/cairn/types.ts`
+- `apps/dashboard/src/app/App.tsx`
+- `documents/evolution-log.md`
+
+### Risk introduced
+- Medium: optimistic-message reconciliation currently matches by text + attachment count; duplicate rapid sends with identical payloads could reconcile to the wrong local placeholder.
+- Low: global chat activity clears on first assistant response event; in rare multi-reply/tool-stream flows, activity may resolve slightly early.
+
+### Metrics before/after
+- Time-to-visible user feedback after Enter: `network-dependent echo` -> `immediate local render (~0ms UI delay)`.
+- Progress-state visibility during long model/tool runs: `implicit/none` -> `explicit phase + pending count + elapsed seconds` in both Chat and Home header.
+- Failed-send clarity while disconnected: `silent/console-only` -> `inline failed status + composer warning + disabled Send`.
+- Validation status:
+  - `pnpm lint` ✅
+  - `pnpm test` ✅
+  - `pnpm build` ✅
+
+### Rollback instructions
+1. `git revert <commit_sha>`
+2. Or manually revert:
+   - remove optimistic + `chatActivity` handling in `useCairn.ts`,
+   - restore prior passive Chat composer/UI in `Chat.tsx`,
+   - remove `ChatActivity`/delivery metadata in `types.ts`,
+   - remove Home header chat-activity wiring in `App.tsx`.
+3. Re-run: `pnpm lint && pnpm test && pnpm build`
+
 ## 2026-02-18 Iteration 11
 
 ### Change summary

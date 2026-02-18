@@ -15,7 +15,8 @@ import { GoalsPage } from "./components/cairn/pages/GoalsPage";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "./components/ui/resizable";
 import { useCairn } from "./hooks/useCairn";
 import { useLayout, type PanelId } from "./hooks/useLayout";
-import { getApiBase, getGatewayUrl } from "../config/runtime";
+import { getGatewayUrl } from "../config/runtime";
+import type { ChatActivity } from "./components/cairn/types";
 
 export default function App() {
   const [darkMode, setDarkMode] = useState(() => {
@@ -172,6 +173,7 @@ export default function App() {
                   toggleViewMode={toggleViewMode}
                   resetLayout={resetLayout}
                   onOpenCommandPalette={() => setCommandPaletteOpen(true)}
+                  chatActivity={cairn.chatActivity}
                 />
               </ResizablePanel>
 
@@ -179,7 +181,14 @@ export default function App() {
 
               <ResizablePanel defaultSize={layout.vertical[1]} minSize={15}>
                 <div className="h-full" style={{ borderBottom: `1px solid ${border}` }}>
-                  <Chat messages={cairn.messages} onSend={cairn.sendChat} className="h-full" darkMode={darkMode} />
+                  <Chat
+                    messages={cairn.messages}
+                    onSend={cairn.sendChat}
+                    className="h-full"
+                    darkMode={darkMode}
+                    chatActivity={cairn.chatActivity}
+                    connected={cairn.connected}
+                  />
                 </div>
               </ResizablePanel>
 
@@ -216,6 +225,7 @@ export default function App() {
                       toggleViewMode={toggleViewMode}
                       resetLayout={resetLayout}
                       onOpenCommandPalette={() => setCommandPaletteOpen(true)}
+                      chatActivity={cairn.chatActivity}
                     />
                   </ResizablePanel>
 
@@ -223,7 +233,14 @@ export default function App() {
 
                   <ResizablePanel defaultSize={layout.splitHorizontal[1]} minSize={25}>
                     <div className="h-full" style={{ borderRight: `1px solid ${border}` }}>
-                      <Chat messages={cairn.messages} onSend={cairn.sendChat} className="h-full" darkMode={darkMode} />
+                      <Chat
+                        messages={cairn.messages}
+                        onSend={cairn.sendChat}
+                        className="h-full"
+                        darkMode={darkMode}
+                        chatActivity={cairn.chatActivity}
+                        connected={cairn.connected}
+                      />
                     </div>
                   </ResizablePanel>
                 </ResizablePanelGroup>
@@ -331,6 +348,7 @@ function NucleusSection({
   toggleViewMode,
   resetLayout,
   onOpenCommandPalette,
+  chatActivity,
 }: {
   cairn: ReturnType<typeof useCairn>;
   bg: string;
@@ -345,6 +363,7 @@ function NucleusSection({
   toggleViewMode: () => void;
   resetLayout: () => void;
   onOpenCommandPalette: () => void;
+  chatActivity: ChatActivity;
 }) {
   return (
     <div
@@ -356,6 +375,11 @@ function NucleusSection({
         <div className="text-[10px] opacity-40 uppercase tracking-widest mt-1">
           {cairn.connected ? "Live Environment" : "Connecting..."}
         </div>
+        {chatActivity.active && (
+          <div className="mt-2 text-[10px] uppercase tracking-widest px-2 py-1 rounded border border-current/20 opacity-80">
+            {chatActivity.label}
+          </div>
+        )}
       </div>
 
       <div className="absolute top-6 right-6 z-50">

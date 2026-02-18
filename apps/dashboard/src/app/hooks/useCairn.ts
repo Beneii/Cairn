@@ -9,6 +9,7 @@ import type {
   ProactiveConfig,
   SkillRequest,
   SkillMetric,
+  ChatActivity,
 } from "../components/cairn/types";
 import type { NucleusState } from "../components/cairn/Nucleus";
 import { getWsUrl, getApiBase, getMode, getDashboardAuthToken } from "../../config/runtime";
@@ -18,6 +19,7 @@ interface CairnState {
   nucleusState: NucleusState;
   subAgents: SubAgent[];
   messages: ChatMessage[];
+  chatActivity: ChatActivity;
   notes: Note[];
   kanbanCards: KanbanCard[];
   logs: LogEntry[];
@@ -78,6 +80,13 @@ export function useCairn() {
     nucleusState: "idle",
     subAgents: [],
     messages: [],
+    chatActivity: {
+      active: false,
+      phase: "idle",
+      label: "Idle",
+      startedAt: null,
+      pendingCount: 0,
+    },
     notes: [],
     kanbanCards: [],
     logs: [],
@@ -122,6 +131,24 @@ export function useCairn() {
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mountedRef = useRef(false);
+
+  const isoClock = () => new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+
+  const resolvePendingMessage = (messages: ChatMessage[], serverMessage: ChatMessage) => {
+    const index = messages.findIndex((m) =>
+      m.pending &&
+      m.role === "user" &&
+      m.source === "dashboard" &&
+      m.text === serverMessage.text &&
+      (m.attachments?.length || 0) === (serverMessage.attachments?.length || 0)
+    );
+
+    if (index === -1) return { messages: [...messages, serverMessage], replaced: false };
+
+    const next = [...messages];
+    next[index] = { ...serverMessage, deliveryStatus: undefined, pending: false };
+    return { messages: next, replaced: true };
+  };
 
   useEffect(() => {
     mountedRef.current = true;
@@ -181,7 +208,39 @@ export function useCairn() {
             case "chat:message":
               setState((s) => {
                 if (s.messages.some((m) => m.id === msg.message.id)) return s;
-                return { ...s, messages: [...s.messages, msg.message] };
+
+                if (msg.message.role === "user") {
+                  const resolved = resolvePendingMessage(s.messages, msg.message);
+                  const pendingCount = resolved.messages.filter((m) => m.pending).length;
+                  return {
+                    ...s,
+                    messages: resolved.messages,
+                    chatActivity: pendingCount > 0
+                      ? {
+                          ...s.chatActivity,
+                          active: true,
+                          phase: "thinking",
+                          label: "Cairn is working on your request…",
+                          pendingCount,
+                        }
+                      : s.chatActivity,
+                  };
+                }
+
+                const pendingCount = s.messages.filter((m) => m.pending).length;
+                return {
+                  ...s,
+                  messages: [...s.messages, msg.message],
+                  chatActivity: pendingCount > 0
+                    ? {
+                        active: false,
+                        phase: "idle",
+                        label: "Reply received",
+                        startedAt: null,
+                        pendingCount: 0,
+                      }
+                    : s.chatActivity,
+                };
               });
               break;
             case "nucleus:state":
@@ -285,22 +344,72 @@ export function useCairn() {
   }, [wsUrl, dashboardAuthToken]);
 
   const sendChat = useCallback((text: string, attachments?: ChatAttachment[]) => {
-    console.log("sendMessage called with:", text);
     const payload: Record<string, unknown> = { type: "chat:send", text };
     if (attachments && attachments.length > 0) {
       payload.attachments = attachments;
     }
 
-    const ws = wsRef.current;
-    console.log("WS state:", ws?.readyState);
+    const optimisticId = `local-${crypto.randomUUID()}`;
+    const optimisticMessage: ChatMessage = {
+      id: optimisticId,
+      role: "user",
+      text,
+      timestamp: isoClock(),
+      source: "dashboard",
+      attachments,
+      deliveryStatus: "queued",
+      pending: true,
+    };
 
+    setState((s) => {
+      const messages = [...s.messages, optimisticMessage];
+      const pendingCount = messages.filter((m) => m.pending).length;
+      return {
+        ...s,
+        messages,
+        chatActivity: {
+          active: true,
+          phase: "queued",
+          label: "Sending request…",
+          startedAt: Date.now(),
+          pendingCount,
+        },
+      };
+    });
+
+    const ws = wsRef.current;
     if (ws && ws.readyState === WebSocket.OPEN) {
-      console.log("Raw payload:", payload);
-      console.log("Serialized:", JSON.stringify(payload));
       ws.send(JSON.stringify(payload));
+      setState((s) => ({
+        ...s,
+        messages: s.messages.map((m) =>
+          m.id === optimisticId
+            ? { ...m, deliveryStatus: "sent" as const }
+            : m
+        ),
+        chatActivity: {
+          ...s.chatActivity,
+          active: true,
+          phase: "thinking",
+          label: "Request sent. Cairn is thinking…",
+        },
+      }));
     } else {
-      console.warn("WebSocket not open, cannot send message. State:", ws?.readyState);
-      // Optionally queue message or show error toast
+      setState((s) => ({
+        ...s,
+        messages: s.messages.map((m) =>
+          m.id === optimisticId
+            ? { ...m, deliveryStatus: "failed" as const, pending: false }
+            : m
+        ),
+        chatActivity: {
+          active: true,
+          phase: "failed",
+          label: "Not connected. Message not sent.",
+          startedAt: s.chatActivity.startedAt,
+          pendingCount: s.messages.filter((m) => m.pending && m.id !== optimisticId).length,
+        },
+      }));
     }
   }, []);
 

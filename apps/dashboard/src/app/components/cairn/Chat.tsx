@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
-import type { ChatMessage, ChatAttachment } from "./types";
+import type { ChatMessage, ChatAttachment, ChatActivity } from "./types";
 import { clsx } from "clsx";
-import { ChevronDown, ChevronRight, Paperclip, X } from "lucide-react";
+import { AlertTriangle, ChevronDown, ChevronRight, Loader2, Paperclip, Send, X } from "lucide-react";
 import { useTheme } from "../../theme";
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
@@ -12,18 +12,31 @@ interface ChatProps {
   onSend?: (text: string, attachments?: ChatAttachment[]) => void;
   className?: string;
   darkMode?: boolean;
+  chatActivity?: ChatActivity;
+  connected?: boolean;
 }
 
-export function Chat({ messages, onSend, className, darkMode = false }: ChatProps) {
+export function Chat({ messages, onSend, className, darkMode = false, chatActivity, connected = true }: ChatProps) {
   const theme = useTheme(darkMode);
   const [input, setInput] = useState("");
   const [attachments, setAttachments] = useState<ChatAttachment[]>([]);
+  const [now, setNow] = useState(() => Date.now());
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  useEffect(() => {
+    if (!chatActivity?.active || !chatActivity.startedAt) return;
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [chatActivity?.active, chatActivity?.startedAt]);
+
+  const activitySeconds = chatActivity?.active && chatActivity.startedAt
+    ? Math.max(0, Math.floor((now - chatActivity.startedAt) / 1000))
+    : 0;
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -62,6 +75,26 @@ export function Chat({ messages, onSend, className, darkMode = false }: ChatProp
 
   return (
     <div className={clsx("flex flex-col h-full overflow-y-auto p-4 font-mono text-sm", className)}>
+      {chatActivity?.active && (
+        <div
+          className="mb-3 rounded-md px-3 py-2 text-xs flex items-center justify-between"
+          style={{ border: `1px solid ${theme.border}`, backgroundColor: theme.subtleBg }}
+        >
+          <div className="flex items-center gap-2 min-w-0">
+            {chatActivity.phase === "failed" ? (
+              <AlertTriangle size={14} className="shrink-0" />
+            ) : (
+              <Loader2 size={14} className="animate-spin shrink-0" />
+            )}
+            <span className="truncate">{chatActivity.label}</span>
+          </div>
+          <span className="opacity-60 ml-3 whitespace-nowrap">
+            {chatActivity.pendingCount > 0 ? `${chatActivity.pendingCount} pending` : ""}
+            {activitySeconds > 0 ? ` • ${activitySeconds}s` : ""}
+          </span>
+        </div>
+      )}
+
       <div className="flex-1 space-y-4">
         {messages.map((msg) => (
           <div key={msg.id} className="flex flex-col gap-1">
@@ -70,6 +103,14 @@ export function Chat({ messages, onSend, className, darkMode = false }: ChatProp
               <span className="uppercase tracking-wider font-bold">
                 {msg.role}{msg.source === "telegram" ? " (telegram)" : ""}
               </span>
+              {msg.deliveryStatus && (
+                <span className="uppercase tracking-wider opacity-70">
+                  {msg.deliveryStatus === "queued" && "queued"}
+                  {msg.deliveryStatus === "sent" && "sent"}
+                  {msg.deliveryStatus === "thinking" && "thinking"}
+                  {msg.deliveryStatus === "failed" && "failed"}
+                </span>
+              )}
             </div>
             {msg.text && (
               <div className="whitespace-pre-wrap leading-relaxed">
@@ -146,7 +187,17 @@ export function Chat({ messages, onSend, className, darkMode = false }: ChatProp
             placeholder="Type to Cairn..."
             className="flex-1 bg-transparent outline-none placeholder:opacity-30"
           />
-          <button type="submit" className="hidden" /> {/* Implicit submission on Enter */}
+          <button
+            type="submit"
+            className="rounded px-2 py-1 text-xs border transition-opacity disabled:opacity-40"
+            style={{ borderColor: theme.border }}
+            disabled={(!input.trim() && attachments.length === 0) || !connected}
+          >
+            <span className="inline-flex items-center gap-1">
+              <Send size={12} />
+              Send
+            </span>
+          </button>
           <input
             ref={fileInputRef}
             type="file"
@@ -156,6 +207,11 @@ export function Chat({ messages, onSend, className, darkMode = false }: ChatProp
             className="hidden"
           />
         </form>
+        {!connected && (
+          <div className="text-[10px] mt-2 opacity-60 uppercase tracking-wider">
+            Disconnected — messages won’t send until socket reconnects.
+          </div>
+        )}
       </div>
     </div>
   );
