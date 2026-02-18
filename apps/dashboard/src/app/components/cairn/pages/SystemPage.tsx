@@ -41,6 +41,7 @@ export function SystemSettings({ connected, diagnostics, localModeEnabled, nodes
     const [healthDetail, setHealthDetail] = useState("");
     const [showNodes, setShowNodes] = useState(false);
     const [pendingAction, setPendingAction] = useState<"localMode" | "update" | "builder" | null>(null);
+    const [ackTimeoutAction, setAckTimeoutAction] = useState<"update" | "builder" | null>(null);
 
     const [localMode, setLocalModeState] = useState(localModeEnabled);
 
@@ -78,11 +79,26 @@ export function SystemSettings({ connected, diagnostics, localModeEnabled, nodes
     useEffect(() => {
         if (pendingAction === "update" && updateProgress && updateProgress.stage !== "idle") {
             setPendingAction(null);
+            setAckTimeoutAction(null);
         }
         if (pendingAction === "builder" && builderStatus === "running") {
             setPendingAction(null);
+            setAckTimeoutAction(null);
         }
     }, [pendingAction, updateProgress, builderStatus]);
+
+    useEffect(() => {
+        if (pendingAction !== "update" && pendingAction !== "builder") {
+            return;
+        }
+
+        const timeout = window.setTimeout(() => {
+            setAckTimeoutAction(pendingAction);
+            setPendingAction(null);
+        }, 8000);
+
+        return () => window.clearTimeout(timeout);
+    }, [pendingAction]);
 
     const handleToggleLocalMode = () => {
         const newState = !localMode;
@@ -100,6 +116,8 @@ export function SystemSettings({ connected, diagnostics, localModeEnabled, nodes
     const nodeList = Object.entries(nodes);
     const updateBusy = !!updateProgress && updateProgress.stage !== "error" && updateProgress.stage !== "idle";
     const builderBusy = builderStatus === "running";
+    const updateAwaitingAck = pendingAction === "update";
+    const builderAwaitingAck = pendingAction === "builder";
 
     return (
         <div>
@@ -111,6 +129,8 @@ export function SystemSettings({ connected, diagnostics, localModeEnabled, nodes
                 {pendingAction === "localMode" && "Saving local mode preference..."}
                 {pendingAction === "update" && "Update request sent. Waiting for gateway acknowledgement..."}
                 {pendingAction === "builder" && "Builder run request sent. Waiting for scheduler acknowledgement..."}
+                {!pendingAction && ackTimeoutAction === "update" && "Update acknowledgement is delayed. You can retry."}
+                {!pendingAction && ackTimeoutAction === "builder" && "Builder acknowledgement is delayed. You can retry."}
             </div>
 
             <section className="mb-8">
@@ -134,18 +154,19 @@ export function SystemSettings({ connected, diagnostics, localModeEnabled, nodes
                             <button
                                 onClick={() => {
                                     setPendingAction("update");
+                                    setAckTimeoutAction(null);
                                     triggerUpdate();
                                 }}
-                                disabled={updateBusy}
+                                disabled={updateBusy || updateAwaitingAck}
                                 className="inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-medium"
                                 style={{
-                                    backgroundColor: updateBusy ? (darkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)') : (darkMode ? '#E5E5E5' : '#1A1D21'),
-                                    color: updateBusy ? 'inherit' : (darkMode ? '#1c1c1c' : '#F3F2EE'),
-                                    opacity: updateBusy ? 0.6 : 1,
+                                    backgroundColor: (updateBusy || updateAwaitingAck) ? (darkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)') : (darkMode ? '#E5E5E5' : '#1A1D21'),
+                                    color: (updateBusy || updateAwaitingAck) ? 'inherit' : (darkMode ? '#1c1c1c' : '#F3F2EE'),
+                                    opacity: (updateBusy || updateAwaitingAck) ? 0.6 : 1,
                                 }}
                             >
-                                {updateBusy ? <RefreshCw size={12} className="animate-spin" /> : <Download size={12} />}
-                                {updateBusy ? "In progress" : "Run update"}
+                                {(updateBusy || updateAwaitingAck) ? <RefreshCw size={12} className="animate-spin" /> : <Download size={12} />}
+                                {updateBusy ? "In progress" : updateAwaitingAck ? "Sending..." : "Run update"}
                             </button>
                             {updateProgress?.message && <div className="mt-2 text-xs opacity-65">{updateProgress.message}</div>}
                         </div>
@@ -158,18 +179,19 @@ export function SystemSettings({ connected, diagnostics, localModeEnabled, nodes
                             <button
                                 onClick={() => {
                                     setPendingAction("builder");
+                                    setAckTimeoutAction(null);
                                     triggerBuilder();
                                 }}
-                                disabled={builderBusy}
+                                disabled={builderBusy || builderAwaitingAck}
                                 className="inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-medium"
                                 style={{
-                                    backgroundColor: builderBusy ? (darkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)') : (darkMode ? '#E5E5E5' : '#1A1D21'),
-                                    color: builderBusy ? 'inherit' : (darkMode ? '#1c1c1c' : '#F3F2EE'),
-                                    opacity: builderBusy ? 0.6 : 1,
+                                    backgroundColor: (builderBusy || builderAwaitingAck) ? (darkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)') : (darkMode ? '#E5E5E5' : '#1A1D21'),
+                                    color: (builderBusy || builderAwaitingAck) ? 'inherit' : (darkMode ? '#1c1c1c' : '#F3F2EE'),
+                                    opacity: (builderBusy || builderAwaitingAck) ? 0.6 : 1,
                                 }}
                             >
-                                {builderBusy ? <RefreshCw size={12} className="animate-spin" /> : <Zap size={12} />}
-                                {builderBusy ? "In progress" : "Run builder"}
+                                {(builderBusy || builderAwaitingAck) ? <RefreshCw size={12} className="animate-spin" /> : <Zap size={12} />}
+                                {builderBusy ? "In progress" : builderAwaitingAck ? "Sending..." : "Run builder"}
                             </button>
                             {builderProgress && <div className="mt-2 text-xs opacity-65">{builderProgress}</div>}
                         </div>

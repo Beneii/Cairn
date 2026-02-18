@@ -1,5 +1,37 @@
 # Evolution Log
 
+## 2026-02-18 Iteration 15
+
+### Change summary
+- Hardened System Control Center action responsiveness by introducing explicit "awaiting acknowledgement" state for Update Pipeline and Branch Builder triggers.
+- Added optimistic request-locking on update/builder actions so repeated clicks cannot enqueue duplicate runs while waiting for first backend acknowledgement.
+- Added 8s acknowledgement timeout handling that downgrades stuck pending state to a clear delayed-ack message and re-enables retry instead of leaving controls ambiguous.
+
+### Files modified
+- `apps/dashboard/src/app/components/cairn/pages/SystemPage.tsx`
+- `documents/evolution-log.md`
+
+### Risk introduced
+- Low: a slow-but-valid acknowledgement arriving after the 8s timeout can race with user retry and create duplicated backend requests in rare high-latency conditions.
+- Low: timeout duration is static (8s) and may need tuning for slower remote environments.
+
+### Metrics before/after
+- Duplicate trigger guard while waiting for first ack: `none (unbounded repeat clicks)` -> `single in-flight request per action until ack/timeout`.
+- Action feedback granularity (update/builder): `2 states (ready/in progress)` -> `3 states (ready/sending/in progress)`.
+- Stuck pending recovery path: `indefinite waiting copy` -> `auto-timeout at 8s + explicit delayed-ack notice + retry re-enabled`.
+- Validation status:
+  - `pnpm lint` ✅
+  - `pnpm test` ✅
+  - `pnpm build` ✅
+
+### Rollback instructions
+1. `git revert <commit_sha>`
+2. Or manually revert in `SystemPage.tsx`:
+   - remove `ackTimeoutAction` state + timeout `useEffect`,
+   - restore update/builder button disabled + label logic to busy-only behavior,
+   - remove delayed-ack status copy in the aria-live message block.
+3. Re-run: `pnpm lint && pnpm test && pnpm build`
+
 ## 2026-02-18 Iteration 14
 
 ### Change summary
