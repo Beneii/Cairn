@@ -72,6 +72,18 @@
         "shell"
       ],
       "runtime_skill_id": null
+    },
+    {
+      "name": "architectural_diff_analyzer",
+      "path": "skills/architectural_diff_analyzer/SKILL.md",
+      "entry_script": "skills/architectural_diff_analyzer/scripts/architectural_diff.mjs",
+      "enabled": true,
+      "version": 1,
+      "tier": 1,
+      "required_tools": [
+        "shell"
+      ],
+      "runtime_skill_id": null
     }
   ]
 }
