@@ -1,5 +1,36 @@
 # Evolution Log
 
+## 2026-02-18 Iteration 16
+
+### Change summary
+- Improved control-center home-view responsiveness by decoupling `NucleusSection` from the full `useCairn()` object and passing only the state it actually renders (`connected`, `nucleusState`, `subAgents`, and `chatActivity`).
+- Wrapped `NucleusSection` in `React.memo` so high-frequency dashboard updates (logs, archive data, settings payload churn) no longer force unnecessary re-render work in the nucleus/header region when its inputs are unchanged.
+- Preserved existing UX and control behavior while reducing prop-churn in the hottest home-layout branch.
+
+### Files modified
+- `apps/dashboard/src/app/App.tsx`
+- `documents/evolution-log.md`
+
+### Risk introduced
+- Low: memoization relies on stable prop identity for arrays like `subAgents`; if backend emits semantically-identical arrays with new references each tick, rerender reduction is partially reduced (behavior remains correct).
+- Low: stricter prop typing in `NucleusSection` increases coupling to `SubAgent`/`NucleusState` type exports.
+
+### Metrics before/after
+- `NucleusSection` prop surface: `1 broad object (entire useCairn return)` -> `4 targeted data props + existing UI callbacks/style props`.
+- Home-view unnecessary rerender trigger paths for nucleus/header: `any change in useCairn object identity` -> `only when nucleus-relevant props actually change`.
+- Expected effect under noisy log stream + unchanged nucleus state: `nucleus/header rerenders on each parent update` -> `memo short-circuits most updates` (qualitative responsiveness gain, lower paint/churn in top panel).
+- Validation status:
+  - `pnpm lint` ✅
+  - `pnpm test` ✅
+  - `pnpm build` ✅
+
+### Rollback instructions
+1. `git revert <commit_sha>`
+2. Or manually revert in `App.tsx`:
+   - restore `NucleusSection` to accept `cairn: ReturnType<typeof useCairn>` and remove `memo(...)` wrapper,
+   - restore both call sites to pass `cairn={cairn}`.
+3. Re-run: `pnpm lint && pnpm test && pnpm build`
+
 ## 2026-02-18 Iteration 15
 
 ### Change summary

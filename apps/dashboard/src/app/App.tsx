@@ -1,7 +1,8 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { memo, useState, useEffect, useCallback, useMemo } from "react";
 import { DndProvider } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
 import { Nucleus } from "./components/cairn/Nucleus";
+import type { NucleusState } from "./components/cairn/Nucleus";
 import type { LayoutConfig, ViewMode } from "./hooks/useLayout";
 import { Chat } from "./components/cairn/Chat";
 import { Notes } from "./components/cairn/Notes";
@@ -16,7 +17,7 @@ import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "./componen
 import { useCairn } from "./hooks/useCairn";
 import { useLayout, type PanelId } from "./hooks/useLayout";
 import { getGatewayUrl } from "../config/runtime";
-import type { ChatActivity } from "./components/cairn/types";
+import type { ChatActivity, SubAgent } from "./components/cairn/types";
 
 export default function App() {
   const [darkMode, setDarkMode] = useState(() => {
@@ -167,7 +168,9 @@ export default function App() {
             <ResizablePanelGroup direction="vertical" onLayout={setVerticalSizes}>
               <ResizablePanel defaultSize={layout.vertical[0]} minSize={20}>
                 <NucleusSection
-                  cairn={cairn}
+                  connected={cairn.connected}
+                  nucleusState={cairn.nucleusState}
+                  subAgents={cairn.subAgents}
                   bg={bg}
                   border={border}
                   darkMode={darkMode}
@@ -219,7 +222,9 @@ export default function App() {
                 <ResizablePanelGroup direction="horizontal" onLayout={setSplitHorizontalSizes}>
                   <ResizablePanel defaultSize={layout.splitHorizontal[0]} minSize={20}>
                     <NucleusSection
-                      cairn={cairn}
+                      connected={cairn.connected}
+                      nucleusState={cairn.nucleusState}
+                      subAgents={cairn.subAgents}
                       bg={bg}
                       border={border}
                       darkMode={darkMode}
@@ -341,8 +346,10 @@ export default function App() {
 }
 
 /** Nucleus + Brand + NavBar section (reused in both stacked and split layouts) */
-function NucleusSection({
-  cairn,
+const NucleusSection = memo(function NucleusSection({
+  connected,
+  nucleusState,
+  subAgents,
   bg,
   border,
   darkMode,
@@ -357,7 +364,9 @@ function NucleusSection({
   onOpenCommandPalette,
   chatActivity,
 }: {
-  cairn: ReturnType<typeof useCairn>;
+  connected: boolean;
+  nucleusState: NucleusState;
+  subAgents: SubAgent[];
   bg: string;
   border: string;
   darkMode: boolean;
@@ -380,7 +389,7 @@ function NucleusSection({
       <div className="absolute top-6 left-6 z-50">
         <h1 className="text-2xl font-bold tracking-tighter">CAIRN</h1>
         <div className="text-[10px] opacity-40 uppercase tracking-widest mt-1">
-          {cairn.connected ? "Live Environment" : "Connecting..."}
+          {connected ? "Live Environment" : "Connecting..."}
         </div>
         {chatActivity.active && (
           <div className="mt-2 text-[10px] uppercase tracking-widest px-2 py-1 rounded border border-current/20 opacity-80">
@@ -404,16 +413,16 @@ function NucleusSection({
         />
       </div>
 
-      <Nucleus state={cairn.nucleusState} subAgents={cairn.subAgents} darkMode={darkMode} />
+      <Nucleus state={nucleusState} subAgents={subAgents} darkMode={darkMode} />
 
       <div className="absolute bottom-4 z-50">
         <span className="text-[10px] uppercase tracking-widest opacity-30">
-          {cairn.nucleusState}
+          {nucleusState}
         </span>
       </div>
     </div>
   );
-}
+});
 
 /** Bottom panels group (reused in both layouts) */
 function BottomPanels({
