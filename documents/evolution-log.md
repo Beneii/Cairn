@@ -1,5 +1,41 @@
 # Evolution Log
 
+## 2026-02-18 Iteration 13
+
+### Change summary
+- Hardened control-center responsiveness under long-running sessions by enforcing bounded in-memory buffers in the dashboard websocket state layer.
+- Capped chat history retained in live React state to the latest 300 messages, preventing gradual render cost/memory creep during extended operator sessions.
+- Capped log buffer retained in live state to the latest 1000 entries and surfaced cumulative trim count in the Logs panel (`trimmed N`) so operators understand why very old events are absent.
+- Added no-op guards for duplicate `builder:status` / `builder:progress` websocket events to avoid needless re-renders during noisy status streaming.
+
+### Files modified
+- `apps/dashboard/src/app/hooks/useCairn.ts`
+- `apps/dashboard/src/app/components/cairn/Logs.tsx`
+- `apps/dashboard/src/app/App.tsx`
+- `documents/evolution-log.md`
+
+### Risk introduced
+- Low: intentionally trimmed client-side history means extremely old chat/log context is no longer kept in hot UI memory (backend/archive sources remain authoritative).
+- Low: duplicate-event suppression for builder progress assumes identical payloads are semantically redundant.
+
+### Metrics before/after
+- Live dashboard log state growth: `unbounded` -> `hard-capped at 1000 entries` (worst-case list churn/memory now bounded).
+- Live dashboard chat state growth: `unbounded` -> `hard-capped at 300 messages`.
+- Builder event rerender pressure: `every repeated status/progress payload triggered state update` -> `identical payloads short-circuit (0 UI update for duplicates)`.
+- Operator clarity on retention: `no visibility into dropped logs` -> `explicit trimmed counter in Logs header`.
+- Validation status:
+  - `pnpm lint` ✅
+  - `pnpm test` ✅
+  - `pnpm build` ✅
+
+### Rollback instructions
+1. `git revert <commit_sha>`
+2. Or manually revert:
+   - remove `MAX_CHAT_HISTORY` / `MAX_LOG_BUFFER` capping and dropped-log diagnostics in `useCairn.ts`,
+   - remove `droppedCount` prop/UI from `Logs.tsx`,
+   - remove `droppedCount` wiring from `App.tsx`.
+3. Re-run: `pnpm lint && pnpm test && pnpm build`
+
 ## 2026-02-18 Iteration 12
 
 ### Change summary

@@ -15,6 +15,7 @@ import { useTheme } from "../../theme";
 
 interface LogsProps {
   logs: LogEntry[];
+  droppedCount?: number;
   className?: string;
   darkMode?: boolean;
 }
@@ -30,7 +31,7 @@ const ICON_MAP = {
 
 const MAX_VISIBLE_LOGS = 200;
 
-export function Logs({ logs, className, darkMode = false }: LogsProps) {
+export function Logs({ logs, droppedCount = 0, className, darkMode = false }: LogsProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [filter, setFilter] = useState<LogType | 'all'>('all');
   const theme = useTheme(darkMode);
@@ -68,6 +69,14 @@ export function Logs({ logs, className, darkMode = false }: LogsProps) {
           {logs.length > MAX_VISIBLE_LOGS && (
             <span className="text-[10px] opacity-40" aria-label={`Showing latest ${MAX_VISIBLE_LOGS} logs`}>
               showing latest {MAX_VISIBLE_LOGS}
+            </span>
+          )}
+          {droppedCount > 0 && (
+            <span
+              className="text-[10px] opacity-40"
+              aria-label={`${droppedCount} older logs trimmed for responsiveness`}
+            >
+              trimmed {droppedCount}
             </span>
           )}
         </div>

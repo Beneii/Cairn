@@ -14,6 +14,9 @@ import type {
 import type { NucleusState } from "../components/cairn/Nucleus";
 import { getWsUrl, getApiBase, getMode, getDashboardAuthToken } from "../../config/runtime";
 
+const MAX_CHAT_HISTORY = 300;
+const MAX_LOG_BUFFER = 1000;
+
 interface CairnState {
   connected: boolean;
   nucleusState: NucleusState;
@@ -60,6 +63,7 @@ interface CairnState {
     lastPong: string | null;
     lastError: string | null;
     reconnectCount: number;
+    droppedLogCount: number;
   };
   // Builder
   builder: {
@@ -122,6 +126,7 @@ export function useCairn() {
       lastPong: null,
       lastError: null,
       reconnectCount: 0,
+      droppedLogCount: 0,
     },
     builder: {
       status: "idle",
@@ -134,6 +139,9 @@ export function useCairn() {
 
   const isoClock = () => new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 
+  const capHistory = <T,>(entries: T[], limit: number) =>
+    entries.length > limit ? entries.slice(entries.length - limit) : entries;
+
   const resolvePendingMessage = (messages: ChatMessage[], serverMessage: ChatMessage) => {
     const index = messages.findIndex((m) =>
       m.pending &&
@@ -143,11 +151,11 @@ export function useCairn() {
       (m.attachments?.length || 0) === (serverMessage.attachments?.length || 0)
     );
 
-    if (index === -1) return { messages: [...messages, serverMessage], replaced: false };
+    if (index === -1) return { messages: capHistory([...messages, serverMessage], MAX_CHAT_HISTORY), replaced: false };
 
     const next = [...messages];
     next[index] = { ...serverMessage, deliveryStatus: undefined, pending: false };
-    return { messages: next, replaced: true };
+    return { messages: capHistory(next, MAX_CHAT_HISTORY), replaced: true };
   };
 
   useEffect(() => {
@@ -230,7 +238,7 @@ export function useCairn() {
                 const pendingCount = s.messages.filter((m) => m.pending).length;
                 return {
                   ...s,
-                  messages: [...s.messages, msg.message],
+                  messages: capHistory([...s.messages, msg.message], MAX_CHAT_HISTORY),
                   chatActivity: pendingCount > 0
                     ? {
                         active: false,
@@ -251,10 +259,18 @@ export function useCairn() {
               }));
               break;
             case "log:entry":
-              setState((s) => ({
-                ...s,
-                logs: [...s.logs, msg.entry],
-              }));
+              setState((s) => {
+                const nextLogs = [...s.logs, msg.entry];
+                const dropped = Math.max(0, nextLogs.length - MAX_LOG_BUFFER);
+                return {
+                  ...s,
+                  logs: capHistory(nextLogs, MAX_LOG_BUFFER),
+                  diagnostics: {
+                    ...s.diagnostics,
+                    droppedLogCount: s.diagnostics.droppedLogCount + dropped,
+                  },
+                };
+              });
               break;
             case "note:update":
               setState((s) => ({ ...s, notes: msg.notes }));
@@ -314,10 +330,10 @@ export function useCairn() {
               }));
               break;
             case "builder:status":
-              setState((s) => ({ ...s, builder: { ...s.builder, status: msg.status } }));
+              setState((s) => (s.builder.status === msg.status ? s : { ...s, builder: { ...s.builder, status: msg.status } }));
               break;
             case "builder:progress":
-              setState((s) => ({ ...s, builder: { ...s.builder, progress: msg.message } }));
+              setState((s) => (s.builder.progress === msg.message ? s : { ...s, builder: { ...s.builder, progress: msg.message } }));
               break;
             case "builder:report":
               setState((s) => ({ ...s, builder: { ...s.builder, lastReport: msg.report } }));
@@ -362,7 +378,7 @@ export function useCairn() {
     };
 
     setState((s) => {
-      const messages = [...s.messages, optimisticMessage];
+      const messages = capHistory([...s.messages, optimisticMessage], MAX_CHAT_HISTORY);
       const pendingCount = messages.filter((m) => m.pending).length;
       return {
         ...s,
