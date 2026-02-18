@@ -14,5 +14,7 @@ assert.ok(Array.isArray(graph.edges), 'edges should be array');
 assert.ok(Array.isArray(graph.topologicalOrder), 'topologicalOrder should be array');
 assert.equal(graph.topologicalOrder.length, graph.nodeCount, 'topologicalOrder should cover all nodes when acyclic');
 assert.equal(graph.topologicalViolations, 0, 'build order should place dependencies before dependers');
+assert.ok(Array.isArray(graph.entrypoints), 'entrypoints should be array');
+assert.ok(graph.entrypoints.length > 0, 'expected at least one entrypoint package');
 
 console.log('repo_graph_analyzer test passed');

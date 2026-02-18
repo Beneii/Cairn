@@ -2,6 +2,7 @@
   "nodeCount": 18,
   "edgeCount": 54,
   "orphans": 2,
+  "entrypoints": 3,
   "hasCycle": false,
   "topologicalViolations": 0,
   "durationMs": 5
