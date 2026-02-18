@@ -403,17 +403,27 @@ export interface ActionContract {
   confidence: number;
 }
 
-export interface SkillDefinition {
+export interface SkillManifest {
   id: string;
+  version: string;
   description: string;
-  inputSchema: Record<string, any>;
-  outputSchema: Record<string, any>;
-  requiresPlanner: boolean;
+  inputSchema: Record<string, any>; // JSON Schema
+  outputSchema: Record<string, any>; // JSON Schema
+  riskLevel: "low" | "medium" | "high";
+  dependencies?: string[];
+  tags?: string[];
+  enabled: boolean;
+
+  // Runtime metadata (optional in manifest, required for execution)
+  requiresPlanner?: boolean;
   costEstimate?: "trivial" | "cheap" | "medium" | "expensive";
   localOnly?: boolean;
   maxInvocations?: number;
   confirmationRequired?: boolean;
 }
+
+// Deprecated alias to ease migration
+export type SkillDefinition = SkillManifest;
 
 export interface Plan {
   steps: PlanStep[];

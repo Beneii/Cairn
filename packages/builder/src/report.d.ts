@@ -11,4 +11,5 @@ export interface BuildReport {
     summary: string;
 }
 export declare function saveReport(spec: BuildSpec, state: WorkerState): Promise<BuildReport>;
+export declare function getLatestReport(): Promise<BuildReport | null>;
 //# sourceMappingURL=report.d.ts.map

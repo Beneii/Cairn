@@ -1,0 +1,16 @@
+export { MAX_ACTIVE_GOALS, createGoal } from "./types/goal.js";
+// Database Layer
+import { initDatabase, closeDatabase } from "./db/index.js";
+export { initDatabase, closeDatabase };
+export { getGoals, getGoal, getActiveGoals, getGoalsDueForCheck, createGoal as saveGoal, updateGoal, setGoalStatus, logAction, incrementInterruptions, resetDailyInterruptions, deleteGoal, } from "./db/goalDb.js";
+// Heartbeat (goal loop)
+export { runHeartbeat, resetDailyCounters, triggerGoalCheck } from "./heartbeat.js";
+// Daily Briefing
+export { generateDailyBriefing, formatBriefingAsText, shouldSendBriefing, setBriefingCalendarSource, } from "./briefing.js";
+// Proactive Intelligence
+export { runProactiveEngine, recordActivity, detectPatterns, checkGoalNudges, checkCalendarNudges, checkAnomalies, getProactiveConfig, setProactiveConfig, shouldNudgeNow, recordNudgeSent, setCalendarProviderForProactive, } from "./proactive.js";
+// Convenience init
+export function initGoals() {
+    initDatabase();
+}
+//# sourceMappingURL=index.js.map

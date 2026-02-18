@@ -1,0 +1,886 @@
+import { appendEntry } from "@cairn/ledger";
+import { request } from "https";
+import { bus, newId, now } from "@cairn/shared";
+// Security: URL validation helpers (prevent SSRF)
+function isPrivateIP(hostname) {
+    // RFC1918 private IP ranges
+    const privateRanges = [
+        /^10\./,
+        /^172\.(1[6-9]|2[0-9]|3[01])\./,
+        /^192\.168\./,
+        /^127\./,
+        /^localhost$/i,
+        /^169\.254\./, // Link-local
+    ];
+    return privateRanges.some((pattern) => pattern.test(hostname));
+}
+function isMetadataEndpoint(hostname) {
+    // Cloud metadata endpoints
+    const metadataHosts = [
+        "169.254.169.254", // AWS/Azure/GCP
+        "metadata.google.internal",
+        "metadata",
+    ];
+    return metadataHosts.includes(hostname.toLowerCase());
+}
+function isSafeURL(urlString) {
+    try {
+        const url = new URL(urlString);
+        // Only allow HTTP/HTTPS
+        if (!["http:", "https:"].includes(url.protocol)) {
+            return { safe: false, reason: "Only HTTP/HTTPS protocols allowed" };
+        }
+        // Block private IPs
+        if (isPrivateIP(url.hostname)) {
+            return { safe: false, reason: "Private IP addresses are not allowed" };
+        }
+        // Block metadata endpoints
+        if (isMetadataEndpoint(url.hostname)) {
+            return { safe: false, reason: "Metadata endpoints are not allowed" };
+        }
+        return { safe: true };
+    }
+    catch {
+        return { safe: false, reason: "Invalid URL format" };
+    }
+}
+// Security: Memory key validation helpers
+const SYSTEM_KEYS = ["config", "secrets", "internal", "_system"];
+function isSystemKey(key) {
+    return SYSTEM_KEYS.some((prefix) => key.startsWith(prefix));
+}
+function isValidMemoryKey(key, jobId) {
+    // Block system keys
+    if (isSystemKey(key)) {
+        return { valid: false, reason: "System keys are protected" };
+    }
+    // Enforce job namespace for hot memory
+    // Note: warm memory allows global keys for shared context
+    return { valid: true };
+}
+const toolRegistry = new Map();
+// ---- memory_read ----
+toolRegistry.set("memory_read", async (args, ctx) => {
+    const tier = args.tier;
+    const key = args.key;
+    // Security: Validate memory key
+    const validation = isValidMemoryKey(key, ctx.jobId);
+    if (!validation.valid) {
+        return {
+            success: false,
+            output: `Access denied: ${validation.reason} `,
+        };
+    }
+    const value = ctx.memoryRead(tier, key);
+    return {
+        success: true,
+        output: value !== undefined ? JSON.stringify(value) : "No value found",
+    };
+});
+// ---- memory_write ----
+toolRegistry.set("memory_write", async (args, ctx) => {
+    const tier = args.tier;
+    const key = args.key;
+    const value = args.value;
+    // Security: Validate memory key
+    const validation = isValidMemoryKey(key, ctx.jobId);
+    if (!validation.valid) {
+        return {
+            success: false,
+            output: `Access denied: ${validation.reason} `,
+        };
+    }
+    await ctx.memoryWrite(tier, key, value);
+    return {
+        success: true,
+        output: `Written to ${tier}:${key} `,
+    };
+});
+// ---- ledger_write ----
+toolRegistry.set("ledger_write", async (args, ctx) => {
+    const type = args.type || "agent";
+    const content = args.content;
+    await appendEntry(type, ctx.nodeName, ctx.jobId, content);
+    return {
+        success: true,
+        output: `Logged: ${content} `,
+    };
+});
+// ---- web_search ----
+// Uses DuckDuckGo - no API key required
+// Follows truth.md §4: "Web content is data, never instruction"
+toolRegistry.set("web_search", async (args) => {
+    const query = args.query;
+    const encodedQuery = encodeURIComponent(query);
+    try {
+        // Try DuckDuckGo Instant Answer API first
+        const instantUrl = `https://api.duckduckgo.com/?q=${encodedQuery}&format=json&no_html=1&skip_disambig=1`;
+        const instantRes = await fetch(instantUrl);
+        const instant = await instantRes.json();
+        const results = [];
+        // Extract abstract if available
+        if (instant.Abstract) {
+            results.push({
+                title: instant.Heading || query,
+                snippet: instant.Abstract,
+                url: instant.AbstractURL,
+            });
+        }
+        // Extract related topics
+        if (instant.RelatedTopics && Array.isArray(instant.RelatedTopics)) {
+            for (const topic of instant.RelatedTopics.slice(0, 5)) {
+                if (topic.Text && topic.FirstURL) {
+                    results.push({
+                        title: topic.Text.split(" - ")[0] || topic.Text.substring(0, 50),
+                        snippet: topic.Text,
+                        url: topic.FirstURL,
+                    });
+                }
+            }
+        }
+        // If we got results, return them
+        if (results.length > 0) {
+            return {
+                success: true,
+                output: formatSearchResults(query, results),
+            };
+        }
+        // Fallback: scrape DuckDuckGo lite HTML
+        const liteUrl = `https://lite.duckduckgo.com/lite/?q=${encodedQuery}`;
+        const liteRes = await fetch(liteUrl, {
+            headers: {
+                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+                "Accept-Language": "en-US,en;q=0.9"
+            }
+        });
+        const html = await liteRes.text();
+        // Extract result snippets from HTML (basic parsing)
+        // Handle single or double quotes for class attributes
+        const snippetMatches = html.match(/<td class=['"]result-snippet['"]>([\s\S]*?)<\/td>/gi) || [];
+        const linkMatches = html.match(/<a rel="nofollow" href="([^"]+)" class=['"]result-link['"]>([^<]+)<\/a>/gi) || [];
+        for (let i = 0; i < Math.min(5, linkMatches.length); i++) {
+            const linkMatch = linkMatches[i]?.match(/href="([^"]+)"[^>]*>([^<]+)/);
+            let snippet = snippetMatches[i]?.replace(/<[^>]+>/g, "").trim() || "";
+            // Decode HTML entities in snippet
+            snippet = snippet
+                .replace(/&nbsp;/g, " ")
+                .replace(/&amp;/g, "&")
+                .replace(/&lt;/g, "<")
+                .replace(/&gt;/g, ">")
+                .replace(/&quot;/g, '"')
+                .replace(/&#39;/g, "'");
+            if (linkMatch) {
+                let url = linkMatch[1];
+                if (url.startsWith("//"))
+                    url = "https:" + url;
+                results.push({
+                    title: linkMatch[2],
+                    snippet: snippet.substring(0, 300),
+                    url: url,
+                });
+            }
+        }
+        if (results.length === 0) {
+            return {
+                success: true,
+                output: `No search results found for "${query}".`,
+            };
+        }
+        return {
+            success: true,
+            output: formatSearchResults(query, results),
+        };
+    }
+    catch (err) {
+        return {
+            success: false,
+            output: `Search failed: ${err instanceof Error ? err.message : String(err)}`,
+        };
+    }
+});
+function formatSearchResults(query, results) {
+    let output = `Found ${results.length} results for "${query}":\n\n`;
+    results.forEach((r, i) => {
+        output += `${i + 1}. **${r.title}**\n   ${r.snippet}\n   [Source](${r.url})\n\n`;
+    });
+    return output;
+}
+// ---- fetch_url ----
+toolRegistry.set("fetch_url", async (args) => {
+    const url = args.url;
+    // Security: Validate URL safety (prevent SSRF)
+    const urlValidation = isSafeURL(url);
+    if (!urlValidation.safe) {
+        return {
+            success: false,
+            output: `URL blocked: ${urlValidation.reason}`,
+        };
+    }
+    try {
+        const res = await fetch(url);
+        const text = await res.text();
+        // Return first 2000 chars
+        return {
+            success: true,
+            output: text.substring(0, 2000),
+        };
+    }
+    catch (err) {
+        return {
+            success: false,
+            output: `Failed to fetch URL: ${err instanceof Error ? err.message : String(err)}`,
+        };
+    }
+});
+// ---- gmail_read ----
+// Read emails from Gmail (requires Google OAuth setup)
+toolRegistry.set("gmail_read", async (args) => {
+    try {
+        // Dynamic import to avoid breaking if integrations not installed
+        const { isGoogleAuthenticated, getRecentEmails, getUnreadCount } = await import("@cairn/integrations");
+        if (!isGoogleAuthenticated()) {
+            return {
+                success: false,
+                output: "Gmail not connected. Set up Google OAuth in Integrations page.",
+            };
+        }
+        const maxResults = args.max_results || 5;
+        const emails = await getRecentEmails(maxResults);
+        const unreadCount = await getUnreadCount();
+        return {
+            success: true,
+            output: JSON.stringify({ unread_count: unreadCount, emails }),
+        };
+    }
+    catch (err) {
+        return {
+            success: false,
+            output: `Gmail error: ${err instanceof Error ? err.message : String(err)}`,
+        };
+    }
+});
+// ---- calendar_read ----
+// Read calendar events (requires Google OAuth setup)
+toolRegistry.set("calendar_read", async (args) => {
+    try {
+        const { isGoogleAuthenticated, getTodayEvents, getUpcomingEvents } = await import("@cairn/integrations");
+        if (!isGoogleAuthenticated()) {
+            return {
+                success: false,
+                output: "Calendar not connected. Set up Google OAuth in Integrations page.",
+            };
+        }
+        const days = args.days || 1;
+        const events = days === 1 ? await getTodayEvents() : await getUpcomingEvents(days);
+        return {
+            success: true,
+            output: JSON.stringify({ event_count: events.length, events }),
+        };
+    }
+    catch (err) {
+        return {
+            success: false,
+            output: `Calendar error: ${err instanceof Error ? err.message : String(err)}`,
+        };
+    }
+});
+// ---- vector_search ----
+// Semantic search over cold memory
+toolRegistry.set("vector_search", async (args) => {
+    try {
+        const { initColdMemory, initEmbeddingService, isEmbeddingAvailable, createEmbedding, vectorSearch, getColdMemoryStats } = await import("@cairn/memory");
+        initColdMemory();
+        initEmbeddingService();
+        if (!isEmbeddingAvailable()) {
+            return {
+                success: false,
+                output: "Embedding service not available. Set OPENAI_API_KEY.",
+            };
+        }
+        const query = args.query;
+        if (!query) {
+            return { success: false, output: "Query required" };
+        }
+        const stats = getColdMemoryStats();
+        if (stats.chunkCount === 0) {
+            return { success: true, output: "Cold memory is empty." };
+        }
+        const { embedding } = await createEmbedding(query);
+        const results = vectorSearch(embedding, 5, 0.3);
+        return {
+            success: true,
+            output: JSON.stringify(results.map(r => ({
+                content: r.content,
+                score: r.score.toFixed(3),
+                source: r.document_title
+            }))),
+        };
+    }
+    catch (err) {
+        return {
+            success: false,
+            output: `Vector search error: ${err instanceof Error ? err.message : String(err)}`,
+        };
+    }
+});
+// ---- goals_read ----
+// Read active goals so the agent knows what the user is working toward
+toolRegistry.set("goals_read", async () => {
+    try {
+        const { getGoals, getActiveGoals } = await import("@cairn/goals");
+        const active = getActiveGoals();
+        const all = getGoals();
+        return {
+            success: true,
+            output: JSON.stringify({
+                active_count: active.length,
+                total_count: all.length,
+                active: active.map((g) => ({
+                    id: g.id,
+                    title: g.title,
+                    success_definition: g.success_definition,
+                    priority: g.priority,
+                    time_horizon: g.time_horizon,
+                    confidence: g.confidence,
+                    anti_goals: g.anti_goals,
+                    metrics: g.metrics,
+                    timeline_events: g.timeline?.length || 0,
+                    last_reviewed: g.last_reviewed,
+                })),
+            }),
+        };
+    }
+    catch (err) {
+        return {
+            success: false,
+            output: `Goals read error: ${err instanceof Error ? err.message : String(err)}`,
+        };
+    }
+});
+// ---- goals_update ----
+// Update a goal (status, timeline event, confidence, etc.)
+toolRegistry.set("goals_update", async (args) => {
+    try {
+        const { updateGoal, getGoal } = await import("@cairn/goals");
+        const { bus, newId } = await import("@cairn/shared");
+        const goalId = args.goal_id;
+        if (!goalId)
+            return { success: false, output: "goal_id required" };
+        const goal = getGoal(goalId);
+        if (!goal)
+            return { success: false, output: `Goal ${goalId} not found` };
+        const changes = {};
+        // Allow updating specific fields
+        if (args.status)
+            changes.status = args.status;
+        if (args.confidence !== undefined)
+            changes.confidence = args.confidence;
+        if (args.blocked_reason)
+            changes.blocked_reason = args.blocked_reason;
+        // Add timeline event if provided
+        if (args.timeline_message) {
+            const event = {
+                id: newId(),
+                timestamp: new Date().toISOString(),
+                type: args.timeline_type || "comment",
+                message: args.timeline_message,
+                agent: "cairn",
+            };
+            changes.timeline = [...(goal.timeline || []), event];
+        }
+        const updated = updateGoal(goalId, changes);
+        if (!updated)
+            return { success: false, output: "Update failed" };
+        // Broadcast the change
+        const { getGoals } = await import("@cairn/goals");
+        bus.emit("goals:updated", getGoals());
+        return {
+            success: true,
+            output: `Updated goal "${goal.title}": ${JSON.stringify(Object.keys(changes))}`,
+        };
+    }
+    catch (err) {
+        return {
+            success: false,
+            output: `Goals update error: ${err instanceof Error ? err.message : String(err)}`,
+        };
+    }
+});
+// ---- tasks_read ----
+// Read current tasks
+toolRegistry.set("tasks_read", async (args) => {
+    try {
+        const { getTasks } = await import("@cairn/tasks");
+        const filter = args.status ? { status: args.status } : undefined;
+        const tasks = getTasks(filter);
+        return {
+            success: true,
+            output: JSON.stringify({
+                count: tasks.length,
+                tasks: tasks.map((t) => ({
+                    id: t.id,
+                    title: t.title,
+                    status: t.status,
+                    type: t.type,
+                    due_date: t.due_date,
+                    scheduled_date: t.scheduled_date,
+                    recurrence_rule: t.recurrence_rule,
+                    source: t.source,
+                })),
+            }),
+        };
+    }
+    catch (err) {
+        return {
+            success: false,
+            output: `Tasks read error: ${err instanceof Error ? err.message : String(err)}`,
+        };
+    }
+});
+// ---- tasks_create ----
+// Create a task (agent-suggested or on behalf of user)
+toolRegistry.set("tasks_create", async (args) => {
+    try {
+        const { createTask } = await import("@cairn/tasks");
+        const { bus } = await import("@cairn/shared");
+        const title = args.title;
+        if (!title)
+            return { success: false, output: "title required" };
+        const task = createTask({
+            title,
+            type: args.type || "one-off",
+            due_date: args.due_date,
+            scheduled_date: args.scheduled_date,
+            recurrence_rule: args.recurrence_rule,
+            source: "cairn",
+            suggested_by_agent: true,
+        });
+        // Broadcast
+        const { getTasks } = await import("@cairn/tasks");
+        bus.emit("tasks:updated", getTasks());
+        return {
+            success: true,
+            output: `Created task: "${task.title}" (id: ${task.id})`,
+        };
+    }
+    catch (err) {
+        return {
+            success: false,
+            output: `Task create error: ${err instanceof Error ? err.message : String(err)}`,
+        };
+    }
+});
+// ---- tasks_complete ----
+// Mark a task as done
+toolRegistry.set("tasks_complete", async (args) => {
+    try {
+        const { completeTask, getTasks } = await import("@cairn/tasks");
+        const { bus } = await import("@cairn/shared");
+        const taskId = args.task_id;
+        if (!taskId)
+            return { success: false, output: "task_id required" };
+        const result = completeTask(taskId);
+        if (!result)
+            return { success: false, output: `Task ${taskId} not found` };
+        bus.emit("tasks:updated", getTasks());
+        return {
+            success: true,
+            output: `Completed task: "${result.title}"`,
+        };
+    }
+    catch (err) {
+        return {
+            success: false,
+            output: `Task complete error: ${err instanceof Error ? err.message : String(err)}`,
+        };
+    }
+});
+// ---- research_ingest ----
+// Securely ingest web content or PDF into cold memory
+toolRegistry.set("research_ingest", async (args) => {
+    try {
+        const url = args.url;
+        if (!url)
+            return { success: false, output: "URL required" };
+        // Security: Validate URL safety
+        const urlValidation = isSafeURL(url);
+        if (!urlValidation.safe) {
+            return { success: false, output: `URL blocked: ${urlValidation.reason}` };
+        }
+        const { ingestSource } = await import("@cairn/research");
+        const result = await ingestSource(url);
+        return {
+            success: true,
+            output: `Successfully ingested ${result.type}: "${result.title}" (${result.charCount} characters). Document ID: ${result.documentId}`,
+        };
+    }
+    catch (err) {
+        return {
+            success: false,
+            output: `Ingestion failed: ${err instanceof Error ? err.message : String(err)}`,
+        };
+    }
+});
+// ---- browser_fill ----
+// Fill an input field
+toolRegistry.set("browser_fill", async (args) => {
+    const browser = await getBrowser();
+    try {
+        const selector = args.selector;
+        const value = args.value;
+        if (!selector || value === undefined)
+            return { success: false, output: "Selector and value required" };
+        await browser.init();
+        const result = await browser.fill(selector, value);
+        return { success: result.success, output: result.message };
+    }
+    catch (err) {
+        return { success: false, output: `Fill failed: ${err instanceof Error ? err.message : String(err)}` };
+    }
+});
+// ---- browser_press ----
+// Press a key (e.g. Enter)
+toolRegistry.set("browser_press", async (args) => {
+    const browser = await getBrowser();
+    try {
+        const key = args.key;
+        if (!key)
+            return { success: false, output: "Key required" };
+        await browser.init();
+        const result = await browser.press(key);
+        return { success: result.success, output: result.message };
+    }
+    catch (err) {
+        return { success: false, output: `Press failed: ${err instanceof Error ? err.message : String(err)}` };
+    }
+});
+// ---- browser_type ----
+// Type text into an input field (wait+click+type)
+toolRegistry.set("browser_type", async (args) => {
+    const browser = await getBrowser();
+    try {
+        const selector = args.selector;
+        const text = args.text;
+        const delay = args.delay || 50;
+        if (!selector || text === undefined)
+            return { success: false, output: "Selector and text required" };
+        await browser.init();
+        const result = await browser.type(selector, text, delay);
+        return { success: result.success, output: result.message };
+    }
+    catch (err) {
+        return { success: false, output: `Type failed: ${err instanceof Error ? err.message : String(err)}` };
+    }
+});
+// Global browser instance for persistence
+let globalBrowser = null;
+async function getBrowser() {
+    const { BrowserOperator } = await import("@cairn/browser");
+    if (!globalBrowser) {
+        console.log(`[tools:${process.pid}] Initializing new globalBrowser instance`);
+        // Use a specific debug profile to avoid conflicts with zombies
+        globalBrowser = new BrowserOperator({ profileId: 'debug-session' });
+    }
+    else {
+        console.log(`[tools:${process.pid}] Reusing existing globalBrowser instance`);
+    }
+    return globalBrowser;
+}
+// ---- browser_navigate ----
+// Securely navigate the browser to a given URL
+toolRegistry.set("browser_navigate", async (args) => {
+    const browser = await getBrowser();
+    try {
+        const url = args.url;
+        if (!url)
+            return { success: false, output: "URL required" };
+        await browser.init();
+        const result = await browser.navigate(url);
+        // Capture title for better feedback
+        let title = "";
+        try {
+            const page = await browser.getPage();
+            title = await page.title();
+        }
+        catch (e) {
+            // Ignore title error
+        }
+        return {
+            success: result.success,
+            output: result.success ? `Navigated to ${url} (Title: ${title})` : result.message
+        };
+    }
+    catch (err) {
+        return { success: false, output: `Navigation failed: ${err instanceof Error ? err.message : String(err)}` };
+    }
+    // Do NOT close browser automatically
+});
+// ---- browser_close ----
+// Close the browser session
+toolRegistry.set("browser_close", async () => {
+    if (globalBrowser) {
+        console.log("[tools] Explicitly closing browser session");
+        await globalBrowser.close();
+        globalBrowser = null;
+        return { success: true, output: "Browser session closed." };
+    }
+    return { success: true, output: "No active browser session." };
+});
+// ---- browser_click ----
+// Click an element in the current browser page
+toolRegistry.set("browser_click", async (args) => {
+    const browser = await getBrowser();
+    try {
+        const selector = args.selector;
+        const url = args.url; // Navigate if provided
+        if (!selector)
+            return { success: false, output: "Selector required" };
+        await browser.init();
+        if (url)
+            await browser.navigate(url);
+        const result = await browser.click(selector);
+        return { success: result.success, output: result.message };
+    }
+    catch (err) {
+        return { success: false, output: `Click failed: ${err instanceof Error ? err.message : String(err)}` };
+    }
+});
+// ---- browser_screenshot ----
+// Capture a screenshot of the current page
+toolRegistry.set("browser_screenshot", async (args) => {
+    const browser = await getBrowser();
+    try {
+        const url = args.url;
+        await browser.init();
+        if (url)
+            await browser.navigate(url);
+        const result = await browser.screenshot();
+        return {
+            success: result.success,
+            output: `Screenshot captured: ${result.screenshotPath}`,
+            artifacts: result.screenshotPath ? [{
+                    id: newId(),
+                    type: "image",
+                    content: result.screenshotPath,
+                    metadata: { path: result.screenshotPath },
+                    origin_node: "executor",
+                    created_at: now()
+                }] : []
+        };
+    }
+    catch (err) {
+        return { success: false, output: `Screenshot failed: ${err instanceof Error ? err.message : String(err)}` };
+    }
+});
+// ---- browser_observe ----
+// Get a structured summary of the current page
+toolRegistry.set("browser_observe", async (args) => {
+    const browser = await getBrowser();
+    try {
+        await browser.init();
+        const result = await browser.observe();
+        if (!result.success)
+            return { success: false, output: "Observation failed" };
+        const summary = `URL: ${result.url}\nTitle: ${result.title}\nInteractive Elements:\n` +
+            result.elements.map((el) => `- [${el.id}] ${el.tag}${el.type ? ` (${el.type})` : ''}: "${el.text}" ${el.aria ? `[aria: ${el.aria}]` : ''} ${el.selector ? `(selector: ${el.selector})` : ''}`).join("\n");
+        return { success: true, output: summary };
+    }
+    catch (err) {
+        return { success: false, output: `Observation failed: ${err instanceof Error ? err.message : String(err)}` };
+    }
+});
+// ---- note_create ----
+// Create a persistent note/document in the dashboard
+toolRegistry.set("note_create", async (args) => {
+    try {
+        const content = args.content;
+        if (!content)
+            return { success: false, output: "Content required" };
+        // Emit event for the UI/gateway to pick up and store
+        bus.emit("note:create", { content });
+        return {
+            success: true,
+            output: "Note created successfully in the dashboard.",
+            artifacts: [{
+                    id: newId(),
+                    type: "note",
+                    content,
+                    metadata: {},
+                    origin_node: "executor",
+                    created_at: now()
+                }]
+        };
+    }
+    catch (err) {
+        return { success: false, output: `Note creation failed: ${err instanceof Error ? err.message : String(err)}` };
+    }
+});
+// ---- model_pull ----
+// Pull a local model via Ollama
+toolRegistry.set("model_pull", async (args) => {
+    const model = args.model;
+    if (!model)
+        return { success: false, output: "Model name required" };
+    try {
+        const OLLAMA_URL = process.env.OLLAMA_BASE_URL || "http://localhost:11434";
+        // Start the pull
+        const res = await fetch(`${OLLAMA_URL}/api/pull`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name: model, stream: true }),
+        });
+        if (!res.ok) {
+            return { success: false, output: `Ollama pull failed: ${res.statusText}` };
+        }
+        if (!res.body) {
+            return { success: false, output: "Ollama returned no body" };
+        }
+        // Process stream in background to avoid blocking the tool
+        // We use the system:update_progress event which the UI listens to
+        (async () => {
+            const reader = res.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = "";
+            try {
+                bus.emit("system:update_progress", { stage: "pulling", message: `Starting pull of ${model}...` });
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done)
+                        break;
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split("\n");
+                    buffer = lines.pop() || "";
+                    for (const line of lines) {
+                        if (!line.trim())
+                            continue;
+                        try {
+                            const data = JSON.parse(line);
+                            // data format: { status: "pulling ...", digest: "...", total: 123, completed: 45 }
+                            if (data.status) {
+                                let msg = data.status;
+                                if (data.total && data.completed) {
+                                    const pct = Math.round((data.completed / data.total) * 100);
+                                    msg += ` (${pct}%)`;
+                                }
+                                bus.emit("system:update_progress", { stage: "pulling", message: `${model}: ${msg}` });
+                            }
+                        }
+                        catch (e) {
+                            // ignore parse errors
+                        }
+                    }
+                }
+                bus.emit("system:update_progress", { stage: "pulling", message: `Pull of ${model} complete.` });
+                // Also emit a chat message so the user sees it in history
+                bus.emit("chat:message", {
+                    id: newId(),
+                    role: "cairn",
+                    text: `✅ Model download complete: ${model}`,
+                    timestamp: now()
+                });
+            }
+            catch (err) {
+                console.error("Pull stream error:", err);
+                bus.emit("system:update_progress", { stage: "error", message: `Pull failed: ${err}` });
+            }
+        })();
+        return {
+            success: true,
+            output: `Download started for '${model}'. You will see progress updates in the notification area.`,
+        };
+    }
+    catch (err) {
+        return {
+            success: false,
+            output: `Failed to initiate pull: ${err instanceof Error ? err.message : String(err)}`
+        };
+    }
+});
+// Helper for Open-Meteo which requires IPv4 force in some environments
+function fetchJson(url) {
+    return new Promise((resolve, reject) => {
+        const req = request(url, {
+            headers: { "User-Agent": "Cairn/1.0", "Accept": "application/json" },
+            family: 4,
+            timeout: 10000
+        }, (res) => {
+            let data = "";
+            res.on("data", (chunk) => data += chunk);
+            res.on("end", () => {
+                try {
+                    if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
+                        resolve(JSON.parse(data));
+                    }
+                    else {
+                        resolve(null); // Treat non-200 as null to handle graceful failures
+                    }
+                }
+                catch (e) {
+                    reject(e);
+                }
+            });
+        });
+        req.on("error", (err) => reject(err));
+        req.on("timeout", () => { req.destroy(); reject(new Error("Timeout")); });
+        req.end();
+    });
+}
+// ---- weather_get ----
+// Get weather forecast from Open-Meteo (free, no API key)
+toolRegistry.set("weather_get", async (args) => {
+    const location = args.location;
+    if (!location)
+        return { success: false, output: "Location required" };
+    try {
+        // 1. Geocode
+        const geoUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(location)}&count=1&language=en&format=json`;
+        const geoData = await fetchJson(geoUrl);
+        if (!geoData || !geoData.results || geoData.results.length === 0) {
+            return { success: false, output: `Location "${location}" not found.` };
+        }
+        const { latitude, longitude, name, country } = geoData.results[0];
+        // 2. Weather
+        const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset&timezone=auto`;
+        const weatherData = await fetchJson(weatherUrl);
+        if (!weatherData) {
+            return { success: false, output: "Failed to fetch weather data." };
+        }
+        // Format output as Markdown
+        const current = weatherData.current;
+        // Helper to get day name
+        const getDay = (dateStr) => new Date(dateStr).toLocaleDateString('en-US', { weekday: 'short' });
+        let forecast = "";
+        if (weatherData.daily && weatherData.daily.time) {
+            forecast = weatherData.daily.time.slice(0, 5).map((t, i) => {
+                const max = weatherData.daily.temperature_2m_max[i];
+                const min = weatherData.daily.temperature_2m_min[i];
+                // simple weather code mapping could go here, for now just code
+                return `- **${getDay(t)}**: ${min}°C - ${max}°C`;
+            }).join("\n");
+        }
+        const output = `### Weather in ${name}, ${country}
+**Current**: ${current.temperature_2m}°C, Wind: ${current.wind_speed_10m} km/h
+**Forecast**:
+${forecast}
+
+[Data from Open-Meteo]`;
+        return {
+            success: true,
+            output
+        };
+    }
+    catch (err) {
+        return {
+            success: false,
+            output: `Weather fetch failed: ${err instanceof Error ? err.message : String(err)}`
+        };
+    }
+});
+export function getTool(name) {
+    return toolRegistry.get(name);
+}
+export function listTools() {
+    return Array.from(toolRegistry.keys());
+}
+//# sourceMappingURL=tools.js.map

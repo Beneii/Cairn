@@ -164,6 +164,68 @@ export async function executeSingleSkill(
     }
 }
 
+
+/**
+ * Recursively resolve variable references in arguments.
+ * Supported syntax: {{stepN.output.path.to.value}}
+ */
+function resolveArguments(
+    args: any,
+    previousSteps: ExecutionStepResult[],
+): any {
+    if (typeof args === "string") {
+        // Match {{stepN.output...}}
+        const match = args.match(/^{{step(\d+)\.output(?:\.(.+))?}}$/);
+        if (match) {
+            const stepIndex = parseInt(match[1], 10) - 1; // 1-based index to 0-based
+            const path = match[2];
+
+            const step = previousSteps[stepIndex];
+            if (!step || !step.success) {
+                return args; // Cannot resolve, keep literal
+            }
+
+            // Parse output if it's JSON
+            let outputData: any;
+            try {
+                outputData = JSON.parse(step.output);
+            } catch {
+                outputData = step.output;
+            }
+
+            // Return full output if no path
+            if (!path) return outputData;
+
+            // Traverse path
+            const parts = path.split(".");
+            let current = outputData;
+            for (const part of parts) {
+                if (current && typeof current === "object" && part in current) {
+                    current = current[part];
+                } else {
+                    return args; // Path not found
+                }
+            }
+            return current;
+        }
+        return args;
+    }
+
+    if (Array.isArray(args)) {
+        return args.map((item) => resolveArguments(item, previousSteps));
+    }
+
+    if (args && typeof args === "object") {
+        const resolved: any = {};
+        for (const [key, value] of Object.entries(args)) {
+            resolved[key] = resolveArguments(value, previousSteps);
+        }
+        return resolved;
+    }
+
+    return args;
+}
+
 /**
  * Execute a full plan (multiple steps in sequence).
  * Stops on first failure unless step is marked as non-critical.
@@ -190,7 +252,10 @@ export async function executePlan(
             break;
         }
 
-        const stepResult = await executeSingleSkill(step.skillId, step.arguments, messageId);
+        // Resolve variables
+        const resolvedArgs = resolveArguments(step.arguments, results);
+
+        const stepResult = await executeSingleSkill(step.skillId, resolvedArgs, messageId);
         results.push(stepResult);
         toolCallCount++;
 
@@ -212,3 +277,4 @@ export async function executePlan(
         totalDurationMs: Date.now() - overallStart,
     };
 }
+

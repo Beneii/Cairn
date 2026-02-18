@@ -4,7 +4,7 @@ export interface BuildTask {
     description: string;
     targetFile: string;
     changeType: "modify" | "create" | "delete";
-    testCommand?: string;
+    testAction?: "skill-tests" | "lint" | "typecheck" | "workspace-test";
 }
 export interface BuildSpec {
     id: string;

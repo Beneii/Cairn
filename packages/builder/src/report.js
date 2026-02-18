@@ -17,4 +17,29 @@ export async function saveReport(spec, state) {
     await writeFile(join(dir, `${spec.id}.json`), JSON.stringify(report, null, 2));
     return report;
 }
+export async function getLatestReport() {
+    try {
+        const dir = join(getDataPath("builder"), "reports");
+        const { readdir, readFile } = await import("fs/promises");
+        const files = await readdir(dir).catch(() => []);
+        if (files.length === 0)
+            return null;
+        // Sort by name (which is task ID, could be sorted by mtime for robustness)
+        // Task ID is random, so better to sort by mtime
+        const { stat } = await import("fs/promises");
+        const filesWithStats = await Promise.all(files.map(async (f) => {
+            const s = await stat(join(dir, f));
+            return { name: f, time: s.mtime.getTime() };
+        }));
+        filesWithStats.sort((a, b) => b.time - a.time);
+        if (filesWithStats.length === 0)
+            return null;
+        const content = await readFile(join(dir, filesWithStats[0].name), "utf-8");
+        return JSON.parse(content);
+    }
+    catch (err) {
+        console.error("[builder] Failed to load latest report:", err);
+        return null;
+    }
+}
 //# sourceMappingURL=report.js.map
