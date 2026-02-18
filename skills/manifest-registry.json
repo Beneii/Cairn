@@ -60,6 +60,18 @@
         "shell"
       ],
       "runtime_skill_id": null
+    },
+    {
+      "name": "repo_graph_analyzer",
+      "path": "skills/repo_graph_analyzer/SKILL.md",
+      "entry_script": "skills/repo_graph_analyzer/scripts/analyze_repo_graph.mjs",
+      "enabled": true,
+      "version": 1,
+      "tier": 0,
+      "required_tools": [
+        "shell"
+      ],
+      "runtime_skill_id": null
     }
   ]
 }
