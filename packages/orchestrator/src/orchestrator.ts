@@ -375,8 +375,9 @@ function captureReflection(trace: Partial<PipelineTrace>): void {
     const nextJournal = [reflection, ...journal].slice(0, 200);
     warmSet("reflection_journal", nextJournal);
 
-    // WARM tier: compact traces for supervisor/perf snapshots
+    // WARM tier: compact traces for supervisor/perf snapshots (includes skillId for per-skill reliability)
     const stepTraces = (trace.executionTrace || []).map((s) => ({
+      skillId: s.skillId,
       success: s.success,
       durationMs: s.durationMs,
     }));

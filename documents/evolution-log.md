@@ -1,5 +1,37 @@
 # Evolution Log
 
+## 2026-02-18 Iteration 22
+
+### Change summary
+- Extended `orchestrator_recent_traces` compact entries to include `skillId` (previously only `{success, durationMs}`).
+- Upgraded supervisor `collectSkillReliabilitySnapshot` to compute **per-skill** failure rates rather than a raw failure count: `lowReliabilitySkills` now reports the number of **distinct failing skill IDs** in the rolling 300-entry window, with graceful fallback for legacy traces that lack `skillId`.
+- This closes a semantic gap: the `skill_reliability_drop` supervisor trigger previously detected any increase in total failure events (which could be caused by repeated invocations of one skill), but now triggers only when the count of *distinct* unreliable skills increases.
+
+### Files modified
+- `packages/orchestrator/src/orchestrator.ts`
+- `packages/scheduler/src/scheduler.ts`
+- `documents/evolution-log.md`
+
+### Risk introduced
+- Low: `lowReliabilitySkills` meaning changed (distinct failing skill IDs vs raw failure count) — existing warm-memory values are backward-compatible since both are non-negative integers.
+- Low: `orchestrator_recent_traces` warm-memory schema gains an optional `skillId` field; old entries without `skillId` are handled by the legacy fallback path.
+
+### Metrics before/after
+- Before: `lowReliabilitySkills` = raw count of failures in window (e.g. 10 failures from one bad skill → 10).
+- After: `lowReliabilitySkills` = distinct failing skill IDs (e.g. 10 failures from one bad skill → 1; 3 different failing skills → 3).
+- Supervisor trigger accuracy: `skill_reliability_drop` now fires when a **new skill** becomes unreliable, not on every repeated failure of an already-failing skill.
+- Validation status:
+  - `pnpm lint` ✅ (17/17 tasks)
+  - `pnpm test` ✅ (1/1 tasks)
+  - `pnpm build` ✅ (17/17 tasks)
+
+### Rollback instructions
+1. `git revert <commit_sha>`
+2. Or manually revert in `packages/orchestrator/src/orchestrator.ts`: remove `skillId: s.skillId,` from the `stepTraces` map.
+3. And in `packages/scheduler/src/scheduler.ts`: restore the original `collectSkillReliabilitySnapshot` body using `traces.filter((t) => !t.success).length` for `lowReliabilitySkills`.
+4. Re-run: `pnpm lint && pnpm test && pnpm build`
+
+
 ## 2026-02-18 Iteration 21
 
 ### Change summary
