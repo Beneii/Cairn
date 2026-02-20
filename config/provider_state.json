@@ -1,20 +1,47 @@
 {
-  "active_provider": "codex",
+  "active_provider": "antigravity_flash",
+  "models": {
+    "planning": "o3-pro",
+    "refactoring": "gpt-5-codex",
+    "auditing": "o1-pro",
+    "execution": "gpt-4o"
+  },
   "providers": {
-    "codex": {
-      "status": "active",
+    "antigravity_flash": {
+      "status": "READY",
+      "last_failure": "2026-02-20T13:04:20.086981",
       "cooldown_until": null,
-      "last_failure": null
+      "tier": 1,
+      "tokens_used": 0,
+      "requests_made": 0,
+      "daily_budget_tokens": 1000000
+    },
+    "antigravity_pro": {
+      "status": "READY",
+      "last_failure": null,
+      "cooldown_until": null,
+      "tier": 1,
+      "tokens_used": 0,
+      "requests_made": 0,
+      "daily_budget_tokens": 1000000
+    },
+    "openai": {
+      "status": "READY",
+      "last_failure": null,
+      "cooldown_until": null,
+      "tier": 2,
+      "tokens_used": 85,
+      "requests_made": 5,
+      "daily_budget_tokens": 1000000
     },
     "claude": {
-      "status": "standby",
-      "cooldown_until": null,
-      "last_failure": null
-    },
-    "antigravity": {
-      "status": "standby",
-      "cooldown_until": null,
-      "last_failure": null
+      "status": "COOLDOWN",
+      "last_failure": "2026-02-20T13:03:36.091960",
+      "cooldown_until": "2026-02-21T13:03:36.091976",
+      "tier": 2,
+      "tokens_used": 0,
+      "requests_made": 0,
+      "daily_budget_tokens": 1000000
     }
   }
 }
