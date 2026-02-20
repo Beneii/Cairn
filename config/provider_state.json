@@ -1,0 +1,20 @@
+{
+  "active_provider": "codex",
+  "providers": {
+    "codex": {
+      "status": "active",
+      "cooldown_until": null,
+      "last_failure": null
+    },
+    "claude": {
+      "status": "standby",
+      "cooldown_until": null,
+      "last_failure": null
+    },
+    "antigravity": {
+      "status": "standby",
+      "cooldown_until": null,
+      "last_failure": null
+    }
+  }
+}
