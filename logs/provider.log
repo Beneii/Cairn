@@ -1,0 +1,27 @@
+[2026-02-20 12:52:34] Failure reported for openai: QUOTA_EXHAUSTED
+[2026-02-20 12:52:34] openai entered cooldown until 2026-02-21 12:52:34.933983
+[2026-02-20 12:52:34] SWITCH: openai -> claude
+[2026-02-20 12:58:00] Failure reported for antigravity_flash: QUOTA_EXHAUSTED
+[2026-02-20 12:58:00] antigravity_flash entered cooldown until 2026-02-21 12:58:00.833429
+[2026-02-20 12:58:00] SWITCH: antigravity_flash -> antigravity_pro (Tier 1)
+[2026-02-20 12:58:00] Failure reported for antigravity_pro: QUOTA_EXHAUSTED
+[2026-02-20 12:58:00] antigravity_pro entered cooldown until 2026-02-21 12:58:00.834070
+[2026-02-20 12:58:00] SWITCH: antigravity_pro -> claude (Tier 2)
+[2026-02-20 13:03:36] Failure reported for claude: QUOTA_EXHAUSTED
+[2026-02-20 13:03:36] claude entered cooldown until 2026-02-21 13:03:36.091976
+[2026-02-20 13:03:36] SWITCH: claude -> antigravity_flash (Tier 1)
+[2026-02-20 13:03:38] Failure reported for antigravity_flash: CLI_ERROR
+[2026-02-20 13:03:44] Active provider claude is in cooldown. Searching for fallback.
+[2026-02-20 13:03:44] SWITCH: claude -> antigravity_flash (Tier 1)
+[2026-02-20 13:03:46] Failure reported for antigravity_flash: CLI_ERROR
+[2026-02-20 13:03:47] Failure reported for antigravity_flash: CLI_ERROR
+[2026-02-20 13:03:55] Active provider claude is in cooldown. Searching for fallback.
+[2026-02-20 13:03:55] SWITCH: claude -> antigravity_flash (Tier 1)
+[2026-02-20 13:03:56] Failure reported for antigravity_flash: CLI_ERROR
+[2026-02-20 13:03:57] Failure reported for antigravity_flash: CLI_ERROR
+[2026-02-20 13:04:17] Active provider claude is in cooldown. Searching for fallback.
+[2026-02-20 13:04:17] SWITCH: claude -> antigravity_flash (Tier 1)
+[2026-02-20 13:04:19] Failure reported for antigravity_flash: CLI_ERROR
+[2026-02-20 13:04:20] Failure reported for antigravity_flash: CLI_ERROR
+[2026-02-20 13:05:00] Active provider claude is in cooldown. Searching for fallback.
+[2026-02-20 13:05:00] SWITCH: claude -> antigravity_flash (Tier 1)
