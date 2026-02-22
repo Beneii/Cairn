@@ -18,5 +18,11 @@
         "apps/*/src"
       ]
     }
-  }
+  },
+  "exclude": [
+    "scripts",
+    "node_modules",
+    "dist",
+    "**/dist"
+  ]
 }
