@@ -19,5 +19,11 @@
     "@types/better-sqlite3": "^7.6.12",
     "@types/node": "^25.2.0",
     "typescript": "^5.6.0"
+  },
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./src/index.ts"
+    }
   }
 }
