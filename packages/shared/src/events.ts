@@ -23,10 +23,10 @@ export interface CairnEvents {
   "tasks:updated": (tasks: import("./types.js").Task[]) => void;
   "cold:promoted": (info: { documentId: string; title: string; chunkCount: number; tokenCount: number }) => void;
   "note:create": (data: { content: string }) => void;
-  "builder:issue": (issue: import("@cairn/builder").BuilderIssue) => void;
+  "builder:issue": (issue: any) => void;
   "builder:status": (status: "idle" | "running" | "failed" | "completed") => void;
   "builder:progress": (message: string) => void;
-  "builder:report": (report: import("@cairn/builder").BuildReport) => void;
+  "builder:report": (report: any) => void;
   "builder:log": (data: { specId: string; msg: string }) => void;
   "system:update_progress": (data: { stage: "error" | "pulling" | "building" | "restarting"; message: string }) => void; // also needed by gateway
 }

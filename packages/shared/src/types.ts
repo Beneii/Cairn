@@ -362,7 +362,7 @@ export type ServerMessage =
   | { type: "system:update_progress"; stage: "pulling" | "building" | "restarting" | "error"; message: string }
   | { type: "builder:status"; status: "idle" | "running" | "failed" | "completed" }
   | { type: "builder:progress"; message: string }
-  | { type: "builder:report"; report: import("@cairn/builder").BuildReport }
+  | { type: "builder:report"; report: any }
   | { type: "skillRequests:list:result"; requests: { id: string; status: string }[] }
   | { type: "skillMetrics:list:result"; metrics: SkillMetrics[] }
   | { type: "skillMetrics:get:result"; metric: SkillMetrics | null };
