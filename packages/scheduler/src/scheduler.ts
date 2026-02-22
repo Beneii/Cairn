@@ -222,10 +222,10 @@ async function heartbeat(): Promise<void> {
     const allJobs = getJobs();
     const summary = {
       total_jobs: allJobs.length,
-      running: allJobs.filter((j) => j.status === "running").length,
-      queued: allJobs.filter((j) => j.status === "queued").length,
-      done: allJobs.filter((j) => j.status === "done").length,
-      failed: allJobs.filter((j) => j.status === "failed").length,
+      running: allJobs.filter((j: { status: string }) => j.status === "running").length,
+      queued: allJobs.filter((j: { status: string }) => j.status === "queued").length,
+      done: allJobs.filter((j: { status: string }) => j.status === "done").length,
+      failed: allJobs.filter((j: { status: string }) => j.status === "failed").length,
     };
 
     await appendEntry(
