@@ -301,7 +301,7 @@ async function main() {
   bus.on("note:updated", (notes) =>
     broadcast({ type: "note:update", notes }),
   );
-  bus.on("note:create", async (msg: any) => {
+  bus.on("note:create", async (msg: { content: string }) => {
     await createNote(msg.content, "agent");
   });
   bus.on("job:updated", (job) =>

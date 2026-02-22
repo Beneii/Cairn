@@ -354,16 +354,16 @@ export type ServerMessage =
   | { type: "policy:update"; nodes: Record<string, NodeConfig>; edges: Record<string, string[]> }
   | { type: "goal:update"; goals: Goal[] }
   | { type: "task:update"; tasks: Task[] }
-  | { type: "archive:logs"; logs: any[] }
-  | { type: "archive:system_docs"; docs: any[] }
+  | { type: "archive:logs"; logs: string[] }
+  | { type: "archive:system_docs"; docs: { title: string; content: string }[] }
   | { type: "job:details"; job: Job }
   | { type: "dashboard:authenticated"; success: boolean; capabilities?: string[] }
   | { type: "mobile:authenticated"; success: boolean; capabilities?: string[] }
   | { type: "system:update_progress"; stage: "pulling" | "building" | "restarting" | "error"; message: string }
   | { type: "builder:status"; status: "idle" | "running" | "failed" | "completed" }
   | { type: "builder:progress"; message: string }
-  | { type: "builder:report"; report: any }
-  | { type: "skillRequests:list:result"; requests: any[] }
+  | { type: "builder:report"; report: import("@cairn/builder").BuildReport }
+  | { type: "skillRequests:list:result"; requests: { id: string; status: string }[] }
   | { type: "skillMetrics:list:result"; metrics: SkillMetrics[] }
   | { type: "skillMetrics:get:result"; metric: SkillMetrics | null };
 

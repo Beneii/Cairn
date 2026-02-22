@@ -19,14 +19,14 @@ export interface CairnEvents {
   "chat:message": (message: ChatMessage) => void;
   "note:updated": (notes: Note[]) => void;
   "kanban:updated": (cards: KanbanCard[]) => void;
-  "goals:updated": (goals: any[]) => void;
-  "tasks:updated": (tasks: any[]) => void;
+  "goals:updated": (goals: import("./types.js").Goal[]) => void;
+  "tasks:updated": (tasks: import("./types.js").Task[]) => void;
   "cold:promoted": (info: { documentId: string; title: string; chunkCount: number; tokenCount: number }) => void;
   "note:create": (data: { content: string }) => void;
-  "builder:issue": (issue: any) => void;
+  "builder:issue": (issue: import("@cairn/builder").BuilderIssue) => void;
   "builder:status": (status: "idle" | "running" | "failed" | "completed") => void;
   "builder:progress": (message: string) => void;
-  "builder:report": (report: any) => void;
+  "builder:report": (report: import("@cairn/builder").BuildReport) => void;
   "builder:log": (data: { specId: string; msg: string }) => void;
   "system:update_progress": (data: { stage: "error" | "pulling" | "building" | "restarting"; message: string }) => void; // also needed by gateway
 }
