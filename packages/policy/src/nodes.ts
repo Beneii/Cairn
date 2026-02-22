@@ -136,6 +136,17 @@ export const NODES: Record<string, NodeConfig> = {
     assigned_model: "none",
     local_model: "none",
   },
+  specialist: {
+    name: "specialist",
+    allowed_callers: ["orchestrator"],
+    allowed_tools: [],
+    memory_access: [],
+    memory_write: [],
+    max_runtime_seconds: 10,
+    max_tokens_per_call: 500,
+    assigned_model: "gpt-4o-mini",
+    local_model: "phi3.5:latest",
+  },
 };
 
 /** Allowed transitions: from -> to[] */
@@ -152,8 +163,8 @@ export const GRAPH_EDGES: Record<string, string[]> = {
   logger: [],
 
   // V2 pipeline
-  classifier: ["responder", "skill_executor", "planner", "logger"],
+  classifier: ["responder", "skill_executor", "planner", "logger", "specialist"],
   responder: ["logger"],
   skill_executor: ["logger"],
+  specialist: ["skill_executor", "logger"],
 };
-
