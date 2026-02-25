@@ -95,6 +95,13 @@ class ProviderRouter:
             
             if provider_id == self.state["active_provider"]:
                 self._switch_provider()
+        elif error_type == "CLI_ERROR":
+            cooldown_time = datetime.now() + timedelta(hours=1)
+            self.state["providers"][provider_id]["cooldown_until"] = cooldown_time.isoformat()
+            self.state["providers"][provider_id]["status"] = "COOLDOWN"
+            self._log(f"{provider_id} entered cooldown until {cooldown_time}")
+            if provider_id == self.state["active_provider"]:
+                self._switch_provider()
         
         self._save_state()
 
@@ -116,7 +123,9 @@ class ProviderRouter:
                 return pid
         
         self._log("CRITICAL: No ready providers available in any tier!")
-        return None
+        fallback = min(all_providers.keys(), key=lambda x: all_providers[x].get("cooldown_until") or "9999")
+        self._log(f"Waiting on {fallback} (soonest cooldown expiry); returning to avoid None crash.")
+        return fallback
 
     def get_status_report(self):
         return self.state
