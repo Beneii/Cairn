@@ -1,14 +1,16 @@
+from pathlib import Path
+CAIRN_ROOT = Path(__file__).resolve().parents[1]
 import os
 import sys
-sys.path.append('/Users/ben/Desktop/Cairn/scripts')
+sys.path.append(str(CAIRN_ROOT / "scripts"))
 from provider_router import ProviderRouter
 
 def run_tier_simulation():
     print("Starting Tiered Failover Simulation...")
     
     # 1. Reset state
-    if os.path.exists("/Users/ben/Desktop/Cairn/config/provider_state.json"):
-        os.remove("/Users/ben/Desktop/Cairn/config/provider_state.json")
+    if os.path.exists(str(CAIRN_ROOT / "config" / "provider_state.json")):
+        os.remove(str(CAIRN_ROOT / "config" / "provider_state.json"))
     
     router = ProviderRouter()
     active = router.get_active_provider()

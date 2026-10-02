@@ -1,27 +1,88 @@
 # Cairn
 
-> **Start Here:** [01 - Core Identity](documents/01_CORE_IDENTITY.md)
+Single-user, local-first personal AI orchestration system. Explicit service boundaries, registered capabilities only, and fail-loud behaviour over silent fallbacks.
 
-Cairn is a single-user, operator-owned personal AI system. It is a local-first orchestration system with explicit service boundaries, designed to prefer explicit failure over silent behavior.
+Companion supervisor: **[Menhir](https://github.com/Beneii/Menhir)** (private) watches Cairn processes/logs and can propose repairs. Menhir is not required to run the core gateway demo.
 
-## Documentation
+## What runs today
 
-The project's documentation is located in the `documents/` directory and serves as the source of truth for all architectural and capability claims.
+From the monorepo apps, packages, and `documents/` identity docs (implemented vs roadmap is split on purpose):
 
-- **[01 — Core Identity](documents/01_CORE_IDENTITY.md)**: What Cairn is (and is not).
-- **[02 — Architecture](documents/02_ARCHITECTURE.md)**: Implemented runtime reality.
-- **[03 — Capability Registry](documents/03_CAPABILITY_REGISTRY.md)**: Contract between planning, execution, and reality.
-- **[04 — Policies and Gates](documents/04_POLICIES_AND_GATES.md)**: Security and capability gates.
-- **[05 — Roadmap](documents/05_ROADMAP.md)**: Intent vs. implemented reality.
-- **[06 — Local Branch Builder Spec](documents/06_LOCAL_BRANCH_BUILDER_SPEC.md)**: Specification for the developer worker capability.
-- **[07 — Home Lab Portability](documents/07_HOME_LAB_PORTABILITY.md)**: Portable deployment model and constraints for home-lab environments.
-- **[08 — Lean Architecture](documents/08_LEAN_ARCHITECTURE.md)**: Architecture simplification goals and implementation guidance.
-- **[09 — Tool Migration Matrix](documents/09_TOOL_MIGRATION_MATRIX.md)**: Legacy-to-manifest tool migration status and runtime gates.
-- **[10 — Skills and Shell Integration](documents/10_SKILLS_AND_SHELL_INTEGRATION.md)**: Skill manifests, scripts, and planner/executor shell integration contracts.
-- **[11 — Architecture Audit: Self-Growth](documents/11_ARCHITECTURE_AUDIT_SELF_GROWTH.md)**: Audit findings and recommendations for safe self-growth capabilities.
+- **Gateway** (`apps/gateway`): TypeScript Node service; production entry `apps/gateway/dist/index.js` after `pnpm build`
+- **Dashboard** (`apps/dashboard`): Vite UI for operator control, local/remote mode, WebSocket to gateway
+- **Mobile companion** (`apps/mobile`): React Native / Expo client with pairing hooks
+- **Orchestration packages:** planner/executor paths, skill registry, policy gates, ledger/observability streams
+- **Integrations (optional, env-gated):** Google Calendar/Gmail OAuth helpers, Telegram bot tokens, vision attachments via LLM
+- **Local LLM option:** Ollama support toggled from dashboard (`LOCAL_MODE_ENABLED` style flags; see `.env.example`)
+- **Setup path:** `./setup.sh` on Debian/Ubuntu (Node 20+, pnpm, optional Ollama), then `pnpm build` / `pnpm start`
 
-## Project Structure
+Deep architecture and capability contracts live under `documents/` (start at `documents/01_CORE_IDENTITY.md`). Prefer those files over assumptions in this README.
 
-- `apps/`: Application entry points (Gateway, Dashboard).
-- `packages/`: Shared libraries and core logic (Orchestrator, Executor, Memory, Ledger).
-- `documents/`: Project documentation and specifications.
+## Stack
+
+- Monorepo: pnpm + Turborepo
+- Gateway / packages: TypeScript, Node >= 20
+- Dashboard: Vite + React
+- Mobile: React Native (Expo-style layout under `apps/mobile`)
+- Optional Python helper scripts under `scripts/` (provider checks, failover simulations)
+- SQLite / local data dirs for runtime state (gitignored `data/`)
+
+## Quick start
+
+```bash
+git clone https://github.com/Beneii/Cairn.git
+cd Cairn
+cp .env.example .env
+# set OPENAI_API_KEY (or enable local/Ollama mode per docs)
+pnpm install
+pnpm build
+pnpm start
+# gateway default: http://localhost:3100
+```
+
+Dev (all packages in parallel):
+
+```bash
+pnpm dev
+```
+
+Debian/Ubuntu bootstrap:
+
+```bash
+./setup.sh
+```
+
+## Screenshots
+
+Add operator UI captures under `docs/screenshots/` when available.
+
+```
+docs/screenshots/dashboard.png
+docs/screenshots/gateway-health.png
+```
+
+*(Placeholders until screenshots are added.)*
+
+## What Cairn is not
+
+- Not multi-tenant SaaS
+- Not an unbounded autonomous agent
+- Not a claim that every roadmap item in `documents/05_ROADMAP.md` is shipped
+
+## Security / secrets
+
+- Copy `.env.example` to `.env`. Never commit real keys.
+- Runtime browser profiles, cookies, and local data dirs are gitignored (`debug_profile/`, `data/`).
+- If you forked an older private history, scrub browser profile blobs before publishing (see ops scrub notes).
+
+## Menhir companion
+
+Menhir is a separate Python supervisor (pytest-covered watchdog, circuit breaker, repair providers). Keep it private until its own scrub (local absolute paths in `config.toml`, auth under `~/.menhir/`). Link it here once public.
+
+## Suggested topics
+
+`typescript`, `agents`, `turborepo`, `local-first`, `fastapi-adjacent`, `orchestration`, `react`
+
+## License
+
+Personal portfolio project.

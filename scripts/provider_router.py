@@ -1,10 +1,12 @@
+from pathlib import Path
+CAIRN_ROOT = Path(__file__).resolve().parents[1]
 import json
 import os
 import time
 from datetime import datetime, timedelta
 
-STATE_FILE = "/Users/ben/Desktop/Cairn/config/provider_state.json"
-LOG_FILE = "/Users/ben/Desktop/Cairn/logs/provider.log"
+STATE_FILE = str(CAIRN_ROOT / "config" / "provider_state.json")
+LOG_FILE = str(CAIRN_ROOT / "logs" / "provider.log")
 COOLDOWN_HOURS = 24
 
 class ProviderRouter:
@@ -51,7 +53,7 @@ class ProviderRouter:
 
     def _log_usage(self, provider_id, tokens, success=True):
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        usage_log = "/Users/ben/Desktop/Cairn/logs/provider_usage.log"
+        usage_log = str(CAIRN_ROOT / "logs" / "provider_usage.log")
         
         display_tokens = tokens if tokens is not None else "UNKNOWN"
         

@@ -1,3 +1,5 @@
+from pathlib import Path
+CAIRN_ROOT = Path(__file__).resolve().parents[1]
 import os
 import subprocess
 import json
@@ -46,7 +48,7 @@ def check_antigravity():
 
 if __name__ == "__main__":
     # Load .env manually for OpenAI
-    with open("/Users/ben/Desktop/Cairn/.env", "r") as f:
+    with open(str(CAIRN_ROOT / ".env"), "r") as f:
         for line in f:
             if "=" in line:
                 k, v = line.strip().split("=", 1)

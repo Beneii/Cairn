@@ -34,3 +34,9 @@ build_error.txt
 
 # ---- misc ----
 .DS_Store
+
+# ---- scrub / local junk ----
+apps/gateway/debug-executor.log
+build_error.txt
+**/__pycache__/
+*.pyc

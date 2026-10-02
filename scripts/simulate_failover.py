@@ -1,3 +1,5 @@
+from pathlib import Path
+CAIRN_ROOT = Path(__file__).resolve().parents[1]
 import json
 import os
 from provider_router import ProviderRouter
@@ -36,7 +38,7 @@ def run_simulation():
 
 if __name__ == "__main__":
     # Reset state for clean simulation
-    if os.path.exists("/Users/ben/Desktop/Cairn/config/provider_state.json"):
-        os.remove("/Users/ben/Desktop/Cairn/config/provider_state.json")
+    if os.path.exists(str(CAIRN_ROOT / "config" / "provider_state.json")):
+        os.remove(str(CAIRN_ROOT / "config" / "provider_state.json"))
     
     run_simulation()
